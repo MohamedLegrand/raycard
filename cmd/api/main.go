@@ -1,0 +1,82 @@
+package main
+
+import (
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog"
+
+	"raycard/internal/application"
+	"raycard/internal/infrastructure/config"
+	"raycard/internal/infrastructure/database/postgres"
+	apihttp "raycard/internal/transport/http"
+	"raycard/internal/transport/http/handlers"
+	"raycard/internal/transport/http/middleware"
+)
+
+func main() {
+	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("chargement configuration")
+	}
+
+	connCtx, cancelConn := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelConn()
+
+	pool, err := postgres.NewPool(connCtx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("connexion base de données")
+	}
+	defer pool.Close()
+
+	// Adapters de persistance
+	utilisateurRepo := postgres.NewUtilisateurRepository(pool)
+	walletRepo := postgres.NewWalletRepository(pool)
+	reglesKycRepo := postgres.NewReglesKycRepository(pool)
+	txManager := postgres.NewTxManager(pool)
+
+	// Use cases (application)
+	kycUseCase := application.NewKycService(utilisateurRepo, walletRepo, reglesKycRepo, txManager)
+
+	// Transport HTTP
+	validate := validator.New()
+	kycHandler := handlers.NewKycHandler(kycUseCase, validate)
+
+	app := fiber.New(fiber.Config{
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			code := fiber.StatusInternalServerError
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+			return c.Status(code).JSON(fiber.Map{"erreur": err.Error()})
+		},
+	})
+	app.Use(middleware.Logger(logger))
+
+	apihttp.SetupRoutes(app, apihttp.Handlers{Kyc: kycHandler})
+
+	go func() {
+		if err := app.Listen(":" + cfg.Port); err != nil {
+			logger.Fatal().Err(err).Msg("démarrage serveur")
+		}
+	}()
+	logger.Info().Str("port", cfg.Port).Msg("serveur démarré")
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info().Msg("arrêt du serveur en cours")
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelShutdown()
+	if err := app.ShutdownWithContext(shutdownCtx); err != nil {
+		logger.Error().Err(err).Msg("erreur pendant l'arrêt")
+	}
+}
