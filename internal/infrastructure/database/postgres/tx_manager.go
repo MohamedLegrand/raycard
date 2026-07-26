@@ -39,7 +39,9 @@ func (m *TxManager) WithinTransaction(ctx context.Context, fn func(ctx context.C
 	if err != nil {
 		return fmt.Errorf("ouverture transaction: %w", err)
 	}
-	defer tx.Rollback(ctx) // no-op si déjà commit
+	// Rollback devient un no-op après un Commit réussi ; son erreur (ex:
+	// pgx.ErrTxClosed) est donc intentionnellement ignorée ici.
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := fn(context.WithValue(ctx, ctxKeyTx{}, tx)); err != nil {
 		return err
