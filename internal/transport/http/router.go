@@ -13,7 +13,8 @@ import (
 // Handlers regroupe tous les handlers HTTP câblés par main.go. Un
 // champ est ajouté ici à chaque nouveau module (wallet, cartes...).
 type Handlers struct {
-	Kyc *handlers.KycHandler
+	Kyc  *handlers.KycHandler
+	Auth *handlers.AuthHandler
 }
 
 func SetupRoutes(app *fiber.App, h Handlers) {
@@ -25,4 +26,9 @@ func SetupRoutes(app *fiber.App, h Handlers) {
 
 	kyc := api.Group("/kyc")
 	kyc.Post("/inscription", h.Kyc.Inscrire)
+
+	auth := api.Group("/auth")
+	auth.Post("/connexion", h.Auth.Connexion)
+	auth.Post("/rafraichir", h.Auth.Rafraichir)
+	auth.Post("/deconnexion", h.Auth.Deconnexion)
 }

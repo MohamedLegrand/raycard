@@ -20,4 +20,8 @@ var (
 	ErrWalletGele        = errors.New("wallet gelé")
 	ErrMontantInvalide   = errors.New("montant invalide")
 	ErrPlafondDepasse    = errors.New("plafond du wallet dépassé")
+
+	// Authentification
+	ErrIdentifiantsInvalides = errors.New("email ou mot de passe invalide")
+	ErrTokenInvalide         = errors.New("token invalide, expiré ou révoqué")
 )

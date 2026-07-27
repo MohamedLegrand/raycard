@@ -11,6 +11,153 @@
     "host": "localhost:3000",
     "basePath": "/api/v1",
     "paths": {
+        "/auth/connexion": {
+            "post": {
+                "description": "Authentifie un utilisateur et émet un access token (15 min) et un refresh token (30 jours)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Connexion",
+                "parameters": [
+                    {
+                        "description": "Identifiants",
+                        "name": "connexion",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ConnexionRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SessionResponseDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "identifiants invalides",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/deconnexion": {
+            "post": {
+                "description": "Révoque le refresh token fourni (déconnexion idempotente : ne renvoie pas d'erreur si déjà invalide)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Déconnexion",
+                "parameters": [
+                    {
+                        "description": "Refresh token à révoquer",
+                        "name": "deconnexion",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RafraichirRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/rafraichir": {
+            "post": {
+                "description": "Échange un refresh token valide contre une nouvelle paire access/refresh token (rotation)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Rafraîchissement de session",
+                "parameters": [
+                    {
+                        "description": "Refresh token",
+                        "name": "rafraichir",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RafraichirRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.SessionResponseDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "refresh token invalide, expiré ou révoqué",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/kyc/inscription": {
             "post": {
                 "description": "Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé selon les règles du pays)",
@@ -71,6 +218,23 @@
         }
     },
     "definitions": {
+        "dto.ConnexionRequestDTO": {
+            "type": "object",
+            "required": [
+                "email",
+                "mot_de_passe"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "awa.kone@example.com"
+                },
+                "mot_de_passe": {
+                    "type": "string",
+                    "example": "motdepasse123"
+                }
+            }
+        },
         "dto.ErreurDTO": {
             "type": "object",
             "properties": {
@@ -130,6 +294,34 @@
                 },
                 "wallet": {
                     "$ref": "#/definitions/dto.WalletDTO"
+                }
+            }
+        },
+        "dto.RafraichirRequestDTO": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SessionResponseDTO": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "access_token_expire_at": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "refresh_token_expire_at": {
+                    "type": "string"
                 }
             }
         },

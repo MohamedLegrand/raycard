@@ -35,6 +35,14 @@ type ReglesKycRepository interface {
 	FindByPaysEtTier(ctx context.Context, paysCode string, tier domain.KycTier) (*domain.RegleKyc, error)
 }
 
+// RefreshTokenRepository persiste les refresh tokens (hashés). Une
+// absence de résultat doit être signalée par domain.ErrTokenInvalide.
+type RefreshTokenRepository interface {
+	Create(ctx context.Context, rt *domain.RefreshToken) error
+	FindByHash(ctx context.Context, tokenHash string) (*domain.RefreshToken, error)
+	Revoke(ctx context.Context, id string) error
+}
+
 // TxManager exécute fn dans une transaction ACID unique. L'implémentation
 // place la transaction dans le context.Context transmis à fn ; les
 // repositories doivent la récupérer pour que toutes leurs opérations

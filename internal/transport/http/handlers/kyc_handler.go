@@ -60,6 +60,8 @@ func mapErreurDomaine(err error) error {
 		return fiber.NewError(fiber.StatusConflict, err.Error())
 	case errors.Is(err, domain.ErrPaysNonSupporte), errors.Is(err, domain.ErrDonneesInvalides), errors.Is(err, domain.ErrTransitionKycInvalide):
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+	case errors.Is(err, domain.ErrIdentifiantsInvalides), errors.Is(err, domain.ErrTokenInvalide):
+		return fiber.NewError(fiber.StatusUnauthorized, err.Error())
 	default:
 		return fiber.NewError(fiber.StatusInternalServerError, "erreur interne")
 	}

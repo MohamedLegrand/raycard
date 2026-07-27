@@ -1,5 +1,17 @@
 basePath: /api/v1
 definitions:
+  dto.ConnexionRequestDTO:
+    properties:
+      email:
+        example: awa.kone@example.com
+        type: string
+      mot_de_passe:
+        example: motdepasse123
+        type: string
+    required:
+    - email
+    - mot_de_passe
+    type: object
   dto.ErreurDTO:
     properties:
       erreur:
@@ -45,6 +57,24 @@ definitions:
         $ref: '#/definitions/dto.UtilisateurDTO'
       wallet:
         $ref: '#/definitions/dto.WalletDTO'
+    type: object
+  dto.RafraichirRequestDTO:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  dto.SessionResponseDTO:
+    properties:
+      access_token:
+        type: string
+      access_token_expire_at:
+        type: string
+      refresh_token:
+        type: string
+      refresh_token_expire_at:
+        type: string
     type: object
   dto.UtilisateurDTO:
     properties:
@@ -97,6 +127,105 @@ info:
   title: RAYCARD API
   version: "1.0"
 paths:
+  /auth/connexion:
+    post:
+      consumes:
+      - application/json
+      description: Authentifie un utilisateur et émet un access token (15 min) et
+        un refresh token (30 jours)
+      parameters:
+      - description: Identifiants
+        in: body
+        name: connexion
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ConnexionRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SessionResponseDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "401":
+          description: identifiants invalides
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      summary: Connexion
+      tags:
+      - auth
+  /auth/deconnexion:
+    post:
+      consumes:
+      - application/json
+      description: 'Révoque le refresh token fourni (déconnexion idempotente : ne
+        renvoie pas d''erreur si déjà invalide)'
+      parameters:
+      - description: Refresh token à révoquer
+        in: body
+        name: deconnexion
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RafraichirRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      summary: Déconnexion
+      tags:
+      - auth
+  /auth/rafraichir:
+    post:
+      consumes:
+      - application/json
+      description: Échange un refresh token valide contre une nouvelle paire access/refresh
+        token (rotation)
+      parameters:
+      - description: Refresh token
+        in: body
+        name: rafraichir
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RafraichirRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SessionResponseDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "401":
+          description: refresh token invalide, expiré ou révoqué
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      summary: Rafraîchissement de session
+      tags:
+      - auth
   /kyc/inscription:
     post:
       consumes:

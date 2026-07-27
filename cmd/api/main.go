@@ -13,6 +13,7 @@ import (
 
 	_ "raycard/docs" // docs générés par `swag init`, nécessaires pour servir la spec Swagger
 	"raycard/internal/application"
+	"raycard/internal/infrastructure/auth/jwt"
 	"raycard/internal/infrastructure/config"
 	"raycard/internal/infrastructure/database/postgres"
 	apihttp "raycard/internal/transport/http"
@@ -50,14 +51,20 @@ func main() {
 	utilisateurRepo := postgres.NewUtilisateurRepository(pool)
 	walletRepo := postgres.NewWalletRepository(pool)
 	reglesKycRepo := postgres.NewReglesKycRepository(pool)
+	refreshTokenRepo := postgres.NewRefreshTokenRepository(pool)
 	txManager := postgres.NewTxManager(pool)
+
+	// Adapters de sécurité
+	tokenGenerator := jwt.NewTokenGenerator(cfg.JWTSecret)
 
 	// Use cases (application)
 	kycUseCase := application.NewKycService(utilisateurRepo, walletRepo, reglesKycRepo, txManager)
+	authUseCase := application.NewAuthService(utilisateurRepo, refreshTokenRepo, tokenGenerator)
 
 	// Transport HTTP
 	validate := validator.New()
 	kycHandler := handlers.NewKycHandler(kycUseCase, validate)
+	authHandler := handlers.NewAuthHandler(authUseCase, validate)
 
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -70,7 +77,7 @@ func main() {
 	})
 	app.Use(middleware.Logger(logger))
 
-	apihttp.SetupRoutes(app, apihttp.Handlers{Kyc: kycHandler})
+	apihttp.SetupRoutes(app, apihttp.Handlers{Kyc: kycHandler, Auth: authHandler})
 
 	go func() {
 		if err := app.Listen(":" + cfg.Port); err != nil {
