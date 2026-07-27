@@ -21,6 +21,19 @@ func NewKycHandler(kycUseCase input.KycUseCase, validate *validator.Validate) *K
 }
 
 // Inscrire gère POST /api/v1/kyc/inscription.
+//
+//	@Summary		Inscription d'un nouvel utilisateur
+//	@Description	Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé selon les règles du pays)
+//	@Tags			kyc
+//	@Accept			json
+//	@Produce		json
+//	@Param			inscription	body		dto.InscriptionRequestDTO	true	"Données d'inscription"
+//	@Success		201			{object}	dto.InscriptionResponseDTO
+//	@Failure		400			{object}	dto.ErreurDTO	"corps de requête invalide ou données de validation incorrectes"
+//	@Failure		409			{object}	dto.ErreurDTO	"email ou téléphone déjà utilisé"
+//	@Failure		422			{object}	dto.ErreurDTO	"pays non supporté ou données métier invalides"
+//	@Failure		500			{object}	dto.ErreurDTO	"erreur interne"
+//	@Router			/kyc/inscription [post]
 func (h *KycHandler) Inscrire(c *fiber.Ctx) error {
 	var req dto.InscriptionRequestDTO
 	if err := c.BodyParser(&req); err != nil {

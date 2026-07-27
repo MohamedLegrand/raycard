@@ -6,12 +6,12 @@ package dto
 import "raycard/internal/core/ports/input"
 
 type InscriptionRequestDTO struct {
-	Nom        string `json:"nom" validate:"required,min=2,max=100"`
-	Prenom     string `json:"prenom" validate:"required,min=2,max=100"`
-	Email      string `json:"email" validate:"required,email"`
-	Telephone  string `json:"telephone" validate:"required,e164"`
-	PaysCode   string `json:"pays_code" validate:"required,len=2"`
-	MotDePasse string `json:"mot_de_passe" validate:"required,min=8"`
+	Nom        string `json:"nom" validate:"required,min=2,max=100" example:"Koné"`
+	Prenom     string `json:"prenom" validate:"required,min=2,max=100" example:"Awa"`
+	Email      string `json:"email" validate:"required,email" example:"awa.kone@example.com"`
+	Telephone  string `json:"telephone" validate:"required,e164" example:"+2250700000000"`
+	PaysCode   string `json:"pays_code" validate:"required,len=2" example:"CI"`
+	MotDePasse string `json:"mot_de_passe" validate:"required,min=8" example:"motdepasse123"`
 }
 
 func (d InscriptionRequestDTO) ToUseCaseRequest() input.InscriptionRequest {
@@ -26,21 +26,21 @@ func (d InscriptionRequestDTO) ToUseCaseRequest() input.InscriptionRequest {
 }
 
 type UtilisateurDTO struct {
-	ID        string `json:"id"`
-	Nom       string `json:"nom"`
-	Prenom    string `json:"prenom"`
-	Email     string `json:"email"`
-	Telephone string `json:"telephone"`
-	PaysCode  string `json:"pays_code"`
-	KycTier   int    `json:"kyc_tier"`
-	KycStatut string `json:"kyc_statut"`
+	ID        string `json:"id" example:"3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d"`
+	Nom       string `json:"nom" example:"Koné"`
+	Prenom    string `json:"prenom" example:"Awa"`
+	Email     string `json:"email" example:"awa.kone@example.com"`
+	Telephone string `json:"telephone" example:"+2250700000000"`
+	PaysCode  string `json:"pays_code" example:"CI"`
+	KycTier   int    `json:"kyc_tier" example:"1"`
+	KycStatut string `json:"kyc_statut" example:"verifie"`
 }
 
 type WalletDTO struct {
-	ID            string `json:"id"`
-	Devise        string `json:"devise"`
-	SoldeCentimes int64  `json:"solde_centimes"`
-	Statut        string `json:"statut"`
+	ID            string `json:"id" example:"7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"`
+	Devise        string `json:"devise" example:"XOF"`
+	SoldeCentimes int64  `json:"solde_centimes" example:"0"`
+	Statut        string `json:"statut" example:"actif"`
 }
 
 type InscriptionResponseDTO struct {

@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog"
 
+	_ "raycard/docs" // docs générés par `swag init`, nécessaires pour servir la spec Swagger
 	"raycard/internal/application"
 	"raycard/internal/infrastructure/config"
 	"raycard/internal/infrastructure/database/postgres"
@@ -19,6 +20,15 @@ import (
 	"raycard/internal/transport/http/middleware"
 )
 
+// @title						RAYCARD API
+// @version					1.0
+// @description				API backend de la plateforme RAYCARD (wallet Mobile Money + cartes Visa virtuelles).
+// @contact.name				RAYCARD — HR-Skills SARL
+// @host						localhost:3000
+// @BasePath					/api/v1
+// @securityDefinitions.apikey	BearerAuth
+// @in							header
+// @name						Authorization
 func main() {
 	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 

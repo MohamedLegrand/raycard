@@ -1,0 +1,202 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "API backend de la plateforme RAYCARD (wallet Mobile Money + cartes Visa virtuelles).",
+        "title": "RAYCARD API",
+        "contact": {
+            "name": "RAYCARD — HR-Skills SARL"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:3000",
+    "basePath": "/api/v1",
+    "paths": {
+        "/kyc/inscription": {
+            "post": {
+                "description": "Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé selon les règles du pays)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kyc"
+                ],
+                "summary": "Inscription d'un nouvel utilisateur",
+                "parameters": [
+                    {
+                        "description": "Données d'inscription",
+                        "name": "inscription",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.InscriptionRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.InscriptionResponseDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide ou données de validation incorrectes",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "email ou téléphone déjà utilisé",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "pays non supporté ou données métier invalides",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "dto.ErreurDTO": {
+            "type": "object",
+            "properties": {
+                "erreur": {
+                    "type": "string",
+                    "example": "un compte existe déjà avec cet email"
+                }
+            }
+        },
+        "dto.InscriptionRequestDTO": {
+            "type": "object",
+            "required": [
+                "email",
+                "mot_de_passe",
+                "nom",
+                "pays_code",
+                "prenom",
+                "telephone"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "awa.kone@example.com"
+                },
+                "mot_de_passe": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "motdepasse123"
+                },
+                "nom": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Koné"
+                },
+                "pays_code": {
+                    "type": "string",
+                    "example": "CI"
+                },
+                "prenom": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Awa"
+                },
+                "telephone": {
+                    "type": "string",
+                    "example": "+2250700000000"
+                }
+            }
+        },
+        "dto.InscriptionResponseDTO": {
+            "type": "object",
+            "properties": {
+                "utilisateur": {
+                    "$ref": "#/definitions/dto.UtilisateurDTO"
+                },
+                "wallet": {
+                    "$ref": "#/definitions/dto.WalletDTO"
+                }
+            }
+        },
+        "dto.UtilisateurDTO": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "awa.kone@example.com"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d"
+                },
+                "kyc_statut": {
+                    "type": "string",
+                    "example": "verifie"
+                },
+                "kyc_tier": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "nom": {
+                    "type": "string",
+                    "example": "Koné"
+                },
+                "pays_code": {
+                    "type": "string",
+                    "example": "CI"
+                },
+                "prenom": {
+                    "type": "string",
+                    "example": "Awa"
+                },
+                "telephone": {
+                    "type": "string",
+                    "example": "+2250700000000"
+                }
+            }
+        },
+        "dto.WalletDTO": {
+            "type": "object",
+            "properties": {
+                "devise": {
+                    "type": "string",
+                    "example": "XOF"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"
+                },
+                "solde_centimes": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "statut": {
+                    "type": "string",
+                    "example": "actif"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

@@ -5,6 +5,7 @@ package http
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/swagger"
 
 	"raycard/internal/transport/http/handlers"
 )
@@ -16,6 +17,10 @@ type Handlers struct {
 }
 
 func SetupRoutes(app *fiber.App, h Handlers) {
+	// Doc générée par `swag init` (voir Makefile / docs/), servie hors du
+	// groupe /api/v1 puisque ce n'est pas un endpoint métier.
+	app.Get("/swagger/*", swagger.HandlerDefault)
+
 	api := app.Group("/api/v1")
 
 	kyc := api.Group("/kyc")

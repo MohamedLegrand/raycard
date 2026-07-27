@@ -1,0 +1,144 @@
+basePath: /api/v1
+definitions:
+  dto.ErreurDTO:
+    properties:
+      erreur:
+        example: un compte existe déjà avec cet email
+        type: string
+    type: object
+  dto.InscriptionRequestDTO:
+    properties:
+      email:
+        example: awa.kone@example.com
+        type: string
+      mot_de_passe:
+        example: motdepasse123
+        minLength: 8
+        type: string
+      nom:
+        example: Koné
+        maxLength: 100
+        minLength: 2
+        type: string
+      pays_code:
+        example: CI
+        type: string
+      prenom:
+        example: Awa
+        maxLength: 100
+        minLength: 2
+        type: string
+      telephone:
+        example: "+2250700000000"
+        type: string
+    required:
+    - email
+    - mot_de_passe
+    - nom
+    - pays_code
+    - prenom
+    - telephone
+    type: object
+  dto.InscriptionResponseDTO:
+    properties:
+      utilisateur:
+        $ref: '#/definitions/dto.UtilisateurDTO'
+      wallet:
+        $ref: '#/definitions/dto.WalletDTO'
+    type: object
+  dto.UtilisateurDTO:
+    properties:
+      email:
+        example: awa.kone@example.com
+        type: string
+      id:
+        example: 3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d
+        type: string
+      kyc_statut:
+        example: verifie
+        type: string
+      kyc_tier:
+        example: 1
+        type: integer
+      nom:
+        example: Koné
+        type: string
+      pays_code:
+        example: CI
+        type: string
+      prenom:
+        example: Awa
+        type: string
+      telephone:
+        example: "+2250700000000"
+        type: string
+    type: object
+  dto.WalletDTO:
+    properties:
+      devise:
+        example: XOF
+        type: string
+      id:
+        example: 7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e
+        type: string
+      solde_centimes:
+        example: 0
+        type: integer
+      statut:
+        example: actif
+        type: string
+    type: object
+host: localhost:3000
+info:
+  contact:
+    name: RAYCARD — HR-Skills SARL
+  description: API backend de la plateforme RAYCARD (wallet Mobile Money + cartes
+    Visa virtuelles).
+  title: RAYCARD API
+  version: "1.0"
+paths:
+  /kyc/inscription:
+    post:
+      consumes:
+      - application/json
+      description: Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé
+        selon les règles du pays)
+      parameters:
+      - description: Données d'inscription
+        in: body
+        name: inscription
+        required: true
+        schema:
+          $ref: '#/definitions/dto.InscriptionRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.InscriptionResponseDTO'
+        "400":
+          description: corps de requête invalide ou données de validation incorrectes
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "409":
+          description: email ou téléphone déjà utilisé
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "422":
+          description: pays non supporté ou données métier invalides
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      summary: Inscription d'un nouvel utilisateur
+      tags:
+      - kyc
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
