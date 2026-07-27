@@ -43,6 +43,21 @@ type RefreshTokenRepository interface {
 	Revoke(ctx context.Context, id string) error
 }
 
+// DossierKycRepository persiste les demandes de passage de palier KYC.
+type DossierKycRepository interface {
+	Create(ctx context.Context, d *domain.DossierKyc) error
+	FindByID(ctx context.Context, id string) (*domain.DossierKyc, error)
+	FindEnAttenteByUtilisateurID(ctx context.Context, utilisateurID string) (*domain.DossierKyc, error)
+	ListEnAttente(ctx context.Context) ([]*domain.DossierKyc, error)
+	Update(ctx context.Context, d *domain.DossierKyc) error
+}
+
+// AuditLogRepository persiste la trace des actions administrateur
+// sensibles, séparément des logs applicatifs.
+type AuditLogRepository interface {
+	Create(ctx context.Context, entry *domain.AuditLog) error
+}
+
 // TxManager exécute fn dans une transaction ACID unique. L'implémentation
 // place la transaction dans le context.Context transmis à fn ; les
 // repositories doivent la récupérer pour que toutes leurs opérations

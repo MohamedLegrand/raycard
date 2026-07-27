@@ -20,6 +20,7 @@ type kycService struct {
 	utilisateurs output.UtilisateurRepository
 	wallets      output.WalletRepository
 	reglesKyc    output.ReglesKycRepository
+	dossiersKyc  output.DossierKycRepository
 	txManager    output.TxManager
 }
 
@@ -28,12 +29,14 @@ func NewKycService(
 	utilisateurs output.UtilisateurRepository,
 	wallets output.WalletRepository,
 	reglesKyc output.ReglesKycRepository,
+	dossiersKyc output.DossierKycRepository,
 	txManager output.TxManager,
 ) input.KycUseCase {
 	return &kycService{
 		utilisateurs: utilisateurs,
 		wallets:      wallets,
 		reglesKyc:    reglesKyc,
+		dossiersKyc:  dossiersKyc,
 		txManager:    txManager,
 	}
 }
@@ -93,4 +96,31 @@ func (s *kycService) Inscrire(ctx context.Context, req input.InscriptionRequest)
 	}
 
 	return &input.InscriptionResultat{Utilisateur: utilisateur, Wallet: wallet}, nil
+}
+
+func (s *kycService) DemanderTier2(ctx context.Context, utilisateurID string) (*domain.DossierKyc, error) {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return nil, err
+	}
+	if utilisateur.KycTier != domain.KycTier1 {
+		return nil, domain.ErrTransitionKycInvalide
+	}
+
+	if _, err := s.dossiersKyc.FindEnAttenteByUtilisateurID(ctx, utilisateurID); !errors.Is(err, domain.ErrDossierKycIntrouvable) {
+		if err == nil {
+			return nil, domain.ErrDossierKycDejaEnAttente
+		}
+		return nil, fmt.Errorf("vérification dossier kyc existant: %w", err)
+	}
+
+	dossier, err := domain.NouveauDossierKyc(utilisateurID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.dossiersKyc.Create(ctx, dossier); err != nil {
+		return nil, fmt.Errorf("création dossier kyc: %w", err)
+	}
+
+	return dossier, nil
 }

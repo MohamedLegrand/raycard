@@ -18,15 +18,17 @@ func TestNouveauUtilisateur_Valide(t *testing.T) {
 	assert.Equal(t, "CI", u.PaysCode, "le code pays doit être normalisé en majuscules")
 	assert.Equal(t, domain.KycTierAucun, u.KycTier)
 	assert.Equal(t, domain.KycStatutEnAttente, u.KycStatut)
+	assert.Equal(t, domain.RoleClient, u.Role)
+	assert.False(t, u.EstAdmin())
 }
 
 func TestNouveauUtilisateur_DonneesInvalides(t *testing.T) {
 	cas := map[string]struct {
 		nom, prenom, email, telephone, paysCode, hash string
 	}{
-		"nom vide":           {"", "Awa", "awa@example.com", "+2250700000000", "CI", "hash"},
-		"email invalide":     {"Koné", "Awa", "pas-un-email", "+2250700000000", "CI", "hash"},
-		"pays code trop court": {"Koné", "Awa", "awa@example.com", "+2250700000000", "C", "hash"},
+		"nom vide":               {"", "Awa", "awa@example.com", "+2250700000000", "CI", "hash"},
+		"email invalide":         {"Koné", "Awa", "pas-un-email", "+2250700000000", "CI", "hash"},
+		"pays code trop court":   {"Koné", "Awa", "awa@example.com", "+2250700000000", "C", "hash"},
 		"mot de passe hash vide": {"Koné", "Awa", "awa@example.com", "+2250700000000", "CI", ""},
 	}
 
@@ -50,4 +52,30 @@ func TestUtilisateur_ValiderKycTier1(t *testing.T) {
 	// que depuis le statut "en_attente".
 	err = u.ValiderKycTier1()
 	assert.ErrorIs(t, err, domain.ErrTransitionKycInvalide)
+}
+
+func TestUtilisateur_PasserAuTier2(t *testing.T) {
+	u, err := domain.NouveauUtilisateur("Koné", "Awa", "awa@example.com", "+2250700000000", "CI", "hash")
+	require.NoError(t, err)
+
+	t.Run("depuis tier aucun : refusé", func(t *testing.T) {
+		assert.ErrorIs(t, u.PasserAuTier2(), domain.ErrTransitionKycInvalide)
+	})
+
+	require.NoError(t, u.ValiderKycTier1())
+	require.NoError(t, u.PasserAuTier2())
+	assert.Equal(t, domain.KycTier2, u.KycTier)
+
+	t.Run("depuis tier2 : refusé", func(t *testing.T) {
+		assert.ErrorIs(t, u.PasserAuTier2(), domain.ErrTransitionKycInvalide)
+	})
+}
+
+func TestNouvelAdministrateur(t *testing.T) {
+	admin, err := domain.NouvelAdministrateur("Zoa", "Stéphane", "admin@example.com", "+2250700000001", "CI", "hash")
+	require.NoError(t, err)
+
+	assert.Equal(t, domain.RoleAdmin, admin.Role)
+	assert.True(t, admin.EstAdmin())
+	assert.Equal(t, domain.KycStatutVerifie, admin.KycStatut)
 }

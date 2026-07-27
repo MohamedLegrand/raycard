@@ -52,7 +52,7 @@ func (s *authService) Connexion(ctx context.Context, req input.ConnexionRequest)
 		return nil, domain.ErrIdentifiantsInvalides
 	}
 
-	return s.emettreSession(ctx, utilisateur.ID)
+	return s.emettreSession(ctx, utilisateur)
 }
 
 func (s *authService) RafraichirToken(ctx context.Context, refreshToken string) (*input.SessionResultat, error) {
@@ -67,13 +67,23 @@ func (s *authService) RafraichirToken(ctx context.Context, refreshToken string) 
 		return nil, domain.ErrTokenInvalide
 	}
 
+	// Le rôle a pu changer depuis l'émission du refresh token : on relit
+	// l'utilisateur plutôt que de faire confiance à une information figée.
+	utilisateur, err := s.utilisateurs.FindByID(ctx, rt.UtilisateurID)
+	if err != nil {
+		if errors.Is(err, domain.ErrUtilisateurIntrouvable) {
+			return nil, domain.ErrTokenInvalide
+		}
+		return nil, fmt.Errorf("recherche utilisateur: %w", err)
+	}
+
 	// Rotation : ce refresh token est à usage unique, il est révoqué dès
 	// qu'il sert à émettre une nouvelle session.
 	if err := s.refreshTokens.Revoke(ctx, rt.ID); err != nil {
 		return nil, fmt.Errorf("révocation refresh token: %w", err)
 	}
 
-	return s.emettreSession(ctx, rt.UtilisateurID)
+	return s.emettreSession(ctx, utilisateur)
 }
 
 func (s *authService) Deconnexion(ctx context.Context, refreshToken string) error {
@@ -94,8 +104,11 @@ func (s *authService) Deconnexion(ctx context.Context, refreshToken string) erro
 	return nil
 }
 
-func (s *authService) emettreSession(ctx context.Context, utilisateurID string) (*input.SessionResultat, error) {
-	accessToken, accessExpireAt, err := s.tokenGenerator.GenererAccessToken(utilisateurID)
+func (s *authService) emettreSession(ctx context.Context, utilisateur *domain.Utilisateur) (*input.SessionResultat, error) {
+	accessToken, accessExpireAt, err := s.tokenGenerator.GenererAccessToken(output.Claims{
+		UtilisateurID: utilisateur.ID,
+		Role:          utilisateur.Role,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("génération access token: %w", err)
 	}
@@ -105,7 +118,7 @@ func (s *authService) emettreSession(ctx context.Context, utilisateurID string) 
 		return nil, fmt.Errorf("génération refresh token: %w", err)
 	}
 
-	rt, err := domain.NouveauRefreshToken(utilisateurID, hacherToken(refreshTokenBrut), dureeRefreshToken)
+	rt, err := domain.NouveauRefreshToken(utilisateur.ID, hacherToken(refreshTokenBrut), dureeRefreshToken)
 	if err != nil {
 		return nil, err
 	}

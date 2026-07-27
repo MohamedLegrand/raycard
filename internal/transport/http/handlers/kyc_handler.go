@@ -9,6 +9,7 @@ import (
 	"raycard/internal/core/domain"
 	"raycard/internal/core/ports/input"
 	"raycard/internal/transport/http/dto"
+	"raycard/internal/transport/http/middleware"
 )
 
 type KycHandler struct {
@@ -51,17 +52,44 @@ func (h *KycHandler) Inscrire(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(dto.FromInscriptionResultat(resultat))
 }
 
+// DemanderTier2 gère POST /api/v1/kyc/demande-tier2 (route protégée :
+// l'utilisateur authentifié demande son propre passage au Tier 2).
+//
+//	@Summary		Demande de passage au Tier 2
+//	@Description	Crée un dossier KYC en attente de revue par un administrateur
+//	@Tags			kyc
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		201	{object}	dto.DossierKycDTO
+//	@Failure		401	{object}	dto.ErreurDTO	"non authentifié"
+//	@Failure		409	{object}	dto.ErreurDTO	"une demande est déjà en attente"
+//	@Failure		422	{object}	dto.ErreurDTO	"l'utilisateur n'est pas au Tier 1"
+//	@Failure		500	{object}	dto.ErreurDTO	"erreur interne"
+//	@Router			/kyc/demande-tier2 [post]
+func (h *KycHandler) DemanderTier2(c *fiber.Ctx) error {
+	utilisateurID, _ := c.Locals(middleware.CleContextUtilisateurID).(string)
+
+	dossier, err := h.kycUseCase.DemanderTier2(c.Context(), utilisateurID)
+	if err != nil {
+		return mapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.FromDossierKyc(dossier))
+}
+
 // mapErreurDomaine traduit une erreur métier en erreur HTTP Fiber.
 // Les erreurs non reconnues restent des 500 : on ne fuite jamais de
 // détail d'infrastructure (ex: erreur pgx brute) au client.
 func mapErreurDomaine(err error) error {
 	switch {
-	case errors.Is(err, domain.ErrEmailDejaUtilise), errors.Is(err, domain.ErrTelephoneDejaUtilise):
+	case errors.Is(err, domain.ErrEmailDejaUtilise), errors.Is(err, domain.ErrTelephoneDejaUtilise), errors.Is(err, domain.ErrDossierKycDejaEnAttente):
 		return fiber.NewError(fiber.StatusConflict, err.Error())
 	case errors.Is(err, domain.ErrPaysNonSupporte), errors.Is(err, domain.ErrDonneesInvalides), errors.Is(err, domain.ErrTransitionKycInvalide):
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, domain.ErrIdentifiantsInvalides), errors.Is(err, domain.ErrTokenInvalide):
 		return fiber.NewError(fiber.StatusUnauthorized, err.Error())
+	case errors.Is(err, domain.ErrUtilisateurIntrouvable), errors.Is(err, domain.ErrDossierKycIntrouvable):
+		return fiber.NewError(fiber.StatusNotFound, err.Error())
 	default:
 		return fiber.NewError(fiber.StatusInternalServerError, "erreur interne")
 	}

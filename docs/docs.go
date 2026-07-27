@@ -164,6 +164,240 @@ const docTemplate = `{
                 }
             }
         },
+        "/backoffice/kyc/dossiers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-kyc"
+                ],
+                "summary": "Liste des dossiers KYC en attente",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/dto.DossierKycDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/kyc/dossiers/{id}/approuver": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Fait passer l'utilisateur au Tier 2 et écrit une entrée d'audit",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-kyc"
+                ],
+                "summary": "Approuve un dossier KYC",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID du dossier",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "dossier introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "dossier déjà traité",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/kyc/dossiers/{id}/rejeter": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "L'utilisateur reste au Tier 1 ; le motif lui est communiqué, il pourra resoumettre",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-kyc"
+                ],
+                "summary": "Rejette un dossier KYC",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID du dossier",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Motif du rejet",
+                        "name": "rejet",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.RejeterDossierRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "dossier introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "dossier déjà traité",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/kyc/demande-tier2": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crée un dossier KYC en attente de revue par un administrateur",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kyc"
+                ],
+                "summary": "Demande de passage au Tier 2",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/dto.DossierKycDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "une demande est déjà en attente",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "l'utilisateur n'est pas au Tier 1",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/kyc/inscription": {
             "post": {
                 "description": "Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé selon les règles du pays)",
@@ -241,6 +475,35 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.DossierKycDTO": {
+            "type": "object",
+            "properties": {
+                "admin_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "motif_rejet": {
+                    "type": "string"
+                },
+                "statut": {
+                    "type": "string"
+                },
+                "tier_demande": {
+                    "type": "integer"
+                },
+                "traite_at": {
+                    "type": "string"
+                },
+                "utilisateur_id": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.ErreurDTO": {
             "type": "object",
             "properties": {
@@ -311,6 +574,19 @@ const docTemplate = `{
             "properties": {
                 "refresh_token": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.RejeterDossierRequestDTO": {
+            "type": "object",
+            "required": [
+                "motif"
+            ],
+            "properties": {
+                "motif": {
+                    "type": "string",
+                    "minLength": 3,
+                    "example": "pièce d'identité illisible"
                 }
             }
         },

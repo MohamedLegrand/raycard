@@ -32,4 +32,8 @@ type InscriptionResultat struct {
 // d'un utilisateur.
 type KycUseCase interface {
 	Inscrire(ctx context.Context, req InscriptionRequest) (*InscriptionResultat, error)
+
+	// DemanderTier2 crée une demande de passage au Tier 2 pour
+	// l'utilisateur authentifié donné. Toujours revue manuellement.
+	DemanderTier2(ctx context.Context, utilisateurID string) (*domain.DossierKyc, error)
 }

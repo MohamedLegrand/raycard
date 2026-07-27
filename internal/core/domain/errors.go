@@ -24,4 +24,8 @@ var (
 	// Authentification
 	ErrIdentifiantsInvalides = errors.New("email ou mot de passe invalide")
 	ErrTokenInvalide         = errors.New("token invalide, expiré ou révoqué")
+
+	// Dossier KYC (passage de palier)
+	ErrDossierKycIntrouvable   = errors.New("dossier kyc introuvable")
+	ErrDossierKycDejaEnAttente = errors.New("une demande de passage de palier est déjà en attente")
 )

@@ -52,19 +52,23 @@ func main() {
 	walletRepo := postgres.NewWalletRepository(pool)
 	reglesKycRepo := postgres.NewReglesKycRepository(pool)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(pool)
+	dossierKycRepo := postgres.NewDossierKycRepository(pool)
+	auditLogRepo := postgres.NewAuditLogRepository(pool)
 	txManager := postgres.NewTxManager(pool)
 
 	// Adapters de sécurité
 	tokenGenerator := jwt.NewTokenGenerator(cfg.JWTSecret)
 
 	// Use cases (application)
-	kycUseCase := application.NewKycService(utilisateurRepo, walletRepo, reglesKycRepo, txManager)
+	kycUseCase := application.NewKycService(utilisateurRepo, walletRepo, reglesKycRepo, dossierKycRepo, txManager)
 	authUseCase := application.NewAuthService(utilisateurRepo, refreshTokenRepo, tokenGenerator)
+	adminKycUseCase := application.NewAdminKycService(utilisateurRepo, dossierKycRepo, auditLogRepo, txManager)
 
 	// Transport HTTP
 	validate := validator.New()
 	kycHandler := handlers.NewKycHandler(kycUseCase, validate)
 	authHandler := handlers.NewAuthHandler(authUseCase, validate)
+	adminKycHandler := handlers.NewAdminKycHandler(adminKycUseCase, validate)
 
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -77,7 +81,7 @@ func main() {
 	})
 	app.Use(middleware.Logger(logger))
 
-	apihttp.SetupRoutes(app, apihttp.Handlers{Kyc: kycHandler, Auth: authHandler})
+	apihttp.SetupRoutes(app, apihttp.Handlers{Kyc: kycHandler, Auth: authHandler, AdminKyc: adminKycHandler}, tokenGenerator)
 
 	go func() {
 		if err := app.Listen(":" + cfg.Port); err != nil {

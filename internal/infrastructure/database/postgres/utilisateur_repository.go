@@ -22,11 +22,11 @@ func NewUtilisateurRepository(pool *pgxpool.Pool) *UtilisateurRepository {
 func (r *UtilisateurRepository) Create(ctx context.Context, u *domain.Utilisateur) error {
 	const query = `
 		INSERT INTO utilisateurs
-			(id, nom, prenom, email, telephone, pays_code, mot_de_passe_hash, kyc_tier, kyc_statut, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+			(id, nom, prenom, email, telephone, pays_code, mot_de_passe_hash, role, kyc_tier, kyc_statut, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
 
 	_, err := dbFromContext(ctx, r.pool).Exec(ctx, query,
-		u.ID, u.Nom, u.Prenom, u.Email, u.Telephone, u.PaysCode, u.MotDePasseHash,
+		u.ID, u.Nom, u.Prenom, u.Email, u.Telephone, u.PaysCode, u.MotDePasseHash, u.Role,
 		u.KycTier, u.KycStatut, u.CreatedAt, u.UpdatedAt,
 	)
 	if err != nil {
@@ -52,12 +52,12 @@ func (r *UtilisateurRepository) FindByTelephone(ctx context.Context, telephone s
 // risque d'injection SQL malgré la construction de la requête.
 func (r *UtilisateurRepository) findOneBy(ctx context.Context, colonne string, valeur any) (*domain.Utilisateur, error) {
 	query := fmt.Sprintf(`
-		SELECT id, nom, prenom, email, telephone, pays_code, mot_de_passe_hash, kyc_tier, kyc_statut, created_at, updated_at
+		SELECT id, nom, prenom, email, telephone, pays_code, mot_de_passe_hash, role, kyc_tier, kyc_statut, created_at, updated_at
 		FROM utilisateurs WHERE %s = $1`, colonne)
 
 	var u domain.Utilisateur
 	err := dbFromContext(ctx, r.pool).QueryRow(ctx, query, valeur).Scan(
-		&u.ID, &u.Nom, &u.Prenom, &u.Email, &u.Telephone, &u.PaysCode, &u.MotDePasseHash,
+		&u.ID, &u.Nom, &u.Prenom, &u.Email, &u.Telephone, &u.PaysCode, &u.MotDePasseHash, &u.Role,
 		&u.KycTier, &u.KycStatut, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {

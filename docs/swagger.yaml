@@ -12,6 +12,25 @@ definitions:
     - email
     - mot_de_passe
     type: object
+  dto.DossierKycDTO:
+    properties:
+      admin_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      motif_rejet:
+        type: string
+      statut:
+        type: string
+      tier_demande:
+        type: integer
+      traite_at:
+        type: string
+      utilisateur_id:
+        type: string
+    type: object
   dto.ErreurDTO:
     properties:
       erreur:
@@ -64,6 +83,15 @@ definitions:
         type: string
     required:
     - refresh_token
+    type: object
+  dto.RejeterDossierRequestDTO:
+    properties:
+      motif:
+        example: pièce d'identité illisible
+        minLength: 3
+        type: string
+    required:
+    - motif
     type: object
   dto.SessionResponseDTO:
     properties:
@@ -226,6 +254,156 @@ paths:
       summary: Rafraîchissement de session
       tags:
       - auth
+  /backoffice/kyc/dossiers:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.DossierKycDTO'
+            type: array
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Liste des dossiers KYC en attente
+      tags:
+      - backoffice-kyc
+  /backoffice/kyc/dossiers/{id}/approuver:
+    post:
+      description: Fait passer l'utilisateur au Tier 2 et écrit une entrée d'audit
+      parameters:
+      - description: ID du dossier
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "404":
+          description: dossier introuvable
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "422":
+          description: dossier déjà traité
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Approuve un dossier KYC
+      tags:
+      - backoffice-kyc
+  /backoffice/kyc/dossiers/{id}/rejeter:
+    post:
+      consumes:
+      - application/json
+      description: L'utilisateur reste au Tier 1 ; le motif lui est communiqué, il
+        pourra resoumettre
+      parameters:
+      - description: ID du dossier
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Motif du rejet
+        in: body
+        name: rejet
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RejeterDossierRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "404":
+          description: dossier introuvable
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "422":
+          description: dossier déjà traité
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Rejette un dossier KYC
+      tags:
+      - backoffice-kyc
+  /kyc/demande-tier2:
+    post:
+      description: Crée un dossier KYC en attente de revue par un administrateur
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.DossierKycDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "409":
+          description: une demande est déjà en attente
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "422":
+          description: l'utilisateur n'est pas au Tier 1
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Demande de passage au Tier 2
+      tags:
+      - kyc
   /kyc/inscription:
     post:
       consumes:

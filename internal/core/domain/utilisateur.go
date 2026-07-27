@@ -27,23 +27,40 @@ const (
 	KycStatutRejete    KycStatut = "rejete"
 )
 
+// RoleUtilisateur distingue un client d'un administrateur RAYCARD. Les
+// deux partagent la même entité et le même mécanisme de connexion :
+// seul ce champ change leurs permissions (voir middleware.RequireAdmin).
+type RoleUtilisateur string
+
+const (
+	RoleClient RoleUtilisateur = "utilisateur"
+	RoleAdmin  RoleUtilisateur = "admin"
+)
+
 var emailRegex = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 
 // Utilisateur est l'entité centrale du domaine : un client RAYCARD,
 // avec son statut KYC et son pays de rattachement (le multi-pays est
 // une exigence dès la V1).
 type Utilisateur struct {
-	ID              string
-	Nom             string
-	Prenom          string
-	Email           string
-	Telephone       string
-	PaysCode        string // ISO 3166-1 alpha-2, ex: "CI", "SN"
-	MotDePasseHash  string
-	KycTier         KycTier
-	KycStatut       KycStatut
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID             string
+	Nom            string
+	Prenom         string
+	Email          string
+	Telephone      string
+	PaysCode       string // ISO 3166-1 alpha-2, ex: "CI", "SN"
+	MotDePasseHash string
+	Role           RoleUtilisateur
+	KycTier        KycTier
+	KycStatut      KycStatut
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// EstAdmin indique si l'utilisateur a les permissions d'administration
+// (accès au back-office).
+func (u *Utilisateur) EstAdmin() bool {
+	return u.Role == RoleAdmin
 }
 
 // NouveauUtilisateur construit un utilisateur valide, prêt à être
@@ -83,6 +100,7 @@ func NouveauUtilisateur(nom, prenom, email, telephone, paysCode, motDePasseHash 
 		Telephone:      telephone,
 		PaysCode:       paysCode,
 		MotDePasseHash: motDePasseHash,
+		Role:           RoleClient,
 		KycTier:        KycTierAucun,
 		KycStatut:      KycStatutEnAttente,
 		CreatedAt:      maintenant,
@@ -101,4 +119,32 @@ func (u *Utilisateur) ValiderKycTier1() error {
 	u.KycStatut = KycStatutVerifie
 	u.UpdatedAt = time.Now().UTC()
 	return nil
+}
+
+// PasserAuTier2 fait passer l'utilisateur au palier 2, à l'issue de
+// l'approbation d'un DossierKyc par un administrateur. Contrairement au
+// Tier 1, ce palier n'est jamais auto-validé : il exige une revue
+// humaine (voir DossierKyc).
+func (u *Utilisateur) PasserAuTier2() error {
+	if u.KycTier != KycTier1 {
+		return ErrTransitionKycInvalide
+	}
+	u.KycTier = KycTier2
+	u.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// NouvelAdministrateur construit un compte administrateur RAYCARD. Il
+// partage l'entité Utilisateur (même mécanisme de connexion), mais le
+// concept de palier KYC ne s'applique pas à lui : il est créé
+// directement vérifié, sans wallet associé (voir cmd/creer-admin).
+func NouvelAdministrateur(nom, prenom, email, telephone, paysCode, motDePasseHash string) (*Utilisateur, error) {
+	admin, err := NouveauUtilisateur(nom, prenom, email, telephone, paysCode, motDePasseHash)
+	if err != nil {
+		return nil, err
+	}
+	admin.Role = RoleAdmin
+	admin.KycTier = KycTier2
+	admin.KycStatut = KycStatutVerifie
+	return admin, nil
 }

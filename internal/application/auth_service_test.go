@@ -13,22 +13,23 @@ import (
 	"raycard/internal/application"
 	"raycard/internal/core/domain"
 	"raycard/internal/core/ports/input"
+	"raycard/internal/core/ports/output"
 )
 
 // --- faux TokenGenerator et RefreshTokenRepository, sans dépendance JWT/DB ---
 
 type tokenGeneratorFake struct{}
 
-func (tokenGeneratorFake) GenererAccessToken(utilisateurID string) (string, time.Time, error) {
-	return "access-" + utilisateurID, time.Now().Add(15 * time.Minute), nil
+func (tokenGeneratorFake) GenererAccessToken(claims output.Claims) (string, time.Time, error) {
+	return "access-" + claims.UtilisateurID, time.Now().Add(15 * time.Minute), nil
 }
 
-func (tokenGeneratorFake) ValiderAccessToken(token string) (string, error) {
+func (tokenGeneratorFake) ValiderAccessToken(token string) (output.Claims, error) {
 	utilisateurID, trouve := strings.CutPrefix(token, "access-")
 	if !trouve {
-		return "", domain.ErrTokenInvalide
+		return output.Claims{}, domain.ErrTokenInvalide
 	}
-	return utilisateurID, nil
+	return output.Claims{UtilisateurID: utilisateurID}, nil
 }
 
 type refreshTokenRepoFake struct {
