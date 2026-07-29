@@ -12,6 +12,13 @@ definitions:
     - email
     - mot_de_passe
     type: object
+  dto.ConnexionResponseDTO:
+    properties:
+      expire_dans_sec:
+        type: integer
+      ticket:
+        type: string
+    type: object
   dto.DemanderReinitialisationRequestDTO:
     properties:
       email:
@@ -152,6 +159,17 @@ definitions:
         example: "+2250700000000"
         type: string
     type: object
+  dto.VerifierCode2FARequestDTO:
+    properties:
+      code:
+        example: "042951"
+        type: string
+      ticket:
+        type: string
+    required:
+    - code
+    - ticket
+    type: object
   dto.WalletDTO:
     properties:
       devise:
@@ -180,8 +198,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Authentifie un utilisateur et émet un access token (15 min) et
-        un refresh token (30 jours)
+      description: 'Vérifie email + mot de passe et déclenche la 2FA obligatoire :
+        envoie un code par email et renvoie un ticket à présenter avec ce code sur
+        /auth/connexion/verifier-code. Aucun token de session n''est émis ici.'
       parameters:
       - description: Identifiants
         in: body
@@ -195,7 +214,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.SessionResponseDTO'
+            $ref: '#/definitions/dto.ConnexionResponseDTO'
         "400":
           description: corps de requête invalide
           schema:
@@ -208,7 +227,43 @@ paths:
           description: erreur interne
           schema:
             $ref: '#/definitions/dto.ErreurDTO'
-      summary: Connexion
+      summary: Connexion (étape 1/2)
+      tags:
+      - auth
+  /auth/connexion/verifier-code:
+    post:
+      consumes:
+      - application/json
+      description: Échange le ticket obtenu à l'étape 1 et le code reçu par email
+        contre une session complète (access + refresh token). 5 tentatives maximum
+        ; au-delà, le ticket est définitivement invalidé.
+      parameters:
+      - description: Ticket et code reçu par email
+        in: body
+        name: verification
+        required: true
+        schema:
+          $ref: '#/definitions/dto.VerifierCode2FARequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.SessionResponseDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "401":
+          description: ticket ou code invalide, expiré, ou tentatives épuisées
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      summary: Connexion (étape 2/2) — vérification du code
       tags:
       - auth
   /auth/deconnexion:

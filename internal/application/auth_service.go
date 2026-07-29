@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -21,12 +22,17 @@ const (
 	dureeRefreshToken          = 30 * 24 * time.Hour
 	dureeTokenReinitialisation = 15 * time.Minute
 	sujetEmailReinitialisation = "Réinitialisation de votre mot de passe RAYCARD"
+
+	dureeTicketConnexion       = 10 * time.Minute
+	tentativesMaxCodeConnexion = 5
+	sujetEmailConnexion        = "Votre code de connexion RAYCARD"
 )
 
 type authService struct {
 	utilisateurs           output.UtilisateurRepository
 	refreshTokens          output.RefreshTokenRepository
 	tokensReinitialisation output.TokenReinitialisationRepository
+	ticketsConnexion       output.TicketConnexionRepository
 	tokenGenerator         output.TokenGenerator
 	notifieur              output.Notifieur
 	txManager              output.TxManager
@@ -37,6 +43,7 @@ func NewAuthService(
 	utilisateurs output.UtilisateurRepository,
 	refreshTokens output.RefreshTokenRepository,
 	tokensReinitialisation output.TokenReinitialisationRepository,
+	ticketsConnexion output.TicketConnexionRepository,
 	tokenGenerator output.TokenGenerator,
 	notifieur output.Notifieur,
 	txManager output.TxManager,
@@ -45,13 +52,18 @@ func NewAuthService(
 		utilisateurs:           utilisateurs,
 		refreshTokens:          refreshTokens,
 		tokensReinitialisation: tokensReinitialisation,
+		ticketsConnexion:       ticketsConnexion,
 		tokenGenerator:         tokenGenerator,
 		notifieur:              notifieur,
 		txManager:              txManager,
 	}
 }
 
-func (s *authService) Connexion(ctx context.Context, req input.ConnexionRequest) (*input.SessionResultat, error) {
+// Connexion vérifie le mot de passe puis déclenche systématiquement le
+// second facteur : aucune session n'est émise ici, quel que soit le
+// rôle de l'utilisateur (2FA obligatoire pour tout le monde, sans
+// exception).
+func (s *authService) Connexion(ctx context.Context, req input.ConnexionRequest) (*input.ConnexionResultat, error) {
 	utilisateur, err := s.utilisateurs.FindByEmail(ctx, req.Email)
 	if errors.Is(err, domain.ErrUtilisateurIntrouvable) {
 		return nil, domain.ErrIdentifiantsInvalides
@@ -62,6 +74,77 @@ func (s *authService) Connexion(ctx context.Context, req input.ConnexionRequest)
 
 	if err := bcrypt.CompareHashAndPassword([]byte(utilisateur.MotDePasseHash), []byte(req.MotDePasse)); err != nil {
 		return nil, domain.ErrIdentifiantsInvalides
+	}
+
+	ticketBrut, err := genererSecretAleatoire()
+	if err != nil {
+		return nil, fmt.Errorf("génération ticket connexion: %w", err)
+	}
+	code, err := genererCodeOTP()
+	if err != nil {
+		return nil, fmt.Errorf("génération code: %w", err)
+	}
+
+	ticket, err := domain.NouveauTicketConnexion(
+		utilisateur.ID, hacherToken(ticketBrut), hacherToken(code), tentativesMaxCodeConnexion, dureeTicketConnexion,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ticketsConnexion.Create(ctx, ticket); err != nil {
+		return nil, fmt.Errorf("persistance ticket connexion: %w", err)
+	}
+
+	corps := fmt.Sprintf(
+		"<p>Voici votre code de connexion RAYCARD : <strong>%s</strong></p>"+
+			"<p>Ce code expire dans 10 minutes. Si vous n'êtes pas à l'origine de cette connexion, changez votre mot de passe immédiatement.</p>",
+		code,
+	)
+	if err := s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailConnexion, corps); err != nil {
+		return nil, fmt.Errorf("envoi email connexion: %w", err)
+	}
+
+	return &input.ConnexionResultat{
+		Ticket:        ticketBrut,
+		ExpireDansSec: int(dureeTicketConnexion.Seconds()),
+	}, nil
+}
+
+// VerifierCode2FA échange un ticket de connexion valide et son code
+// contre une session complète. Un code incorrect consomme une
+// tentative ; à zéro, le ticket est définitivement mort (il faut
+// recommencer depuis Connexion).
+func (s *authService) VerifierCode2FA(ctx context.Context, ticketBrut, code string) (*input.SessionResultat, error) {
+	ticket, err := s.ticketsConnexion.FindByHash(ctx, hacherToken(ticketBrut))
+	if err != nil {
+		if errors.Is(err, domain.ErrTokenInvalide) {
+			return nil, domain.ErrTokenInvalide
+		}
+		return nil, fmt.Errorf("recherche ticket connexion: %w", err)
+	}
+	if !ticket.EstValide() {
+		return nil, domain.ErrTokenInvalide
+	}
+
+	// Comparaison en temps constant : le code n'a que 10^6 combinaisons
+	// possibles, une comparaison naïve (==) laisserait fuir un signal de
+	// timing exploitable sur un secret aussi court.
+	if subtle.ConstantTimeCompare([]byte(hacherToken(code)), []byte(ticket.CodeHash)) != 1 {
+		ticket.EnregistrerEchec()
+		if err := s.ticketsConnexion.Update(ctx, ticket); err != nil {
+			return nil, fmt.Errorf("mise à jour ticket connexion: %w", err)
+		}
+		return nil, domain.ErrTokenInvalide
+	}
+
+	utilisateur, err := s.utilisateurs.FindByID(ctx, ticket.UtilisateurID)
+	if err != nil {
+		return nil, fmt.Errorf("recherche utilisateur: %w", err)
+	}
+
+	ticket.Consommer()
+	if err := s.ticketsConnexion.Update(ctx, ticket); err != nil {
+		return nil, fmt.Errorf("consommation ticket connexion: %w", err)
 	}
 
 	return s.emettreSession(ctx, utilisateur)

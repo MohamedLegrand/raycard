@@ -21,10 +21,28 @@ type SessionResultat struct {
 	RefreshTokenExpireAt time.Time
 }
 
+// ConnexionResultat est émis après vérification du mot de passe, mais
+// avant l'obtention de la session : la 2FA étant obligatoire, aucun
+// access/refresh token n'est encore délivré à ce stade. Ticket doit être
+// présenté avec le code reçu par email pour obtenir une SessionResultat
+// (voir AuthUseCase.VerifierCode2FA).
+type ConnexionResultat struct {
+	Ticket        string
+	ExpireDansSec int
+}
+
 // AuthUseCase orchestre l'authentification et le cycle de vie de la
 // session (access + refresh token, rotation, révocation).
 type AuthUseCase interface {
-	Connexion(ctx context.Context, req ConnexionRequest) (*SessionResultat, error)
+	// Connexion vérifie les identifiants et déclenche le second facteur
+	// (envoi d'un code par email) : elle ne renvoie jamais directement de
+	// session, la 2FA est obligatoire pour tout le monde.
+	Connexion(ctx context.Context, req ConnexionRequest) (*ConnexionResultat, error)
+
+	// VerifierCode2FA échange un ticket de connexion valide et son code
+	// contre une session complète (access + refresh token).
+	VerifierCode2FA(ctx context.Context, ticket, code string) (*SessionResultat, error)
+
 	RafraichirToken(ctx context.Context, refreshToken string) (*SessionResultat, error)
 	Deconnexion(ctx context.Context, refreshToken string) error
 

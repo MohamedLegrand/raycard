@@ -54,6 +54,7 @@ func main() {
 	reglesKycRepo := postgres.NewReglesKycRepository(pool)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(pool)
 	tokenReinitialisationRepo := postgres.NewTokenReinitialisationRepository(pool)
+	ticketConnexionRepo := postgres.NewTicketConnexionRepository(pool)
 	dossierKycRepo := postgres.NewDossierKycRepository(pool)
 	auditLogRepo := postgres.NewAuditLogRepository(pool)
 	txManager := postgres.NewTxManager(pool)
@@ -64,7 +65,7 @@ func main() {
 
 	// Use cases (application)
 	kycUseCase := application.NewKycService(utilisateurRepo, walletRepo, reglesKycRepo, dossierKycRepo, txManager)
-	authUseCase := application.NewAuthService(utilisateurRepo, refreshTokenRepo, tokenReinitialisationRepo, tokenGenerator, notifieur, txManager)
+	authUseCase := application.NewAuthService(utilisateurRepo, refreshTokenRepo, tokenReinitialisationRepo, ticketConnexionRepo, tokenGenerator, notifieur, txManager)
 	adminKycUseCase := application.NewAdminKycService(utilisateurRepo, dossierKycRepo, auditLogRepo, txManager)
 
 	// Transport HTTP

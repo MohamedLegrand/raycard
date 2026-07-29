@@ -17,7 +17,7 @@ import (
 	"raycard/internal/core/ports/output"
 )
 
-// --- faux TokenGenerator, RefreshTokenRepository, TokenReinitialisationRepository et Notifieur, sans dépendance JWT/DB/email ---
+// --- faux TokenGenerator, RefreshTokenRepository, TokenReinitialisationRepository, TicketConnexionRepository et Notifieur, sans dépendance JWT/DB/email ---
 
 type tokenGeneratorFake struct{}
 
@@ -120,6 +120,44 @@ func (r *tokenReinitialisationRepoFake) MarquerUtilise(_ context.Context, id str
 	return nil
 }
 
+type ticketConnexionRepoFake struct {
+	parHash map[string]*domain.TicketConnexion
+	parID   map[string]*domain.TicketConnexion
+}
+
+func nouveauTicketConnexionRepoFake() *ticketConnexionRepoFake {
+	return &ticketConnexionRepoFake{
+		parHash: make(map[string]*domain.TicketConnexion),
+		parID:   make(map[string]*domain.TicketConnexion),
+	}
+}
+
+func (r *ticketConnexionRepoFake) Create(_ context.Context, t *domain.TicketConnexion) error {
+	r.parHash[t.TicketHash] = t
+	r.parID[t.ID] = t
+	return nil
+}
+
+func (r *ticketConnexionRepoFake) FindByHash(_ context.Context, ticketHash string) (*domain.TicketConnexion, error) {
+	t, ok := r.parHash[ticketHash]
+	if !ok {
+		return nil, domain.ErrTokenInvalide
+	}
+	// Copie défensive : une vraie lecture DB renvoie toujours un objet
+	// indépendant, jamais une référence mutable vers le stockage interne.
+	copie := *t
+	return &copie, nil
+}
+
+func (r *ticketConnexionRepoFake) Update(_ context.Context, t *domain.TicketConnexion) error {
+	if _, ok := r.parID[t.ID]; !ok {
+		return domain.ErrTokenInvalide
+	}
+	r.parID[t.ID] = t
+	r.parHash[t.TicketHash] = t
+	return nil
+}
+
 type emailEnvoye struct {
 	destinataire, sujet, corps string
 }
@@ -133,13 +171,16 @@ func (n *notifieurFake) EnvoyerEmail(_ context.Context, destinataire, sujet, cor
 	return nil
 }
 
-func setupAuthService() (input.AuthUseCase, *utilisateurRepoFake, *refreshTokenRepoFake, *tokenReinitialisationRepoFake, *notifieurFake) {
+func setupAuthService() (input.AuthUseCase, *utilisateurRepoFake, *refreshTokenRepoFake, *tokenReinitialisationRepoFake, *ticketConnexionRepoFake, *notifieurFake) {
 	utilisateurs := nouveauUtilisateurRepoFake()
 	refreshTokens := nouveauRefreshTokenRepoFake()
 	tokensReinitialisation := nouveauTokenReinitialisationRepoFake()
+	ticketsConnexion := nouveauTicketConnexionRepoFake()
 	notifieur := &notifieurFake{}
-	service := application.NewAuthService(utilisateurs, refreshTokens, tokensReinitialisation, tokenGeneratorFake{}, notifieur, txManagerFake{})
-	return service, utilisateurs, refreshTokens, tokensReinitialisation, notifieur
+	service := application.NewAuthService(
+		utilisateurs, refreshTokens, tokensReinitialisation, ticketsConnexion, tokenGeneratorFake{}, notifieur, txManagerFake{},
+	)
+	return service, utilisateurs, refreshTokens, tokensReinitialisation, ticketsConnexion, notifieur
 }
 
 func creerUtilisateurTest(t *testing.T, repo *utilisateurRepoFake, email, motDePasse string) *domain.Utilisateur {
@@ -160,30 +201,54 @@ func extraireCodeOTP(t *testing.T, corps string) string {
 	return code
 }
 
+// connecterAvec2FA exécute les deux étapes de connexion (mot de passe
+// puis code reçu par email) et renvoie la session obtenue. Sert de
+// point d'entrée pour les tests d'autres flux (rafraîchissement,
+// déconnexion...) qui ont juste besoin d'une session valide.
+func connecterAvec2FA(t *testing.T, service input.AuthUseCase, notifieur *notifieurFake, email, motDePasse string) *input.SessionResultat {
+	t.Helper()
+
+	resultatConnexion, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: email, MotDePasse: motDePasse})
+	require.NoError(t, err)
+	require.NotEmpty(t, resultatConnexion.Ticket)
+
+	require.NotEmpty(t, notifieur.emailsEnvoyes)
+	dernierEmail := notifieur.emailsEnvoyes[len(notifieur.emailsEnvoyes)-1]
+	code := extraireCodeOTP(t, dernierEmail.corps)
+
+	session, err := service.VerifierCode2FA(context.Background(), resultatConnexion.Ticket, code)
+	require.NoError(t, err)
+	return session
+}
+
 func TestAuthService_Connexion_Succes(t *testing.T) {
-	service, utilisateurs, refreshTokens, _, _ := setupAuthService()
-	u := creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+	service, utilisateurs, _, _, ticketsConnexion, notifieur := setupAuthService()
+	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
 
 	resultat, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
 	require.NoError(t, err)
 
-	assert.Equal(t, "access-"+u.ID, resultat.AccessToken)
-	assert.NotEmpty(t, resultat.RefreshToken)
+	// Aucun token de session à cette étape : juste un ticket, la 2FA
+	// n'est pas encore validée.
+	assert.NotEmpty(t, resultat.Ticket)
+	assert.Equal(t, 600, resultat.ExpireDansSec)
 
-	// Le refresh token a bien été persisté (sous forme hachée).
-	assert.Len(t, refreshTokens.parHash, 1)
+	require.Len(t, notifieur.emailsEnvoyes, 1)
+	assert.Equal(t, "awa@example.com", notifieur.emailsEnvoyes[0].destinataire)
+	assert.Len(t, ticketsConnexion.parHash, 1)
 }
 
 func TestAuthService_Connexion_MotDePasseIncorrect(t *testing.T) {
-	service, utilisateurs, _, _, _ := setupAuthService()
+	service, utilisateurs, _, _, _, notifieur := setupAuthService()
 	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
 
 	_, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "mauvais-mot-de-passe"})
 	assert.ErrorIs(t, err, domain.ErrIdentifiantsInvalides)
+	assert.Empty(t, notifieur.emailsEnvoyes, "aucun code ne doit être envoyé si le mot de passe est incorrect")
 }
 
 func TestAuthService_Connexion_UtilisateurInconnu(t *testing.T) {
-	service, _, _, _, _ := setupAuthService()
+	service, _, _, _, _, _ := setupAuthService()
 
 	_, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "inconnu@example.com", MotDePasse: "peu-importe"})
 	// Ne doit jamais fuiter domain.ErrUtilisateurIntrouvable : même erreur
@@ -191,12 +256,93 @@ func TestAuthService_Connexion_UtilisateurInconnu(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrIdentifiantsInvalides)
 }
 
-func TestAuthService_RafraichirToken_Succes(t *testing.T) {
-	service, utilisateurs, _, _, _ := setupAuthService()
+func TestAuthService_VerifierCode2FA_Succes(t *testing.T) {
+	service, utilisateurs, refreshTokens, _, _, notifieur := setupAuthService()
 	u := creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
 
-	session1, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
+	session := connecterAvec2FA(t, service, notifieur, "awa@example.com", "motdepasse123")
+
+	assert.Equal(t, "access-"+u.ID, session.AccessToken)
+	assert.NotEmpty(t, session.RefreshToken)
+	assert.Len(t, refreshTokens.parHash, 1)
+}
+
+func TestAuthService_VerifierCode2FA_MauvaisCode(t *testing.T) {
+	service, utilisateurs, _, _, ticketsConnexion, notifieur := setupAuthService()
+	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+
+	resultat, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
 	require.NoError(t, err)
+
+	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, "000000")
+	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
+
+	// Une tentative a été consommée, mais le ticket reste utilisable
+	// pour les tentatives restantes.
+	var ticket *domain.TicketConnexion
+	for _, tk := range ticketsConnexion.parID {
+		ticket = tk
+	}
+	require.NotNil(t, ticket)
+	assert.Equal(t, 4, ticket.TentativesRestantes)
+
+	// Le bon code, lui, fonctionne toujours.
+	dernierEmail := notifieur.emailsEnvoyes[len(notifieur.emailsEnvoyes)-1]
+	bonCode := extraireCodeOTP(t, dernierEmail.corps)
+	session, err := service.VerifierCode2FA(context.Background(), resultat.Ticket, bonCode)
+	require.NoError(t, err)
+	assert.NotEmpty(t, session.AccessToken)
+}
+
+func TestAuthService_VerifierCode2FA_TentativesEpuisees(t *testing.T) {
+	service, utilisateurs, _, _, _, notifieur := setupAuthService()
+	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+
+	resultat, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
+	require.NoError(t, err)
+
+	// 5 tentatives maximum : les 5 échecs épuisent le ticket.
+	for i := 0; i < 5; i++ {
+		_, err := service.VerifierCode2FA(context.Background(), resultat.Ticket, "000000")
+		assert.ErrorIs(t, err, domain.ErrTokenInvalide)
+	}
+
+	// Même le bon code ne fonctionne plus : il faut recommencer depuis
+	// Connexion.
+	dernierEmail := notifieur.emailsEnvoyes[len(notifieur.emailsEnvoyes)-1]
+	bonCode := extraireCodeOTP(t, dernierEmail.corps)
+	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, bonCode)
+	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
+}
+
+func TestAuthService_VerifierCode2FA_TicketInvalide(t *testing.T) {
+	service, _, _, _, _, _ := setupAuthService()
+
+	_, err := service.VerifierCode2FA(context.Background(), "ticket-qui-n-existe-pas", "123456")
+	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
+}
+
+func TestAuthService_VerifierCode2FA_UsageUnique(t *testing.T) {
+	service, utilisateurs, _, _, _, notifieur := setupAuthService()
+	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+
+	resultat, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
+	require.NoError(t, err)
+	code := extraireCodeOTP(t, notifieur.emailsEnvoyes[0].corps)
+
+	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, code)
+	require.NoError(t, err)
+
+	// Rejouer le même ticket + code échoue : usage unique.
+	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, code)
+	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
+}
+
+func TestAuthService_RafraichirToken_Succes(t *testing.T) {
+	service, utilisateurs, _, _, _, notifieur := setupAuthService()
+	u := creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+
+	session1 := connecterAvec2FA(t, service, notifieur, "awa@example.com", "motdepasse123")
 
 	session2, err := service.RafraichirToken(context.Background(), session1.RefreshToken)
 	require.NoError(t, err)
@@ -209,23 +355,22 @@ func TestAuthService_RafraichirToken_Succes(t *testing.T) {
 }
 
 func TestAuthService_RafraichirToken_Invalide(t *testing.T) {
-	service, _, _, _, _ := setupAuthService()
+	service, _, _, _, _, _ := setupAuthService()
 
 	_, err := service.RafraichirToken(context.Background(), "token-qui-n-existe-pas")
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 }
 
 func TestAuthService_Deconnexion(t *testing.T) {
-	service, utilisateurs, _, _, _ := setupAuthService()
+	service, utilisateurs, _, _, _, notifieur := setupAuthService()
 	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
 
-	session, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
-	require.NoError(t, err)
+	session := connecterAvec2FA(t, service, notifieur, "awa@example.com", "motdepasse123")
 
 	require.NoError(t, service.Deconnexion(context.Background(), session.RefreshToken))
 
 	// Le refresh token révoqué ne peut plus servir à rafraîchir la session.
-	_, err = service.RafraichirToken(context.Background(), session.RefreshToken)
+	_, err := service.RafraichirToken(context.Background(), session.RefreshToken)
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 
 	// Déconnexion idempotente : rejouer sur un token déjà révoqué ne casse pas.
@@ -233,7 +378,7 @@ func TestAuthService_Deconnexion(t *testing.T) {
 }
 
 func TestAuthService_DemanderReinitialisation_Succes(t *testing.T) {
-	service, utilisateurs, _, tokensReinitialisation, notifieur := setupAuthService()
+	service, utilisateurs, _, tokensReinitialisation, _, notifieur := setupAuthService()
 	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
 
 	require.NoError(t, service.DemanderReinitialisation(context.Background(), "awa@example.com"))
@@ -244,7 +389,7 @@ func TestAuthService_DemanderReinitialisation_Succes(t *testing.T) {
 }
 
 func TestAuthService_DemanderReinitialisation_EmailInconnu(t *testing.T) {
-	service, _, _, _, notifieur := setupAuthService()
+	service, _, _, _, _, notifieur := setupAuthService()
 
 	// Aucune erreur, et surtout aucun email envoyé : ne révèle jamais si
 	// l'email existe (évite l'énumération de comptes).
@@ -253,19 +398,18 @@ func TestAuthService_DemanderReinitialisation_EmailInconnu(t *testing.T) {
 }
 
 func TestAuthService_Reinitialiser_Succes(t *testing.T) {
-	service, utilisateurs, _, _, notifieur := setupAuthService()
+	service, utilisateurs, _, _, _, notifieur := setupAuthService()
 	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "ancienmotdepasse123")
 
-	session, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "ancienmotdepasse123"})
-	require.NoError(t, err)
+	session := connecterAvec2FA(t, service, notifieur, "awa@example.com", "ancienmotdepasse123")
 
 	require.NoError(t, service.DemanderReinitialisation(context.Background(), "awa@example.com"))
-	require.Len(t, notifieur.emailsEnvoyes, 1)
-	code := extraireCodeOTP(t, notifieur.emailsEnvoyes[0].corps)
+	dernierEmail := notifieur.emailsEnvoyes[len(notifieur.emailsEnvoyes)-1]
+	code := extraireCodeOTP(t, dernierEmail.corps)
 
 	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456"))
 
-	_, err = service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "ancienmotdepasse123"})
+	_, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "ancienmotdepasse123"})
 	assert.ErrorIs(t, err, domain.ErrIdentifiantsInvalides, "l'ancien mot de passe ne doit plus fonctionner")
 
 	_, err = service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "nouveaumotdepasse456"})
@@ -282,7 +426,7 @@ func TestAuthService_Reinitialiser_Succes(t *testing.T) {
 }
 
 func TestAuthService_Reinitialiser_TokenInvalide(t *testing.T) {
-	service, _, _, _, _ := setupAuthService()
+	service, _, _, _, _, _ := setupAuthService()
 
 	err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456")
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)

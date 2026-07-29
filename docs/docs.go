@@ -19,7 +19,7 @@ const docTemplate = `{
     "paths": {
         "/auth/connexion": {
             "post": {
-                "description": "Authentifie un utilisateur et émet un access token (15 min) et un refresh token (30 jours)",
+                "description": "Vérifie email + mot de passe et déclenche la 2FA obligatoire : envoie un code par email et renvoie un ticket à présenter avec ce code sur /auth/connexion/verifier-code. Aucun token de session n'est émis ici.",
                 "consumes": [
                     "application/json"
                 ],
@@ -29,7 +29,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "Connexion",
+                "summary": "Connexion (étape 1/2)",
                 "parameters": [
                     {
                         "description": "Identifiants",
@@ -38,6 +38,58 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/dto.ConnexionRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ConnexionResponseDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "identifiants invalides",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/connexion/verifier-code": {
+            "post": {
+                "description": "Échange le ticket obtenu à l'étape 1 et le code reçu par email contre une session complète (access + refresh token). 5 tentatives maximum ; au-delà, le ticket est définitivement invalidé.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Connexion (étape 2/2) — vérification du code",
+                "parameters": [
+                    {
+                        "description": "Ticket et code reçu par email",
+                        "name": "verification",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.VerifierCode2FARequestDTO"
                         }
                     }
                 ],
@@ -55,7 +107,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "identifiants invalides",
+                        "description": "ticket ou code invalide, expiré, ou tentatives épuisées",
                         "schema": {
                             "$ref": "#/definitions/dto.ErreurDTO"
                         }
@@ -567,6 +619,17 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ConnexionResponseDTO": {
+            "type": "object",
+            "properties": {
+                "expire_dans_sec": {
+                    "type": "integer"
+                },
+                "ticket": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.DemanderReinitialisationRequestDTO": {
             "type": "object",
             "required": [
@@ -763,6 +826,22 @@ const docTemplate = `{
                 "telephone": {
                     "type": "string",
                     "example": "+2250700000000"
+                }
+            }
+        },
+        "dto.VerifierCode2FARequestDTO": {
+            "type": "object",
+            "required": [
+                "code",
+                "ticket"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "042951"
+                },
+                "ticket": {
+                    "type": "string"
                 }
             }
         },

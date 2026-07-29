@@ -58,6 +58,15 @@ type TokenReinitialisationRepository interface {
 	MarquerUtilise(ctx context.Context, id string) error
 }
 
+// TicketConnexionRepository persiste les connexions en attente de
+// second facteur (2FA). Une absence de résultat doit être signalée par
+// domain.ErrTokenInvalide.
+type TicketConnexionRepository interface {
+	Create(ctx context.Context, t *domain.TicketConnexion) error
+	FindByHash(ctx context.Context, ticketHash string) (*domain.TicketConnexion, error)
+	Update(ctx context.Context, t *domain.TicketConnexion) error
+}
+
 // DossierKycRepository persiste les demandes de passage de palier KYC.
 type DossierKycRepository interface {
 	Create(ctx context.Context, d *domain.DossierKyc) error

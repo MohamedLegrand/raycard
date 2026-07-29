@@ -33,6 +33,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator output.TokenGenerato
 
 	auth := api.Group("/auth")
 	auth.Post("/connexion", h.Auth.Connexion)
+	auth.Post("/connexion/verifier-code", h.Auth.VerifierCode2FA)
 	auth.Post("/rafraichir", h.Auth.Rafraichir)
 	auth.Post("/deconnexion", h.Auth.Deconnexion)
 	auth.Post("/mot-de-passe-oublie", h.Auth.DemanderReinitialisation)

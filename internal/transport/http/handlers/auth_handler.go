@@ -19,13 +19,13 @@ func NewAuthHandler(authUseCase input.AuthUseCase, validate *validator.Validate)
 
 // Connexion gère POST /api/v1/auth/connexion.
 //
-//	@Summary		Connexion
-//	@Description	Authentifie un utilisateur et émet un access token (15 min) et un refresh token (30 jours)
+//	@Summary		Connexion (étape 1/2)
+//	@Description	Vérifie email + mot de passe et déclenche la 2FA obligatoire : envoie un code par email et renvoie un ticket à présenter avec ce code sur /auth/connexion/verifier-code. Aucun token de session n'est émis ici.
 //	@Tags			auth
 //	@Accept			json
 //	@Produce		json
 //	@Param			connexion	body		dto.ConnexionRequestDTO	true	"Identifiants"
-//	@Success		200			{object}	dto.SessionResponseDTO
+//	@Success		200			{object}	dto.ConnexionResponseDTO
 //	@Failure		400			{object}	dto.ErreurDTO	"corps de requête invalide"
 //	@Failure		401			{object}	dto.ErreurDTO	"identifiants invalides"
 //	@Failure		500			{object}	dto.ErreurDTO	"erreur interne"
@@ -40,6 +40,36 @@ func (h *AuthHandler) Connexion(c *fiber.Ctx) error {
 	}
 
 	resultat, err := h.authUseCase.Connexion(c.Context(), req.ToUseCaseRequest())
+	if err != nil {
+		return mapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.FromConnexionResultat(resultat))
+}
+
+// VerifierCode2FA gère POST /api/v1/auth/connexion/verifier-code.
+//
+//	@Summary		Connexion (étape 2/2) — vérification du code
+//	@Description	Échange le ticket obtenu à l'étape 1 et le code reçu par email contre une session complète (access + refresh token). 5 tentatives maximum ; au-delà, le ticket est définitivement invalidé.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			verification	body		dto.VerifierCode2FARequestDTO	true	"Ticket et code reçu par email"
+//	@Success		200				{object}	dto.SessionResponseDTO
+//	@Failure		400				{object}	dto.ErreurDTO	"corps de requête invalide"
+//	@Failure		401				{object}	dto.ErreurDTO	"ticket ou code invalide, expiré, ou tentatives épuisées"
+//	@Failure		500				{object}	dto.ErreurDTO	"erreur interne"
+//	@Router			/auth/connexion/verifier-code [post]
+func (h *AuthHandler) VerifierCode2FA(c *fiber.Ctx) error {
+	var req dto.VerifierCode2FARequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	resultat, err := h.authUseCase.VerifierCode2FA(c.Context(), req.Ticket, req.Code)
 	if err != nil {
 		return mapErreurDomaine(err)
 	}

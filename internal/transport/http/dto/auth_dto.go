@@ -15,6 +15,23 @@ func (d ConnexionRequestDTO) ToUseCaseRequest() input.ConnexionRequest {
 	return input.ConnexionRequest{Email: d.Email, MotDePasse: d.MotDePasse}
 }
 
+// ConnexionResponseDTO est la réponse de POST /auth/connexion : la 2FA
+// étant obligatoire, aucun token de session n'est encore délivré ici —
+// juste un ticket à présenter avec le code reçu par email.
+type ConnexionResponseDTO struct {
+	Ticket        string `json:"ticket"`
+	ExpireDansSec int    `json:"expire_dans_sec"`
+}
+
+func FromConnexionResultat(res *input.ConnexionResultat) ConnexionResponseDTO {
+	return ConnexionResponseDTO{Ticket: res.Ticket, ExpireDansSec: res.ExpireDansSec}
+}
+
+type VerifierCode2FARequestDTO struct {
+	Ticket string `json:"ticket" validate:"required"`
+	Code   string `json:"code" validate:"required,len=6,numeric" example:"042951"`
+}
+
 type RafraichirRequestDTO struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
