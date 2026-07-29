@@ -34,3 +34,12 @@ func FromSessionResultat(res *input.SessionResultat) SessionResponseDTO {
 		RefreshTokenExpireAt: res.RefreshTokenExpireAt,
 	}
 }
+
+type DemanderReinitialisationRequestDTO struct {
+	Email string `json:"email" validate:"required,email" example:"awa.kone@example.com"`
+}
+
+type ReinitialiserRequestDTO struct {
+	Token             string `json:"token" validate:"required,len=6,numeric" example:"042951"`
+	NouveauMotDePasse string `json:"nouveau_mot_de_passe" validate:"required,min=8" example:"nouveaumotdepasse123"`
+}

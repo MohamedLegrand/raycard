@@ -63,3 +63,12 @@ func (r *RefreshTokenRepository) Revoke(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+func (r *RefreshTokenRepository) RevokeAllForUtilisateur(ctx context.Context, utilisateurID string) error {
+	const query = `UPDATE refresh_tokens SET revoked_at = now() WHERE utilisateur_id = $1 AND revoked_at IS NULL`
+
+	if _, err := dbFromContext(ctx, r.pool).Exec(ctx, query, utilisateurID); err != nil {
+		return fmt.Errorf("révocation de toutes les sessions: %w", err)
+	}
+	return nil
+}

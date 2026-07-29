@@ -16,6 +16,7 @@ import (
 	"raycard/internal/infrastructure/auth/jwt"
 	"raycard/internal/infrastructure/config"
 	"raycard/internal/infrastructure/database/postgres"
+	"raycard/internal/infrastructure/notification/brevo"
 	apihttp "raycard/internal/transport/http"
 	"raycard/internal/transport/http/handlers"
 	"raycard/internal/transport/http/middleware"
@@ -52,16 +53,18 @@ func main() {
 	walletRepo := postgres.NewWalletRepository(pool)
 	reglesKycRepo := postgres.NewReglesKycRepository(pool)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(pool)
+	tokenReinitialisationRepo := postgres.NewTokenReinitialisationRepository(pool)
 	dossierKycRepo := postgres.NewDossierKycRepository(pool)
 	auditLogRepo := postgres.NewAuditLogRepository(pool)
 	txManager := postgres.NewTxManager(pool)
 
-	// Adapters de sécurité
+	// Adapters de sécurité et de notification
 	tokenGenerator := jwt.NewTokenGenerator(cfg.JWTSecret)
+	notifieur := brevo.NewNotifieur(cfg.BrevoAPIKey, cfg.BrevoEmailExpediteur)
 
 	// Use cases (application)
 	kycUseCase := application.NewKycService(utilisateurRepo, walletRepo, reglesKycRepo, dossierKycRepo, txManager)
-	authUseCase := application.NewAuthService(utilisateurRepo, refreshTokenRepo, tokenGenerator)
+	authUseCase := application.NewAuthService(utilisateurRepo, refreshTokenRepo, tokenReinitialisationRepo, tokenGenerator, notifieur, txManager)
 	adminKycUseCase := application.NewAdminKycService(utilisateurRepo, dossierKycRepo, auditLogRepo, txManager)
 
 	// Transport HTTP

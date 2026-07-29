@@ -12,6 +12,14 @@ definitions:
     - email
     - mot_de_passe
     type: object
+  dto.DemanderReinitialisationRequestDTO:
+    properties:
+      email:
+        example: awa.kone@example.com
+        type: string
+    required:
+    - email
+    type: object
   dto.DossierKycDTO:
     properties:
       admin_id:
@@ -83,6 +91,19 @@ definitions:
         type: string
     required:
     - refresh_token
+    type: object
+  dto.ReinitialiserRequestDTO:
+    properties:
+      nouveau_mot_de_passe:
+        example: nouveaumotdepasse123
+        minLength: 8
+        type: string
+      token:
+        example: "042951"
+        type: string
+    required:
+    - nouveau_mot_de_passe
+    - token
     type: object
   dto.RejeterDossierRequestDTO:
     properties:
@@ -219,6 +240,36 @@ paths:
       summary: Déconnexion
       tags:
       - auth
+  /auth/mot-de-passe-oublie:
+    post:
+      consumes:
+      - application/json
+      description: Envoie un code par email si un compte existe pour cet email. Répond
+        toujours le même succès générique, que le compte existe ou non (évite l'énumération
+        de comptes).
+      parameters:
+      - description: Email du compte
+        in: body
+        name: demande
+        required: true
+        schema:
+          $ref: '#/definitions/dto.DemanderReinitialisationRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      summary: Demande de réinitialisation de mot de passe
+      tags:
+      - auth
   /auth/rafraichir:
     post:
       consumes:
@@ -252,6 +303,39 @@ paths:
           schema:
             $ref: '#/definitions/dto.ErreurDTO'
       summary: Rafraîchissement de session
+      tags:
+      - auth
+  /auth/reinitialiser-mot-de-passe:
+    post:
+      consumes:
+      - application/json
+      description: Change le mot de passe si le code est valide et révoque toutes
+        les sessions actives de l'utilisateur
+      parameters:
+      - description: Code reçu par email et nouveau mot de passe
+        in: body
+        name: reinitialisation
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ReinitialiserRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "401":
+          description: code invalide, expiré ou déjà utilisé
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/dto.ErreurDTO'
+      summary: Réinitialisation du mot de passe
       tags:
       - auth
   /backoffice/kyc/dossiers:

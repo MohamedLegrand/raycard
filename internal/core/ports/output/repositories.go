@@ -19,6 +19,7 @@ type UtilisateurRepository interface {
 	FindByEmail(ctx context.Context, email string) (*domain.Utilisateur, error)
 	FindByTelephone(ctx context.Context, telephone string) (*domain.Utilisateur, error)
 	UpdateStatutKyc(ctx context.Context, u *domain.Utilisateur) error
+	UpdateMotDePasse(ctx context.Context, u *domain.Utilisateur) error
 }
 
 // WalletRepository persiste les wallets. V1 : un wallet par utilisateur.
@@ -41,6 +42,20 @@ type RefreshTokenRepository interface {
 	Create(ctx context.Context, rt *domain.RefreshToken) error
 	FindByHash(ctx context.Context, tokenHash string) (*domain.RefreshToken, error)
 	Revoke(ctx context.Context, id string) error
+
+	// RevokeAllForUtilisateur révoque toutes les sessions actives d'un
+	// utilisateur (ex : après une réinitialisation de mot de passe). Ne
+	// renvoie pas d'erreur si l'utilisateur n'avait aucune session active.
+	RevokeAllForUtilisateur(ctx context.Context, utilisateurID string) error
+}
+
+// TokenReinitialisationRepository persiste les codes de réinitialisation
+// de mot de passe (hashés). Une absence de résultat doit être signalée
+// par domain.ErrTokenInvalide.
+type TokenReinitialisationRepository interface {
+	Create(ctx context.Context, t *domain.TokenReinitialisation) error
+	FindByHash(ctx context.Context, tokenHash string) (*domain.TokenReinitialisation, error)
+	MarquerUtilise(ctx context.Context, id string) error
 }
 
 // DossierKycRepository persiste les demandes de passage de palier KYC.

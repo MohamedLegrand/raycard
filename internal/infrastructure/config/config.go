@@ -12,20 +12,24 @@ import (
 )
 
 type Config struct {
-	Port        string
-	DatabaseURL string
-	JWTSecret   string
-	Env         string
+	Port                 string
+	DatabaseURL          string
+	JWTSecret            string
+	BrevoAPIKey          string
+	BrevoEmailExpediteur string
+	Env                  string
 }
 
 func Load() (*Config, error) {
 	_ = godotenv.Load() // absence de .env attendue en production
 
 	cfg := &Config{
-		Port:        getEnv("PORT", "3000"),
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		JWTSecret:   os.Getenv("JWT_SECRET"),
-		Env:         getEnv("APP_ENV", "development"),
+		Port:                 getEnv("PORT", "3000"),
+		DatabaseURL:          os.Getenv("DATABASE_URL"),
+		JWTSecret:            os.Getenv("JWT_SECRET"),
+		BrevoAPIKey:          os.Getenv("BREVO_API_KEY"),
+		BrevoEmailExpediteur: os.Getenv("BREVO_EMAIL_EXPEDITEUR"),
+		Env:                  getEnv("APP_ENV", "development"),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -33,6 +37,12 @@ func Load() (*Config, error) {
 	}
 	if cfg.JWTSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET est requis")
+	}
+	if cfg.BrevoAPIKey == "" {
+		return nil, fmt.Errorf("BREVO_API_KEY est requis")
+	}
+	if cfg.BrevoEmailExpediteur == "" {
+		return nil, fmt.Errorf("BREVO_EMAIL_EXPEDITEUR est requis")
 	}
 
 	return cfg, nil

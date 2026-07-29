@@ -106,6 +106,49 @@
                 }
             }
         },
+        "/auth/mot-de-passe-oublie": {
+            "post": {
+                "description": "Envoie un code par email si un compte existe pour cet email. Répond toujours le même succès générique, que le compte existe ou non (évite l'énumération de comptes).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Demande de réinitialisation de mot de passe",
+                "parameters": [
+                    {
+                        "description": "Email du compte",
+                        "name": "demande",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.DemanderReinitialisationRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/rafraichir": {
             "post": {
                 "description": "Échange un refresh token valide contre une nouvelle paire access/refresh token (rotation)",
@@ -145,6 +188,55 @@
                     },
                     "401": {
                         "description": "refresh token invalide, expiré ou révoqué",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/reinitialiser-mot-de-passe": {
+            "post": {
+                "description": "Change le mot de passe si le code est valide et révoque toutes les sessions actives de l'utilisateur",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Réinitialisation du mot de passe",
+                "parameters": [
+                    {
+                        "description": "Code reçu par email et nouveau mot de passe",
+                        "name": "reinitialisation",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ReinitialiserRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/dto.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "code invalide, expiré ou déjà utilisé",
                         "schema": {
                             "$ref": "#/definitions/dto.ErreurDTO"
                         }
@@ -469,6 +561,18 @@
                 }
             }
         },
+        "dto.DemanderReinitialisationRequestDTO": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "awa.kone@example.com"
+                }
+            }
+        },
         "dto.DossierKycDTO": {
             "type": "object",
             "properties": {
@@ -568,6 +672,24 @@
             "properties": {
                 "refresh_token": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.ReinitialiserRequestDTO": {
+            "type": "object",
+            "required": [
+                "nouveau_mot_de_passe",
+                "token"
+            ],
+            "properties": {
+                "nouveau_mot_de_passe": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "nouveaumotdepasse123"
+                },
+                "token": {
+                    "type": "string",
+                    "example": "042951"
                 }
             }
         },

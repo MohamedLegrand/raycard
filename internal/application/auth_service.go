@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -17,25 +18,36 @@ import (
 )
 
 const (
-	dureeRefreshToken = 30 * 24 * time.Hour
+	dureeRefreshToken          = 30 * 24 * time.Hour
+	dureeTokenReinitialisation = 15 * time.Minute
+	sujetEmailReinitialisation = "Réinitialisation de votre mot de passe RAYCARD"
 )
 
 type authService struct {
-	utilisateurs   output.UtilisateurRepository
-	refreshTokens  output.RefreshTokenRepository
-	tokenGenerator output.TokenGenerator
+	utilisateurs           output.UtilisateurRepository
+	refreshTokens          output.RefreshTokenRepository
+	tokensReinitialisation output.TokenReinitialisationRepository
+	tokenGenerator         output.TokenGenerator
+	notifieur              output.Notifieur
+	txManager              output.TxManager
 }
 
 // NewAuthService construit l'implémentation de input.AuthUseCase.
 func NewAuthService(
 	utilisateurs output.UtilisateurRepository,
 	refreshTokens output.RefreshTokenRepository,
+	tokensReinitialisation output.TokenReinitialisationRepository,
 	tokenGenerator output.TokenGenerator,
+	notifieur output.Notifieur,
+	txManager output.TxManager,
 ) input.AuthUseCase {
 	return &authService{
-		utilisateurs:   utilisateurs,
-		refreshTokens:  refreshTokens,
-		tokenGenerator: tokenGenerator,
+		utilisateurs:           utilisateurs,
+		refreshTokens:          refreshTokens,
+		tokensReinitialisation: tokensReinitialisation,
+		tokenGenerator:         tokenGenerator,
+		notifieur:              notifieur,
+		txManager:              txManager,
 	}
 }
 
@@ -104,6 +116,83 @@ func (s *authService) Deconnexion(ctx context.Context, refreshToken string) erro
 	return nil
 }
 
+func (s *authService) DemanderReinitialisation(ctx context.Context, email string) error {
+	utilisateur, err := s.utilisateurs.FindByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, domain.ErrUtilisateurIntrouvable) {
+			return nil // réponse générique : ne révèle jamais si l'email existe
+		}
+		return fmt.Errorf("recherche utilisateur: %w", err)
+	}
+
+	code, err := genererCodeOTP()
+	if err != nil {
+		return fmt.Errorf("génération code: %w", err)
+	}
+
+	token, err := domain.NouveauTokenReinitialisation(utilisateur.ID, hacherToken(code), dureeTokenReinitialisation)
+	if err != nil {
+		return err
+	}
+	if err := s.tokensReinitialisation.Create(ctx, token); err != nil {
+		return fmt.Errorf("persistance token réinitialisation: %w", err)
+	}
+
+	corps := fmt.Sprintf(
+		"<p>Voici votre code de réinitialisation RAYCARD : <strong>%s</strong></p>"+
+			"<p>Ce code expire dans 15 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>",
+		code,
+	)
+	if err := s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailReinitialisation, corps); err != nil {
+		return fmt.Errorf("envoi email réinitialisation: %w", err)
+	}
+
+	return nil
+}
+
+func (s *authService) Reinitialiser(ctx context.Context, token, nouveauMotDePasse string) error {
+	tr, err := s.tokensReinitialisation.FindByHash(ctx, hacherToken(token))
+	if err != nil {
+		if errors.Is(err, domain.ErrTokenInvalide) {
+			return domain.ErrTokenInvalide
+		}
+		return fmt.Errorf("recherche token réinitialisation: %w", err)
+	}
+	if !tr.EstValide() {
+		return domain.ErrTokenInvalide
+	}
+
+	utilisateur, err := s.utilisateurs.FindByID(ctx, tr.UtilisateurID)
+	if err != nil {
+		return fmt.Errorf("recherche utilisateur: %w", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(nouveauMotDePasse), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hachage mot de passe: %w", err)
+	}
+	utilisateur.MotDePasseHash = string(hash)
+
+	// L'état "utilisé" est possédé par le repository (comme pour
+	// RefreshToken.Revoke) : on ne mute pas tr en mémoire avant l'appel,
+	// pour ne pas fausser la vérification faite côté persistance.
+	//
+	// Le mot de passe, la consommation du token et la révocation de
+	// toutes les sessions actives doivent réussir ensemble.
+	return s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := s.utilisateurs.UpdateMotDePasse(ctx, utilisateur); err != nil {
+			return fmt.Errorf("mise à jour mot de passe: %w", err)
+		}
+		if err := s.tokensReinitialisation.MarquerUtilise(ctx, tr.ID); err != nil {
+			return fmt.Errorf("consommation token réinitialisation: %w", err)
+		}
+		if err := s.refreshTokens.RevokeAllForUtilisateur(ctx, utilisateur.ID); err != nil {
+			return fmt.Errorf("révocation sessions actives: %w", err)
+		}
+		return nil
+	})
+}
+
 func (s *authService) emettreSession(ctx context.Context, utilisateur *domain.Utilisateur) (*input.SessionResultat, error) {
 	accessToken, accessExpireAt, err := s.tokenGenerator.GenererAccessToken(output.Claims{
 		UtilisateurID: utilisateur.ID,
@@ -149,4 +238,17 @@ func genererSecretAleatoire() (string, error) {
 func hacherToken(token string) string {
 	somme := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(somme[:])
+}
+
+// genererCodeOTP produit un code à 6 chiffres (crypto/rand) pour la
+// réinitialisation de mot de passe. Entropie volontairement plus faible
+// que le refresh token (10^6 possibilités) car pensé pour être saisi à
+// la main sur mobile — compensée par une durée de vie courte et un
+// usage unique.
+func genererCodeOTP() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", n.Int64()), nil
 }

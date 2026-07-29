@@ -81,3 +81,16 @@ func (r *UtilisateurRepository) UpdateStatutKyc(ctx context.Context, u *domain.U
 	}
 	return nil
 }
+
+func (r *UtilisateurRepository) UpdateMotDePasse(ctx context.Context, u *domain.Utilisateur) error {
+	const query = `UPDATE utilisateurs SET mot_de_passe_hash = $1, updated_at = now() WHERE id = $2`
+
+	tag, err := dbFromContext(ctx, r.pool).Exec(ctx, query, u.MotDePasseHash, u.ID)
+	if err != nil {
+		return fmt.Errorf("mise à jour mot de passe: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrUtilisateurIntrouvable
+	}
+	return nil
+}

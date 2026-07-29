@@ -60,6 +60,11 @@ func (r *utilisateurRepoFake) UpdateStatutKyc(_ context.Context, u *domain.Utili
 	return nil
 }
 
+func (r *utilisateurRepoFake) UpdateMotDePasse(_ context.Context, u *domain.Utilisateur) error {
+	r.parEmail[u.Email] = u
+	return nil
+}
+
 type walletRepoFake struct {
 	parUtilisateurID map[string]*domain.Wallet
 }

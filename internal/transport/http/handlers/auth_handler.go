@@ -104,3 +104,60 @@ func (h *AuthHandler) Deconnexion(c *fiber.Ctx) error {
 
 	return c.SendStatus(fiber.StatusNoContent)
 }
+
+// DemanderReinitialisation gère POST /api/v1/auth/mot-de-passe-oublie.
+//
+//	@Summary		Demande de réinitialisation de mot de passe
+//	@Description	Envoie un code par email si un compte existe pour cet email. Répond toujours le même succès générique, que le compte existe ou non (évite l'énumération de comptes).
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			demande	body	dto.DemanderReinitialisationRequestDTO	true	"Email du compte"
+//	@Success		204
+//	@Failure		400	{object}	dto.ErreurDTO	"corps de requête invalide"
+//	@Failure		500	{object}	dto.ErreurDTO	"erreur interne"
+//	@Router			/auth/mot-de-passe-oublie [post]
+func (h *AuthHandler) DemanderReinitialisation(c *fiber.Ctx) error {
+	var req dto.DemanderReinitialisationRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	if err := h.authUseCase.DemanderReinitialisation(c.Context(), req.Email); err != nil {
+		return mapErreurDomaine(err)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// Reinitialiser gère POST /api/v1/auth/reinitialiser-mot-de-passe.
+//
+//	@Summary		Réinitialisation du mot de passe
+//	@Description	Change le mot de passe si le code est valide et révoque toutes les sessions actives de l'utilisateur
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			reinitialisation	body	dto.ReinitialiserRequestDTO	true	"Code reçu par email et nouveau mot de passe"
+//	@Success		204
+//	@Failure		400	{object}	dto.ErreurDTO	"corps de requête invalide"
+//	@Failure		401	{object}	dto.ErreurDTO	"code invalide, expiré ou déjà utilisé"
+//	@Failure		500	{object}	dto.ErreurDTO	"erreur interne"
+//	@Router			/auth/reinitialiser-mot-de-passe [post]
+func (h *AuthHandler) Reinitialiser(c *fiber.Ctx) error {
+	var req dto.ReinitialiserRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	if err := h.authUseCase.Reinitialiser(c.Context(), req.Token, req.NouveauMotDePasse); err != nil {
+		return mapErreurDomaine(err)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
