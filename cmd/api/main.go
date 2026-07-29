@@ -13,6 +13,7 @@ import (
 
 	_ "raycard/docs" // docs générés par `swag init`, nécessaires pour servir la spec Swagger
 	"raycard/internal/application"
+	"raycard/internal/infrastructure/auth/google"
 	"raycard/internal/infrastructure/auth/jwt"
 	"raycard/internal/infrastructure/config"
 	"raycard/internal/infrastructure/database/postgres"
@@ -62,10 +63,14 @@ func main() {
 	// Adapters de sécurité et de notification
 	tokenGenerator := jwt.NewTokenGenerator(cfg.JWTSecret)
 	notifieur := brevo.NewNotifieur(cfg.BrevoAPIKey, cfg.BrevoEmailExpediteur)
+	googleAuthProvider := google.NewVerificateurToken(cfg.GoogleClientID)
 
 	// Use cases (application)
 	kycUseCase := application.NewKycService(utilisateurRepo, walletRepo, reglesKycRepo, dossierKycRepo, txManager)
-	authUseCase := application.NewAuthService(utilisateurRepo, refreshTokenRepo, tokenReinitialisationRepo, ticketConnexionRepo, tokenGenerator, notifieur, txManager)
+	authUseCase := application.NewAuthService(
+		utilisateurRepo, walletRepo, reglesKycRepo, refreshTokenRepo, tokenReinitialisationRepo, ticketConnexionRepo,
+		tokenGenerator, notifieur, googleAuthProvider, txManager,
+	)
 	adminKycUseCase := application.NewAdminKycService(utilisateurRepo, dossierKycRepo, auditLogRepo, txManager)
 
 	// Transport HTTP

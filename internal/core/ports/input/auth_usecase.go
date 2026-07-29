@@ -31,6 +31,15 @@ type ConnexionResultat struct {
 	ExpireDansSec int
 }
 
+// ConnexionGoogleRequest transporte l'ID token émis par Google, ainsi
+// que téléphone/pays — nécessaires seulement si aucun compte n'existe
+// encore pour cet utilisateur (création à la volée), ignorés sinon.
+type ConnexionGoogleRequest struct {
+	IDToken   string
+	Telephone string
+	PaysCode  string
+}
+
 // AuthUseCase orchestre l'authentification et le cycle de vie de la
 // session (access + refresh token, rotation, révocation).
 type AuthUseCase interface {
@@ -42,6 +51,12 @@ type AuthUseCase interface {
 	// VerifierCode2FA échange un ticket de connexion valide et son code
 	// contre une session complète (access + refresh token).
 	VerifierCode2FA(ctx context.Context, ticket, code string) (*SessionResultat, error)
+
+	// ConnexionGoogle authentifie (ou crée) un utilisateur à partir d'un
+	// ID token Google déjà vérifié côté client. Émet directement une
+	// session : Google authentifiant déjà fortement son propre compte,
+	// notre 2FA par email est sautée pour ce chemin (décision produit).
+	ConnexionGoogle(ctx context.Context, req ConnexionGoogleRequest) (*SessionResultat, error)
 
 	RafraichirToken(ctx context.Context, refreshToken string) (*SessionResultat, error)
 	Deconnexion(ctx context.Context, refreshToken string) error

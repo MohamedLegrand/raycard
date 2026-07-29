@@ -49,7 +49,8 @@ type Utilisateur struct {
 	Email          string
 	Telephone      string
 	PaysCode       string // ISO 3166-1 alpha-2, ex: "CI", "SN"
-	MotDePasseHash string
+	MotDePasseHash string // vide pour un compte connecté uniquement via Google
+	GoogleID       string // vide si aucun compte Google lié
 	Role           RoleUtilisateur
 	KycTier        KycTier
 	KycStatut      KycStatut
@@ -63,11 +64,11 @@ func (u *Utilisateur) EstAdmin() bool {
 	return u.Role == RoleAdmin
 }
 
-// NouveauUtilisateur construit un utilisateur valide, prêt à être
-// persisté. Le mot de passe doit déjà être haché par l'appelant
-// (l'application, jamais le domaine, ne connaît de bibliothèque de
-// hachage).
-func NouveauUtilisateur(nom, prenom, email, telephone, paysCode, motDePasseHash string) (*Utilisateur, error) {
+// nouvelUtilisateurBase valide et normalise les champs communs à toute
+// création d'utilisateur, quelle que soit la méthode d'authentification
+// (mot de passe ou Google) — c'est aux constructeurs spécifiques de
+// renseigner MotDePasseHash ou GoogleID.
+func nouvelUtilisateurBase(nom, prenom, email, telephone, paysCode string) (*Utilisateur, error) {
 	nom = strings.TrimSpace(nom)
 	prenom = strings.TrimSpace(prenom)
 	email = strings.ToLower(strings.TrimSpace(email))
@@ -86,26 +87,67 @@ func NouveauUtilisateur(nom, prenom, email, telephone, paysCode, motDePasseHash 
 	if len(paysCode) != 2 {
 		return nil, ErrDonneesInvalides
 	}
-	if motDePasseHash == "" {
-		return nil, ErrDonneesInvalides
-	}
 
 	maintenant := time.Now().UTC()
 
 	return &Utilisateur{
-		ID:             NewID(),
-		Nom:            nom,
-		Prenom:         prenom,
-		Email:          email,
-		Telephone:      telephone,
-		PaysCode:       paysCode,
-		MotDePasseHash: motDePasseHash,
-		Role:           RoleClient,
-		KycTier:        KycTierAucun,
-		KycStatut:      KycStatutEnAttente,
-		CreatedAt:      maintenant,
-		UpdatedAt:      maintenant,
+		ID:        NewID(),
+		Nom:       nom,
+		Prenom:    prenom,
+		Email:     email,
+		Telephone: telephone,
+		PaysCode:  paysCode,
+		Role:      RoleClient,
+		KycTier:   KycTierAucun,
+		KycStatut: KycStatutEnAttente,
+		CreatedAt: maintenant,
+		UpdatedAt: maintenant,
 	}, nil
+}
+
+// NouveauUtilisateur construit un utilisateur valide, prêt à être
+// persisté. Le mot de passe doit déjà être haché par l'appelant
+// (l'application, jamais le domaine, ne connaît de bibliothèque de
+// hachage).
+func NouveauUtilisateur(nom, prenom, email, telephone, paysCode, motDePasseHash string) (*Utilisateur, error) {
+	if motDePasseHash == "" {
+		return nil, ErrDonneesInvalides
+	}
+	u, err := nouvelUtilisateurBase(nom, prenom, email, telephone, paysCode)
+	if err != nil {
+		return nil, err
+	}
+	u.MotDePasseHash = motDePasseHash
+	return u, nil
+}
+
+// NouvelUtilisateurGoogle construit un utilisateur authentifié
+// uniquement via Google : aucun mot de passe n'est défini, la connexion
+// ne sera jamais possible par ce biais pour ce compte (voir
+// AuthUseCase.ConnexionGoogle).
+func NouvelUtilisateurGoogle(nom, prenom, email, telephone, paysCode, googleID string) (*Utilisateur, error) {
+	if googleID == "" {
+		return nil, ErrDonneesInvalides
+	}
+	u, err := nouvelUtilisateurBase(nom, prenom, email, telephone, paysCode)
+	if err != nil {
+		return nil, err
+	}
+	u.GoogleID = googleID
+	return u, nil
+}
+
+// LierGoogleID associe un compte Google à un utilisateur existant (créé
+// initialement par mot de passe). Voir AuthUseCase.ConnexionGoogle pour
+// les conditions de sécurité entourant cette liaison (email vérifié par
+// Google).
+func (u *Utilisateur) LierGoogleID(googleID string) error {
+	if googleID == "" {
+		return ErrDonneesInvalides
+	}
+	u.GoogleID = googleID
+	u.UpdatedAt = time.Now().UTC()
+	return nil
 }
 
 // ValiderKycTier1 fait passer l'utilisateur au palier 1 (KYC léger :

@@ -32,6 +32,20 @@ type VerifierCode2FARequestDTO struct {
 	Code   string `json:"code" validate:"required,len=6,numeric" example:"042951"`
 }
 
+// ConnexionGoogleRequestDTO : Telephone/PaysCode ne sont utilisés que
+// si aucun compte n'existe encore pour cet utilisateur (création à la
+// volée) — ignorés sinon, mais toujours exigés dans le corps de la
+// requête pour garder un contrat simple et unique.
+type ConnexionGoogleRequestDTO struct {
+	IDToken   string `json:"id_token" validate:"required"`
+	Telephone string `json:"telephone" validate:"required" example:"+2250700000000"`
+	PaysCode  string `json:"pays_code" validate:"required,len=2" example:"CI"`
+}
+
+func (d ConnexionGoogleRequestDTO) ToUseCaseRequest() input.ConnexionGoogleRequest {
+	return input.ConnexionGoogleRequest{IDToken: d.IDToken, Telephone: d.Telephone, PaysCode: d.PaysCode}
+}
+
 type RafraichirRequestDTO struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }

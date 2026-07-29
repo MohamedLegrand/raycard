@@ -77,6 +77,36 @@ func (h *AuthHandler) VerifierCode2FA(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(dto.FromSessionResultat(resultat))
 }
 
+// ConnexionGoogle gère POST /api/v1/auth/connexion-google.
+//
+//	@Summary		Connexion via Google
+//	@Description	Vérifie l'ID token Google et émet directement une session (2FA sautée pour ce chemin). Crée le compte automatiquement s'il n'existe pas encore, ou lie ce compte Google à un compte existant de même email (si Google confirme l'email vérifié).
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			connexion	body		dto.ConnexionGoogleRequestDTO	true	"ID token Google, téléphone et pays (utilisés seulement à la création)"
+//	@Success		200			{object}	dto.SessionResponseDTO
+//	@Failure		400			{object}	dto.ErreurDTO	"corps de requête invalide, ou téléphone/pays manquants pour une première connexion"
+//	@Failure		401			{object}	dto.ErreurDTO	"id token invalide, ou email non vérifié pour lier un compte existant"
+//	@Failure		500			{object}	dto.ErreurDTO	"erreur interne"
+//	@Router			/auth/connexion-google [post]
+func (h *AuthHandler) ConnexionGoogle(c *fiber.Ctx) error {
+	var req dto.ConnexionGoogleRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	resultat, err := h.authUseCase.ConnexionGoogle(c.Context(), req.ToUseCaseRequest())
+	if err != nil {
+		return mapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.FromSessionResultat(resultat))
+}
+
 // Rafraichir gère POST /api/v1/auth/rafraichir.
 //
 //	@Summary		Rafraîchissement de session

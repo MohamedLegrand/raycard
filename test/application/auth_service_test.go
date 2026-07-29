@@ -17,7 +17,7 @@ import (
 	"raycard/internal/core/ports/output"
 )
 
-// --- faux TokenGenerator, RefreshTokenRepository, TokenReinitialisationRepository, TicketConnexionRepository et Notifieur, sans dépendance JWT/DB/email ---
+// --- faux TokenGenerator, RefreshTokenRepository, TokenReinitialisationRepository, TicketConnexionRepository, Notifieur et GoogleAuthProvider, sans dépendance JWT/DB/email/Google ---
 
 type tokenGeneratorFake struct{}
 
@@ -171,16 +171,47 @@ func (n *notifieurFake) EnvoyerEmail(_ context.Context, destinataire, sujet, cor
 	return nil
 }
 
-func setupAuthService() (input.AuthUseCase, *utilisateurRepoFake, *refreshTokenRepoFake, *tokenReinitialisationRepoFake, *ticketConnexionRepoFake, *notifieurFake) {
-	utilisateurs := nouveauUtilisateurRepoFake()
-	refreshTokens := nouveauRefreshTokenRepoFake()
-	tokensReinitialisation := nouveauTokenReinitialisationRepoFake()
-	ticketsConnexion := nouveauTicketConnexionRepoFake()
-	notifieur := &notifieurFake{}
+// googleAuthProviderFake : identite/erreur sont mutables après
+// construction, pour que chaque test configure la réponse attendue de
+// "Google" avant d'appeler ConnexionGoogle.
+type googleAuthProviderFake struct {
+	identite output.IdentiteGoogle
+	erreur   error
+}
+
+func (g *googleAuthProviderFake) VerifierIDToken(_ context.Context, _ string) (output.IdentiteGoogle, error) {
+	if g.erreur != nil {
+		return output.IdentiteGoogle{}, g.erreur
+	}
+	return g.identite, nil
+}
+
+type authServiceFakes struct {
+	utilisateurs           *utilisateurRepoFake
+	wallets                *walletRepoFake
+	refreshTokens          *refreshTokenRepoFake
+	tokensReinitialisation *tokenReinitialisationRepoFake
+	ticketsConnexion       *ticketConnexionRepoFake
+	notifieur              *notifieurFake
+	googleAuthProvider     *googleAuthProviderFake
+}
+
+func setupAuthService() (input.AuthUseCase, *authServiceFakes) {
+	fakes := &authServiceFakes{
+		utilisateurs:           nouveauUtilisateurRepoFake(),
+		wallets:                nouveauWalletRepoFake(),
+		refreshTokens:          nouveauRefreshTokenRepoFake(),
+		tokensReinitialisation: nouveauTokenReinitialisationRepoFake(),
+		ticketsConnexion:       nouveauTicketConnexionRepoFake(),
+		notifieur:              &notifieurFake{},
+		googleAuthProvider:     &googleAuthProviderFake{},
+	}
 	service := application.NewAuthService(
-		utilisateurs, refreshTokens, tokensReinitialisation, ticketsConnexion, tokenGeneratorFake{}, notifieur, txManagerFake{},
+		fakes.utilisateurs, fakes.wallets, nouveauReglesKycRepoFake(),
+		fakes.refreshTokens, fakes.tokensReinitialisation, fakes.ticketsConnexion,
+		tokenGeneratorFake{}, fakes.notifieur, fakes.googleAuthProvider, txManagerFake{},
 	)
-	return service, utilisateurs, refreshTokens, tokensReinitialisation, ticketsConnexion, notifieur
+	return service, fakes
 }
 
 func creerUtilisateurTest(t *testing.T, repo *utilisateurRepoFake, email, motDePasse string) *domain.Utilisateur {
@@ -222,8 +253,8 @@ func connecterAvec2FA(t *testing.T, service input.AuthUseCase, notifieur *notifi
 }
 
 func TestAuthService_Connexion_Succes(t *testing.T) {
-	service, utilisateurs, _, _, ticketsConnexion, notifieur := setupAuthService()
-	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
 
 	resultat, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
 	require.NoError(t, err)
@@ -233,22 +264,22 @@ func TestAuthService_Connexion_Succes(t *testing.T) {
 	assert.NotEmpty(t, resultat.Ticket)
 	assert.Equal(t, 600, resultat.ExpireDansSec)
 
-	require.Len(t, notifieur.emailsEnvoyes, 1)
-	assert.Equal(t, "awa@example.com", notifieur.emailsEnvoyes[0].destinataire)
-	assert.Len(t, ticketsConnexion.parHash, 1)
+	require.Len(t, fakes.notifieur.emailsEnvoyes, 1)
+	assert.Equal(t, "awa@example.com", fakes.notifieur.emailsEnvoyes[0].destinataire)
+	assert.Len(t, fakes.ticketsConnexion.parHash, 1)
 }
 
 func TestAuthService_Connexion_MotDePasseIncorrect(t *testing.T) {
-	service, utilisateurs, _, _, _, notifieur := setupAuthService()
-	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
 
 	_, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "mauvais-mot-de-passe"})
 	assert.ErrorIs(t, err, domain.ErrIdentifiantsInvalides)
-	assert.Empty(t, notifieur.emailsEnvoyes, "aucun code ne doit être envoyé si le mot de passe est incorrect")
+	assert.Empty(t, fakes.notifieur.emailsEnvoyes, "aucun code ne doit être envoyé si le mot de passe est incorrect")
 }
 
 func TestAuthService_Connexion_UtilisateurInconnu(t *testing.T) {
-	service, _, _, _, _, _ := setupAuthService()
+	service, _ := setupAuthService()
 
 	_, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "inconnu@example.com", MotDePasse: "peu-importe"})
 	// Ne doit jamais fuiter domain.ErrUtilisateurIntrouvable : même erreur
@@ -257,19 +288,19 @@ func TestAuthService_Connexion_UtilisateurInconnu(t *testing.T) {
 }
 
 func TestAuthService_VerifierCode2FA_Succes(t *testing.T) {
-	service, utilisateurs, refreshTokens, _, _, notifieur := setupAuthService()
-	u := creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
 
-	session := connecterAvec2FA(t, service, notifieur, "awa@example.com", "motdepasse123")
+	session := connecterAvec2FA(t, service, fakes.notifieur, "awa@example.com", "motdepasse123")
 
 	assert.Equal(t, "access-"+u.ID, session.AccessToken)
 	assert.NotEmpty(t, session.RefreshToken)
-	assert.Len(t, refreshTokens.parHash, 1)
+	assert.Len(t, fakes.refreshTokens.parHash, 1)
 }
 
 func TestAuthService_VerifierCode2FA_MauvaisCode(t *testing.T) {
-	service, utilisateurs, _, _, ticketsConnexion, notifieur := setupAuthService()
-	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
 
 	resultat, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
 	require.NoError(t, err)
@@ -280,14 +311,14 @@ func TestAuthService_VerifierCode2FA_MauvaisCode(t *testing.T) {
 	// Une tentative a été consommée, mais le ticket reste utilisable
 	// pour les tentatives restantes.
 	var ticket *domain.TicketConnexion
-	for _, tk := range ticketsConnexion.parID {
+	for _, tk := range fakes.ticketsConnexion.parID {
 		ticket = tk
 	}
 	require.NotNil(t, ticket)
 	assert.Equal(t, 4, ticket.TentativesRestantes)
 
 	// Le bon code, lui, fonctionne toujours.
-	dernierEmail := notifieur.emailsEnvoyes[len(notifieur.emailsEnvoyes)-1]
+	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
 	bonCode := extraireCodeOTP(t, dernierEmail.corps)
 	session, err := service.VerifierCode2FA(context.Background(), resultat.Ticket, bonCode)
 	require.NoError(t, err)
@@ -295,8 +326,8 @@ func TestAuthService_VerifierCode2FA_MauvaisCode(t *testing.T) {
 }
 
 func TestAuthService_VerifierCode2FA_TentativesEpuisees(t *testing.T) {
-	service, utilisateurs, _, _, _, notifieur := setupAuthService()
-	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
 
 	resultat, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
 	require.NoError(t, err)
@@ -309,26 +340,26 @@ func TestAuthService_VerifierCode2FA_TentativesEpuisees(t *testing.T) {
 
 	// Même le bon code ne fonctionne plus : il faut recommencer depuis
 	// Connexion.
-	dernierEmail := notifieur.emailsEnvoyes[len(notifieur.emailsEnvoyes)-1]
+	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
 	bonCode := extraireCodeOTP(t, dernierEmail.corps)
 	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, bonCode)
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 }
 
 func TestAuthService_VerifierCode2FA_TicketInvalide(t *testing.T) {
-	service, _, _, _, _, _ := setupAuthService()
+	service, _ := setupAuthService()
 
 	_, err := service.VerifierCode2FA(context.Background(), "ticket-qui-n-existe-pas", "123456")
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 }
 
 func TestAuthService_VerifierCode2FA_UsageUnique(t *testing.T) {
-	service, utilisateurs, _, _, _, notifieur := setupAuthService()
-	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
 
 	resultat, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
 	require.NoError(t, err)
-	code := extraireCodeOTP(t, notifieur.emailsEnvoyes[0].corps)
+	code := extraireCodeOTP(t, fakes.notifieur.emailsEnvoyes[0].corps)
 
 	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, code)
 	require.NoError(t, err)
@@ -338,11 +369,103 @@ func TestAuthService_VerifierCode2FA_UsageUnique(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 }
 
-func TestAuthService_RafraichirToken_Succes(t *testing.T) {
-	service, utilisateurs, _, _, _, notifieur := setupAuthService()
-	u := creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+func TestAuthService_ConnexionGoogle_CompteDejaLie(t *testing.T) {
+	service, fakes := setupAuthService()
 
-	session1 := connecterAvec2FA(t, service, notifieur, "awa@example.com", "motdepasse123")
+	u, err := domain.NouvelUtilisateurGoogle("Koné", "Awa", "awa@example.com", "+2250700000000", "CI", "google-sub-123")
+	require.NoError(t, err)
+	require.NoError(t, u.ValiderKycTier1())
+	require.NoError(t, fakes.utilisateurs.Create(context.Background(), u))
+
+	fakes.googleAuthProvider.identite = output.IdentiteGoogle{
+		GoogleID: "google-sub-123", Email: "awa@example.com", EmailVerifie: true, Nom: "Koné", Prenom: "Awa",
+	}
+
+	session, err := service.ConnexionGoogle(context.Background(), input.ConnexionGoogleRequest{IDToken: "peu-importe"})
+	require.NoError(t, err)
+	assert.Equal(t, "access-"+u.ID, session.AccessToken)
+	assert.Empty(t, fakes.notifieur.emailsEnvoyes, "pas de 2FA pour une connexion Google")
+}
+
+func TestAuthService_ConnexionGoogle_LiaisonCompteExistant(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+	require.Empty(t, u.GoogleID)
+
+	fakes.googleAuthProvider.identite = output.IdentiteGoogle{
+		GoogleID: "google-sub-456", Email: "awa@example.com", EmailVerifie: true, Nom: "Koné", Prenom: "Awa",
+	}
+
+	session, err := service.ConnexionGoogle(context.Background(), input.ConnexionGoogleRequest{IDToken: "peu-importe"})
+	require.NoError(t, err)
+	assert.Equal(t, "access-"+u.ID, session.AccessToken)
+
+	utilisateurMaj, err := fakes.utilisateurs.FindByGoogleID(context.Background(), "google-sub-456")
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, utilisateurMaj.ID)
+}
+
+func TestAuthService_ConnexionGoogle_LiaisonRefuseeEmailNonVerifie(t *testing.T) {
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	fakes.googleAuthProvider.identite = output.IdentiteGoogle{
+		GoogleID: "google-sub-789", Email: "awa@example.com", EmailVerifie: false, Nom: "Koné", Prenom: "Awa",
+	}
+
+	_, err := service.ConnexionGoogle(context.Background(), input.ConnexionGoogleRequest{IDToken: "peu-importe"})
+	assert.ErrorIs(t, err, domain.ErrIdentifiantsInvalides)
+
+	_, err = fakes.utilisateurs.FindByGoogleID(context.Background(), "google-sub-789")
+	assert.ErrorIs(t, err, domain.ErrUtilisateurIntrouvable, "aucune liaison n'a dû être faite")
+}
+
+func TestAuthService_ConnexionGoogle_NouveauCompte(t *testing.T) {
+	service, fakes := setupAuthService()
+
+	fakes.googleAuthProvider.identite = output.IdentiteGoogle{
+		GoogleID: "google-sub-999", Email: "nouveau@example.com", EmailVerifie: true, Nom: "Traoré", Prenom: "Ibrahim",
+	}
+
+	session, err := service.ConnexionGoogle(context.Background(), input.ConnexionGoogleRequest{
+		IDToken: "peu-importe", Telephone: "+2250700000099", PaysCode: "CI",
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, session.AccessToken)
+
+	utilisateur, err := fakes.utilisateurs.FindByGoogleID(context.Background(), "google-sub-999")
+	require.NoError(t, err)
+	assert.Equal(t, domain.KycTier1, utilisateur.KycTier)
+	assert.Empty(t, utilisateur.MotDePasseHash, "un compte Google pur n'a pas de mot de passe")
+
+	_, err = fakes.wallets.FindByUtilisateurID(context.Background(), utilisateur.ID)
+	require.NoError(t, err, "le wallet doit être créé comme pour une inscription classique")
+}
+
+func TestAuthService_ConnexionGoogle_NouveauCompte_TelephonePaysManquants(t *testing.T) {
+	service, fakes := setupAuthService()
+
+	fakes.googleAuthProvider.identite = output.IdentiteGoogle{
+		GoogleID: "google-sub-999", Email: "nouveau@example.com", EmailVerifie: true, Nom: "Traoré", Prenom: "Ibrahim",
+	}
+
+	_, err := service.ConnexionGoogle(context.Background(), input.ConnexionGoogleRequest{IDToken: "peu-importe"})
+	assert.ErrorIs(t, err, domain.ErrDonneesInvalides)
+}
+
+func TestAuthService_ConnexionGoogle_IDTokenInvalide(t *testing.T) {
+	service, fakes := setupAuthService()
+	fakes.googleAuthProvider.erreur = domain.ErrTokenInvalide
+
+	_, err := service.ConnexionGoogle(context.Background(), input.ConnexionGoogleRequest{IDToken: "invalide"})
+	assert.ErrorIs(t, err, domain.ErrIdentifiantsInvalides)
+}
+
+func TestAuthService_RafraichirToken_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	session1 := connecterAvec2FA(t, service, fakes.notifieur, "awa@example.com", "motdepasse123")
 
 	session2, err := service.RafraichirToken(context.Background(), session1.RefreshToken)
 	require.NoError(t, err)
@@ -355,17 +478,17 @@ func TestAuthService_RafraichirToken_Succes(t *testing.T) {
 }
 
 func TestAuthService_RafraichirToken_Invalide(t *testing.T) {
-	service, _, _, _, _, _ := setupAuthService()
+	service, _ := setupAuthService()
 
 	_, err := service.RafraichirToken(context.Background(), "token-qui-n-existe-pas")
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 }
 
 func TestAuthService_Deconnexion(t *testing.T) {
-	service, utilisateurs, _, _, _, notifieur := setupAuthService()
-	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
 
-	session := connecterAvec2FA(t, service, notifieur, "awa@example.com", "motdepasse123")
+	session := connecterAvec2FA(t, service, fakes.notifieur, "awa@example.com", "motdepasse123")
 
 	require.NoError(t, service.Deconnexion(context.Background(), session.RefreshToken))
 
@@ -378,33 +501,33 @@ func TestAuthService_Deconnexion(t *testing.T) {
 }
 
 func TestAuthService_DemanderReinitialisation_Succes(t *testing.T) {
-	service, utilisateurs, _, tokensReinitialisation, _, notifieur := setupAuthService()
-	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "motdepasse123")
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
 
 	require.NoError(t, service.DemanderReinitialisation(context.Background(), "awa@example.com"))
 
-	require.Len(t, notifieur.emailsEnvoyes, 1)
-	assert.Equal(t, "awa@example.com", notifieur.emailsEnvoyes[0].destinataire)
-	assert.Len(t, tokensReinitialisation.parHash, 1)
+	require.Len(t, fakes.notifieur.emailsEnvoyes, 1)
+	assert.Equal(t, "awa@example.com", fakes.notifieur.emailsEnvoyes[0].destinataire)
+	assert.Len(t, fakes.tokensReinitialisation.parHash, 1)
 }
 
 func TestAuthService_DemanderReinitialisation_EmailInconnu(t *testing.T) {
-	service, _, _, _, _, notifieur := setupAuthService()
+	service, fakes := setupAuthService()
 
 	// Aucune erreur, et surtout aucun email envoyé : ne révèle jamais si
 	// l'email existe (évite l'énumération de comptes).
 	require.NoError(t, service.DemanderReinitialisation(context.Background(), "inconnu@example.com"))
-	assert.Empty(t, notifieur.emailsEnvoyes)
+	assert.Empty(t, fakes.notifieur.emailsEnvoyes)
 }
 
 func TestAuthService_Reinitialiser_Succes(t *testing.T) {
-	service, utilisateurs, _, _, _, notifieur := setupAuthService()
-	creerUtilisateurTest(t, utilisateurs, "awa@example.com", "ancienmotdepasse123")
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "ancienmotdepasse123")
 
-	session := connecterAvec2FA(t, service, notifieur, "awa@example.com", "ancienmotdepasse123")
+	session := connecterAvec2FA(t, service, fakes.notifieur, "awa@example.com", "ancienmotdepasse123")
 
 	require.NoError(t, service.DemanderReinitialisation(context.Background(), "awa@example.com"))
-	dernierEmail := notifieur.emailsEnvoyes[len(notifieur.emailsEnvoyes)-1]
+	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
 	code := extraireCodeOTP(t, dernierEmail.corps)
 
 	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456"))
@@ -426,7 +549,7 @@ func TestAuthService_Reinitialiser_Succes(t *testing.T) {
 }
 
 func TestAuthService_Reinitialiser_TokenInvalide(t *testing.T) {
-	service, _, _, _, _, _ := setupAuthService()
+	service, _ := setupAuthService()
 
 	err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456")
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)

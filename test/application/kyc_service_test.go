@@ -17,18 +17,23 @@ import (
 type utilisateurRepoFake struct {
 	parEmail     map[string]*domain.Utilisateur
 	parTelephone map[string]*domain.Utilisateur
+	parGoogleID  map[string]*domain.Utilisateur
 }
 
 func nouveauUtilisateurRepoFake() *utilisateurRepoFake {
 	return &utilisateurRepoFake{
 		parEmail:     make(map[string]*domain.Utilisateur),
 		parTelephone: make(map[string]*domain.Utilisateur),
+		parGoogleID:  make(map[string]*domain.Utilisateur),
 	}
 }
 
 func (r *utilisateurRepoFake) Create(_ context.Context, u *domain.Utilisateur) error {
 	r.parEmail[u.Email] = u
 	r.parTelephone[u.Telephone] = u
+	if u.GoogleID != "" {
+		r.parGoogleID[u.GoogleID] = u
+	}
 	return nil
 }
 
@@ -55,6 +60,13 @@ func (r *utilisateurRepoFake) FindByTelephone(_ context.Context, telephone strin
 	return nil, domain.ErrUtilisateurIntrouvable
 }
 
+func (r *utilisateurRepoFake) FindByGoogleID(_ context.Context, googleID string) (*domain.Utilisateur, error) {
+	if u, ok := r.parGoogleID[googleID]; ok {
+		return u, nil
+	}
+	return nil, domain.ErrUtilisateurIntrouvable
+}
+
 func (r *utilisateurRepoFake) UpdateStatutKyc(_ context.Context, u *domain.Utilisateur) error {
 	r.parEmail[u.Email] = u
 	return nil
@@ -62,6 +74,14 @@ func (r *utilisateurRepoFake) UpdateStatutKyc(_ context.Context, u *domain.Utili
 
 func (r *utilisateurRepoFake) UpdateMotDePasse(_ context.Context, u *domain.Utilisateur) error {
 	r.parEmail[u.Email] = u
+	return nil
+}
+
+func (r *utilisateurRepoFake) LierGoogleID(_ context.Context, u *domain.Utilisateur) error {
+	r.parEmail[u.Email] = u
+	if u.GoogleID != "" {
+		r.parGoogleID[u.GoogleID] = u
+	}
 	return nil
 }
 

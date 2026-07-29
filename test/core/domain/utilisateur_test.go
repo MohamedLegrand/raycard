@@ -79,3 +79,31 @@ func TestNouvelAdministrateur(t *testing.T) {
 	assert.True(t, admin.EstAdmin())
 	assert.Equal(t, domain.KycStatutVerifie, admin.KycStatut)
 }
+
+func TestNouvelUtilisateurGoogle(t *testing.T) {
+	u, err := domain.NouvelUtilisateurGoogle("Koné", "Awa", "awa@example.com", "+2250700000000", "CI", "google-sub-123")
+	require.NoError(t, err)
+
+	assert.Equal(t, "google-sub-123", u.GoogleID)
+	assert.Empty(t, u.MotDePasseHash, "un compte Google pur n'a pas de mot de passe")
+	assert.Equal(t, domain.RoleClient, u.Role)
+}
+
+func TestNouvelUtilisateurGoogle_DonneesInvalides(t *testing.T) {
+	_, err := domain.NouvelUtilisateurGoogle("Koné", "Awa", "awa@example.com", "+2250700000000", "CI", "")
+	assert.ErrorIs(t, err, domain.ErrDonneesInvalides, "google id vide refusé")
+
+	_, err = domain.NouvelUtilisateurGoogle("", "Awa", "awa@example.com", "+2250700000000", "CI", "google-sub-123")
+	assert.ErrorIs(t, err, domain.ErrDonneesInvalides, "les autres champs restent validés normalement")
+}
+
+func TestUtilisateur_LierGoogleID(t *testing.T) {
+	u, err := domain.NouveauUtilisateur("Koné", "Awa", "awa@example.com", "+2250700000000", "CI", "hash")
+	require.NoError(t, err)
+	require.Empty(t, u.GoogleID)
+
+	require.NoError(t, u.LierGoogleID("google-sub-456"))
+	assert.Equal(t, "google-sub-456", u.GoogleID)
+
+	assert.ErrorIs(t, u.LierGoogleID(""), domain.ErrDonneesInvalides)
+}

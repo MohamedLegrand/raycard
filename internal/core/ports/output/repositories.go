@@ -18,8 +18,10 @@ type UtilisateurRepository interface {
 	FindByID(ctx context.Context, id string) (*domain.Utilisateur, error)
 	FindByEmail(ctx context.Context, email string) (*domain.Utilisateur, error)
 	FindByTelephone(ctx context.Context, telephone string) (*domain.Utilisateur, error)
+	FindByGoogleID(ctx context.Context, googleID string) (*domain.Utilisateur, error)
 	UpdateStatutKyc(ctx context.Context, u *domain.Utilisateur) error
 	UpdateMotDePasse(ctx context.Context, u *domain.Utilisateur) error
+	LierGoogleID(ctx context.Context, u *domain.Utilisateur) error
 }
 
 // WalletRepository persiste les wallets. V1 : un wallet par utilisateur.

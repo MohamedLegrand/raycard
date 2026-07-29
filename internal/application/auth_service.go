@@ -30,31 +30,40 @@ const (
 
 type authService struct {
 	utilisateurs           output.UtilisateurRepository
+	wallets                output.WalletRepository
+	reglesKyc              output.ReglesKycRepository
 	refreshTokens          output.RefreshTokenRepository
 	tokensReinitialisation output.TokenReinitialisationRepository
 	ticketsConnexion       output.TicketConnexionRepository
 	tokenGenerator         output.TokenGenerator
 	notifieur              output.Notifieur
+	googleAuthProvider     output.GoogleAuthProvider
 	txManager              output.TxManager
 }
 
 // NewAuthService construit l'implémentation de input.AuthUseCase.
 func NewAuthService(
 	utilisateurs output.UtilisateurRepository,
+	wallets output.WalletRepository,
+	reglesKyc output.ReglesKycRepository,
 	refreshTokens output.RefreshTokenRepository,
 	tokensReinitialisation output.TokenReinitialisationRepository,
 	ticketsConnexion output.TicketConnexionRepository,
 	tokenGenerator output.TokenGenerator,
 	notifieur output.Notifieur,
+	googleAuthProvider output.GoogleAuthProvider,
 	txManager output.TxManager,
 ) input.AuthUseCase {
 	return &authService{
 		utilisateurs:           utilisateurs,
+		wallets:                wallets,
+		reglesKyc:              reglesKyc,
 		refreshTokens:          refreshTokens,
 		tokensReinitialisation: tokensReinitialisation,
 		ticketsConnexion:       ticketsConnexion,
 		tokenGenerator:         tokenGenerator,
 		notifieur:              notifieur,
+		googleAuthProvider:     googleAuthProvider,
 		txManager:              txManager,
 	}
 }
@@ -145,6 +154,89 @@ func (s *authService) VerifierCode2FA(ctx context.Context, ticketBrut, code stri
 	ticket.Consommer()
 	if err := s.ticketsConnexion.Update(ctx, ticket); err != nil {
 		return nil, fmt.Errorf("consommation ticket connexion: %w", err)
+	}
+
+	return s.emettreSession(ctx, utilisateur)
+}
+
+// ConnexionGoogle authentifie ou crée un utilisateur à partir d'un ID
+// token Google. Trois cas, dans l'ordre : un compte est déjà lié à ce
+// compte Google ; un compte existe avec cet email (liaison automatique
+// si Google confirme l'email vérifié) ; aucun compte (création).
+func (s *authService) ConnexionGoogle(ctx context.Context, req input.ConnexionGoogleRequest) (*input.SessionResultat, error) {
+	identite, err := s.googleAuthProvider.VerifierIDToken(ctx, req.IDToken)
+	if err != nil {
+		return nil, domain.ErrIdentifiantsInvalides
+	}
+
+	utilisateur, err := s.utilisateurs.FindByGoogleID(ctx, identite.GoogleID)
+	if err == nil {
+		return s.emettreSession(ctx, utilisateur)
+	}
+	if !errors.Is(err, domain.ErrUtilisateurIntrouvable) {
+		return nil, fmt.Errorf("recherche utilisateur par google id: %w", err)
+	}
+
+	utilisateur, err = s.utilisateurs.FindByEmail(ctx, identite.Email)
+	if err == nil {
+		// Sans cette garantie, n'importe qui pourrait créer un compte
+		// Google avec l'email de quelqu'un d'autre et prendre le contrôle
+		// de son compte RAYCARD existant.
+		if !identite.EmailVerifie {
+			return nil, domain.ErrIdentifiantsInvalides
+		}
+		if err := utilisateur.LierGoogleID(identite.GoogleID); err != nil {
+			return nil, err
+		}
+		if err := s.utilisateurs.LierGoogleID(ctx, utilisateur); err != nil {
+			return nil, fmt.Errorf("liaison compte google: %w", err)
+		}
+		return s.emettreSession(ctx, utilisateur)
+	}
+	if !errors.Is(err, domain.ErrUtilisateurIntrouvable) {
+		return nil, fmt.Errorf("recherche utilisateur par email: %w", err)
+	}
+
+	return s.creerUtilisateurGoogle(ctx, identite, req.Telephone, req.PaysCode)
+}
+
+// creerUtilisateurGoogle crée un nouvel utilisateur (et son wallet, KYC
+// Tier 1 auto-validé) lors d'une toute première connexion Google — même
+// logique que KycUseCase.Inscrire, adaptée à l'absence de mot de passe.
+func (s *authService) creerUtilisateurGoogle(ctx context.Context, identite output.IdentiteGoogle, telephone, paysCode string) (*input.SessionResultat, error) {
+	if telephone == "" || paysCode == "" {
+		return nil, domain.ErrDonneesInvalides
+	}
+
+	regle, err := s.reglesKyc.FindByPaysEtTier(ctx, paysCode, domain.KycTier1)
+	if err != nil {
+		return nil, err
+	}
+
+	utilisateur, err := domain.NouvelUtilisateurGoogle(identite.Nom, identite.Prenom, identite.Email, telephone, paysCode, identite.GoogleID)
+	if err != nil {
+		return nil, err
+	}
+	if err := utilisateur.ValiderKycTier1(); err != nil {
+		return nil, err
+	}
+
+	wallet, err := domain.NouveauWallet(utilisateur.ID, utilisateur.PaysCode, regle.Devise, regle.PlafondSoldeCentimes)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := s.utilisateurs.Create(ctx, utilisateur); err != nil {
+			return fmt.Errorf("création utilisateur: %w", err)
+		}
+		if err := s.wallets.Create(ctx, wallet); err != nil {
+			return fmt.Errorf("création wallet: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return s.emettreSession(ctx, utilisateur)

@@ -17,6 +17,7 @@ type Config struct {
 	JWTSecret            string
 	BrevoAPIKey          string
 	BrevoEmailExpediteur string
+	GoogleClientID       string
 	Env                  string
 }
 
@@ -29,6 +30,7 @@ func Load() (*Config, error) {
 		JWTSecret:            os.Getenv("JWT_SECRET"),
 		BrevoAPIKey:          os.Getenv("BREVO_API_KEY"),
 		BrevoEmailExpediteur: os.Getenv("BREVO_EMAIL_EXPEDITEUR"),
+		GoogleClientID:       os.Getenv("GOOGLE_CLIENT_ID"),
 		Env:                  getEnv("APP_ENV", "development"),
 	}
 
@@ -43,6 +45,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.BrevoEmailExpediteur == "" {
 		return nil, fmt.Errorf("BREVO_EMAIL_EXPEDITEUR est requis")
+	}
+	if cfg.GoogleClientID == "" {
+		return nil, fmt.Errorf("GOOGLE_CLIENT_ID est requis")
 	}
 
 	return cfg, nil
