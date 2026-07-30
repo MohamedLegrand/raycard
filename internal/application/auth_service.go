@@ -85,6 +85,14 @@ func (s *authService) Connexion(ctx context.Context, req input.ConnexionRequest)
 		return nil, domain.ErrIdentifiantsInvalides
 	}
 
+	return s.demarrerTicketConnexion(ctx, utilisateur)
+}
+
+// demarrerTicketConnexion émet le ticket + code du second facteur, une
+// fois l'identité déjà établie (mot de passe vérifié, ou identité
+// Google vérifiée) — commun à Connexion et ConnexionGoogle : la 2FA est
+// obligatoire pour tout le monde, quel que soit le chemin emprunté.
+func (s *authService) demarrerTicketConnexion(ctx context.Context, utilisateur *domain.Utilisateur) (*input.ConnexionResultat, error) {
 	ticketBrut, err := genererSecretAleatoire()
 	if err != nil {
 		return nil, fmt.Errorf("génération ticket connexion: %w", err)
@@ -106,7 +114,7 @@ func (s *authService) Connexion(ctx context.Context, req input.ConnexionRequest)
 
 	corps := fmt.Sprintf(
 		"<p>Voici votre code de connexion RAYCARD : <strong>%s</strong></p>"+
-			"<p>Ce code expire dans 10 minutes. Si vous n'êtes pas à l'origine de cette connexion, changez votre mot de passe immédiatement.</p>",
+			"<p>Ce code expire dans 10 minutes. Si vous n'êtes pas à l'origine de cette connexion, sécurisez immédiatement votre compte.</p>",
 		code,
 	)
 	if err := s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailConnexion, corps); err != nil {
@@ -160,10 +168,11 @@ func (s *authService) VerifierCode2FA(ctx context.Context, ticketBrut, code stri
 }
 
 // ConnexionGoogle authentifie ou crée un utilisateur à partir d'un ID
-// token Google. Trois cas, dans l'ordre : un compte est déjà lié à ce
-// compte Google ; un compte existe avec cet email (liaison automatique
-// si Google confirme l'email vérifié) ; aucun compte (création).
-func (s *authService) ConnexionGoogle(ctx context.Context, req input.ConnexionGoogleRequest) (*input.SessionResultat, error) {
+// token Google (trois cas, dans l'ordre : compte déjà lié à ce compte
+// Google ; compte existant avec cet email, liaison automatique si
+// Google confirme l'email vérifié ; aucun compte, création), puis
+// déclenche le même second facteur que Connexion.
+func (s *authService) ConnexionGoogle(ctx context.Context, req input.ConnexionGoogleRequest) (*input.ConnexionResultat, error) {
 	identite, err := s.googleAuthProvider.VerifierIDToken(ctx, req.IDToken)
 	if err != nil {
 		return nil, domain.ErrIdentifiantsInvalides
@@ -171,7 +180,7 @@ func (s *authService) ConnexionGoogle(ctx context.Context, req input.ConnexionGo
 
 	utilisateur, err := s.utilisateurs.FindByGoogleID(ctx, identite.GoogleID)
 	if err == nil {
-		return s.emettreSession(ctx, utilisateur)
+		return s.demarrerTicketConnexion(ctx, utilisateur)
 	}
 	if !errors.Is(err, domain.ErrUtilisateurIntrouvable) {
 		return nil, fmt.Errorf("recherche utilisateur par google id: %w", err)
@@ -191,19 +200,23 @@ func (s *authService) ConnexionGoogle(ctx context.Context, req input.ConnexionGo
 		if err := s.utilisateurs.LierGoogleID(ctx, utilisateur); err != nil {
 			return nil, fmt.Errorf("liaison compte google: %w", err)
 		}
-		return s.emettreSession(ctx, utilisateur)
+		return s.demarrerTicketConnexion(ctx, utilisateur)
 	}
 	if !errors.Is(err, domain.ErrUtilisateurIntrouvable) {
 		return nil, fmt.Errorf("recherche utilisateur par email: %w", err)
 	}
 
-	return s.creerUtilisateurGoogle(ctx, identite, req.Telephone, req.PaysCode)
+	nouvelUtilisateur, err := s.creerUtilisateurGoogle(ctx, identite, req.Telephone, req.PaysCode)
+	if err != nil {
+		return nil, err
+	}
+	return s.demarrerTicketConnexion(ctx, nouvelUtilisateur)
 }
 
 // creerUtilisateurGoogle crée un nouvel utilisateur (et son wallet, KYC
 // Tier 1 auto-validé) lors d'une toute première connexion Google — même
 // logique que KycUseCase.Inscrire, adaptée à l'absence de mot de passe.
-func (s *authService) creerUtilisateurGoogle(ctx context.Context, identite output.IdentiteGoogle, telephone, paysCode string) (*input.SessionResultat, error) {
+func (s *authService) creerUtilisateurGoogle(ctx context.Context, identite output.IdentiteGoogle, telephone, paysCode string) (*domain.Utilisateur, error) {
 	if telephone == "" || paysCode == "" {
 		return nil, domain.ErrDonneesInvalides
 	}
@@ -239,7 +252,7 @@ func (s *authService) creerUtilisateurGoogle(ctx context.Context, identite outpu
 		return nil, err
 	}
 
-	return s.emettreSession(ctx, utilisateur)
+	return utilisateur, nil
 }
 
 func (s *authService) RafraichirToken(ctx context.Context, refreshToken string) (*input.SessionResultat, error) {

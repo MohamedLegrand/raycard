@@ -53,10 +53,11 @@ type AuthUseCase interface {
 	VerifierCode2FA(ctx context.Context, ticket, code string) (*SessionResultat, error)
 
 	// ConnexionGoogle authentifie (ou crée) un utilisateur à partir d'un
-	// ID token Google déjà vérifié côté client. Émet directement une
-	// session : Google authentifiant déjà fortement son propre compte,
-	// notre 2FA par email est sautée pour ce chemin (décision produit).
-	ConnexionGoogle(ctx context.Context, req ConnexionGoogleRequest) (*SessionResultat, error)
+	// ID token Google déjà vérifié côté client, puis déclenche le même
+	// second facteur que Connexion : ne renvoie jamais directement de
+	// session, la 2FA est obligatoire pour tout le monde, y compris via
+	// Google.
+	ConnexionGoogle(ctx context.Context, req ConnexionGoogleRequest) (*ConnexionResultat, error)
 
 	RafraichirToken(ctx context.Context, refreshToken string) (*SessionResultat, error)
 	Deconnexion(ctx context.Context, refreshToken string) error

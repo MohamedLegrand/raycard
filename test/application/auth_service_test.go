@@ -369,6 +369,25 @@ func TestAuthService_VerifierCode2FA_UsageUnique(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 }
 
+// connecterAvecGoogle2FA exécute ConnexionGoogle puis complète la 2FA
+// obligatoire déclenchée en retour, exactement comme connecterAvec2FA
+// pour la connexion par mot de passe.
+func connecterAvecGoogle2FA(t *testing.T, service input.AuthUseCase, notifieur *notifieurFake, req input.ConnexionGoogleRequest) *input.SessionResultat {
+	t.Helper()
+
+	resultatConnexion, err := service.ConnexionGoogle(context.Background(), req)
+	require.NoError(t, err)
+	require.NotEmpty(t, resultatConnexion.Ticket)
+
+	require.NotEmpty(t, notifieur.emailsEnvoyes)
+	dernierEmail := notifieur.emailsEnvoyes[len(notifieur.emailsEnvoyes)-1]
+	code := extraireCodeOTP(t, dernierEmail.corps)
+
+	session, err := service.VerifierCode2FA(context.Background(), resultatConnexion.Ticket, code)
+	require.NoError(t, err)
+	return session
+}
+
 func TestAuthService_ConnexionGoogle_CompteDejaLie(t *testing.T) {
 	service, fakes := setupAuthService()
 
@@ -381,10 +400,9 @@ func TestAuthService_ConnexionGoogle_CompteDejaLie(t *testing.T) {
 		GoogleID: "google-sub-123", Email: "awa@example.com", EmailVerifie: true, Nom: "Koné", Prenom: "Awa",
 	}
 
-	session, err := service.ConnexionGoogle(context.Background(), input.ConnexionGoogleRequest{IDToken: "peu-importe"})
-	require.NoError(t, err)
+	session := connecterAvecGoogle2FA(t, service, fakes.notifieur, input.ConnexionGoogleRequest{IDToken: "peu-importe"})
 	assert.Equal(t, "access-"+u.ID, session.AccessToken)
-	assert.Empty(t, fakes.notifieur.emailsEnvoyes, "pas de 2FA pour une connexion Google")
+	assert.Len(t, fakes.notifieur.emailsEnvoyes, 1, "la 2FA s'applique aussi à la connexion Google")
 }
 
 func TestAuthService_ConnexionGoogle_LiaisonCompteExistant(t *testing.T) {
@@ -396,8 +414,7 @@ func TestAuthService_ConnexionGoogle_LiaisonCompteExistant(t *testing.T) {
 		GoogleID: "google-sub-456", Email: "awa@example.com", EmailVerifie: true, Nom: "Koné", Prenom: "Awa",
 	}
 
-	session, err := service.ConnexionGoogle(context.Background(), input.ConnexionGoogleRequest{IDToken: "peu-importe"})
-	require.NoError(t, err)
+	session := connecterAvecGoogle2FA(t, service, fakes.notifieur, input.ConnexionGoogleRequest{IDToken: "peu-importe"})
 	assert.Equal(t, "access-"+u.ID, session.AccessToken)
 
 	utilisateurMaj, err := fakes.utilisateurs.FindByGoogleID(context.Background(), "google-sub-456")
@@ -427,10 +444,9 @@ func TestAuthService_ConnexionGoogle_NouveauCompte(t *testing.T) {
 		GoogleID: "google-sub-999", Email: "nouveau@example.com", EmailVerifie: true, Nom: "Traoré", Prenom: "Ibrahim",
 	}
 
-	session, err := service.ConnexionGoogle(context.Background(), input.ConnexionGoogleRequest{
+	session := connecterAvecGoogle2FA(t, service, fakes.notifieur, input.ConnexionGoogleRequest{
 		IDToken: "peu-importe", Telephone: "+2250700000099", PaysCode: "CI",
 	})
-	require.NoError(t, err)
 	assert.NotEmpty(t, session.AccessToken)
 
 	utilisateur, err := fakes.utilisateurs.FindByGoogleID(context.Background(), "google-sub-999")

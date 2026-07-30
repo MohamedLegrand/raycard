@@ -71,7 +71,7 @@ const docTemplate = `{
         },
         "/auth/connexion-google": {
             "post": {
-                "description": "Vérifie l'ID token Google et émet directement une session (2FA sautée pour ce chemin). Crée le compte automatiquement s'il n'existe pas encore, ou lie ce compte Google à un compte existant de même email (si Google confirme l'email vérifié).",
+                "description": "Vérifie l'ID token Google (crée le compte automatiquement s'il n'existe pas encore, ou lie ce compte Google à un compte existant de même email si Google confirme l'email vérifié), puis déclenche la 2FA obligatoire comme pour /auth/connexion : envoie un code par email et renvoie un ticket à présenter sur /auth/connexion/verifier-code.",
                 "consumes": [
                     "application/json"
                 ],
@@ -81,7 +81,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "Connexion via Google",
+                "summary": "Connexion via Google (étape 1/2)",
                 "parameters": [
                     {
                         "description": "ID token Google, téléphone et pays (utilisés seulement à la création)",
@@ -97,7 +97,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.SessionResponseDTO"
+                            "$ref": "#/definitions/dto.ConnexionResponseDTO"
                         }
                     },
                     "400": {
