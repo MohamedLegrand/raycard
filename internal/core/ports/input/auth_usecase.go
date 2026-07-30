@@ -40,6 +40,15 @@ type ConnexionGoogleRequest struct {
 	PaysCode  string
 }
 
+// MetadonneesConnexion capture le contexte de la requête au moment de
+// la vérification du second facteur, pour les notifications de
+// sécurité (email de nouvelle connexion). Purement informatif, jamais
+// utilisé pour une décision de sécurité.
+type MetadonneesConnexion struct {
+	AdresseIP    string
+	AppareilInfo string
+}
+
 // AuthUseCase orchestre l'authentification et le cycle de vie de la
 // session (access + refresh token, rotation, révocation).
 type AuthUseCase interface {
@@ -49,8 +58,10 @@ type AuthUseCase interface {
 	Connexion(ctx context.Context, req ConnexionRequest) (*ConnexionResultat, error)
 
 	// VerifierCode2FA échange un ticket de connexion valide et son code
-	// contre une session complète (access + refresh token).
-	VerifierCode2FA(ctx context.Context, ticket, code string) (*SessionResultat, error)
+	// contre une session complète (access + refresh token). Envoie une
+	// notification de connexion réussie, et une alerte si les tentatives
+	// s'épuisent (voir application/auth_service.go).
+	VerifierCode2FA(ctx context.Context, ticket, code string, metadonnees MetadonneesConnexion) (*SessionResultat, error)
 
 	// ConnexionGoogle authentifie (ou crée) un utilisateur à partir d'un
 	// ID token Google déjà vérifié côté client, puis déclenche le même

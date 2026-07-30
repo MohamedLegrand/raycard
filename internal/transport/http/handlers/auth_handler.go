@@ -50,7 +50,7 @@ func (h *AuthHandler) Connexion(c *fiber.Ctx) error {
 // VerifierCode2FA gère POST /api/v1/auth/connexion/verifier-code.
 //
 //	@Summary		Connexion (étape 2/2) — vérification du code
-//	@Description	Échange le ticket obtenu à l'étape 1 et le code reçu par email contre une session complète (access + refresh token). 5 tentatives maximum ; au-delà, le ticket est définitivement invalidé.
+//	@Description	Échange le ticket obtenu à l'étape 1 et le code reçu par email contre une session complète (access + refresh token). 5 tentatives maximum ; au-delà, le ticket est définitivement invalidé et une alerte de sécurité est envoyée. Une connexion réussie déclenche aussi une notification par email.
 //	@Tags			auth
 //	@Accept			json
 //	@Produce		json
@@ -69,7 +69,9 @@ func (h *AuthHandler) VerifierCode2FA(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 
-	resultat, err := h.authUseCase.VerifierCode2FA(c.Context(), req.Ticket, req.Code)
+	metadonnees := input.MetadonneesConnexion{AdresseIP: c.IP(), AppareilInfo: c.Get(fiber.HeaderUserAgent)}
+
+	resultat, err := h.authUseCase.VerifierCode2FA(c.Context(), req.Ticket, req.Code, metadonnees)
 	if err != nil {
 		return mapErreurDomaine(err)
 	}

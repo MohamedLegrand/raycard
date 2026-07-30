@@ -247,7 +247,7 @@ func connecterAvec2FA(t *testing.T, service input.AuthUseCase, notifieur *notifi
 	dernierEmail := notifieur.emailsEnvoyes[len(notifieur.emailsEnvoyes)-1]
 	code := extraireCodeOTP(t, dernierEmail.corps)
 
-	session, err := service.VerifierCode2FA(context.Background(), resultatConnexion.Ticket, code)
+	session, err := service.VerifierCode2FA(context.Background(), resultatConnexion.Ticket, code, input.MetadonneesConnexion{})
 	require.NoError(t, err)
 	return session
 }
@@ -305,7 +305,7 @@ func TestAuthService_VerifierCode2FA_MauvaisCode(t *testing.T) {
 	resultat, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
 	require.NoError(t, err)
 
-	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, "000000")
+	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, "000000", input.MetadonneesConnexion{})
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 
 	// Une tentative a été consommée, mais le ticket reste utilisable
@@ -320,7 +320,7 @@ func TestAuthService_VerifierCode2FA_MauvaisCode(t *testing.T) {
 	// Le bon code, lui, fonctionne toujours.
 	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
 	bonCode := extraireCodeOTP(t, dernierEmail.corps)
-	session, err := service.VerifierCode2FA(context.Background(), resultat.Ticket, bonCode)
+	session, err := service.VerifierCode2FA(context.Background(), resultat.Ticket, bonCode, input.MetadonneesConnexion{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, session.AccessToken)
 }
@@ -334,22 +334,48 @@ func TestAuthService_VerifierCode2FA_TentativesEpuisees(t *testing.T) {
 
 	// 5 tentatives maximum : les 5 échecs épuisent le ticket.
 	for i := 0; i < 5; i++ {
-		_, err := service.VerifierCode2FA(context.Background(), resultat.Ticket, "000000")
+		_, err := service.VerifierCode2FA(context.Background(), resultat.Ticket, "000000", input.MetadonneesConnexion{})
 		assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 	}
 
+	// La 5e tentative épuisée déclenche une alerte de sécurité, en plus
+	// de l'email initial contenant le code.
+	require.Len(t, fakes.notifieur.emailsEnvoyes, 2)
+	alerte := fakes.notifieur.emailsEnvoyes[1]
+	assert.Equal(t, "awa@example.com", alerte.destinataire)
+	assert.Contains(t, alerte.sujet, "Alerte de sécurité")
+
 	// Même le bon code ne fonctionne plus : il faut recommencer depuis
-	// Connexion.
-	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
-	bonCode := extraireCodeOTP(t, dernierEmail.corps)
-	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, bonCode)
+	// Connexion. Le code reste celui du tout premier email (aucun autre
+	// n'en contient un nouveau).
+	bonCode := extraireCodeOTP(t, fakes.notifieur.emailsEnvoyes[0].corps)
+	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, bonCode, input.MetadonneesConnexion{})
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
+}
+
+func TestAuthService_VerifierCode2FA_NotifieConnexionReussie(t *testing.T) {
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	resultat, err := service.Connexion(context.Background(), input.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
+	require.NoError(t, err)
+	code := extraireCodeOTP(t, fakes.notifieur.emailsEnvoyes[0].corps)
+
+	metadonnees := input.MetadonneesConnexion{AdresseIP: "203.0.113.42", AppareilInfo: "TestAgent/1.0"}
+	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, code, metadonnees)
+	require.NoError(t, err)
+
+	require.Len(t, fakes.notifieur.emailsEnvoyes, 2, "email du code + confirmation de connexion réussie")
+	confirmation := fakes.notifieur.emailsEnvoyes[1]
+	assert.Equal(t, "awa@example.com", confirmation.destinataire)
+	assert.Contains(t, confirmation.corps, "203.0.113.42")
+	assert.Contains(t, confirmation.corps, "TestAgent/1.0")
 }
 
 func TestAuthService_VerifierCode2FA_TicketInvalide(t *testing.T) {
 	service, _ := setupAuthService()
 
-	_, err := service.VerifierCode2FA(context.Background(), "ticket-qui-n-existe-pas", "123456")
+	_, err := service.VerifierCode2FA(context.Background(), "ticket-qui-n-existe-pas", "123456", input.MetadonneesConnexion{})
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 }
 
@@ -361,11 +387,11 @@ func TestAuthService_VerifierCode2FA_UsageUnique(t *testing.T) {
 	require.NoError(t, err)
 	code := extraireCodeOTP(t, fakes.notifieur.emailsEnvoyes[0].corps)
 
-	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, code)
+	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, code, input.MetadonneesConnexion{})
 	require.NoError(t, err)
 
 	// Rejouer le même ticket + code échoue : usage unique.
-	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, code)
+	_, err = service.VerifierCode2FA(context.Background(), resultat.Ticket, code, input.MetadonneesConnexion{})
 	assert.ErrorIs(t, err, domain.ErrTokenInvalide)
 }
 
@@ -383,7 +409,7 @@ func connecterAvecGoogle2FA(t *testing.T, service input.AuthUseCase, notifieur *
 	dernierEmail := notifieur.emailsEnvoyes[len(notifieur.emailsEnvoyes)-1]
 	code := extraireCodeOTP(t, dernierEmail.corps)
 
-	session, err := service.VerifierCode2FA(context.Background(), resultatConnexion.Ticket, code)
+	session, err := service.VerifierCode2FA(context.Background(), resultatConnexion.Ticket, code, input.MetadonneesConnexion{})
 	require.NoError(t, err)
 	return session
 }
@@ -402,7 +428,9 @@ func TestAuthService_ConnexionGoogle_CompteDejaLie(t *testing.T) {
 
 	session := connecterAvecGoogle2FA(t, service, fakes.notifieur, input.ConnexionGoogleRequest{IDToken: "peu-importe"})
 	assert.Equal(t, "access-"+u.ID, session.AccessToken)
-	assert.Len(t, fakes.notifieur.emailsEnvoyes, 1, "la 2FA s'applique aussi à la connexion Google")
+	// Code de connexion + confirmation de connexion réussie : la 2FA
+	// s'applique aussi à la connexion Google.
+	assert.Len(t, fakes.notifieur.emailsEnvoyes, 2)
 }
 
 func TestAuthService_ConnexionGoogle_LiaisonCompteExistant(t *testing.T) {

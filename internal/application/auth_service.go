@@ -23,9 +23,11 @@ const (
 	dureeTokenReinitialisation = 15 * time.Minute
 	sujetEmailReinitialisation = "Réinitialisation de votre mot de passe RAYCARD"
 
-	dureeTicketConnexion       = 10 * time.Minute
-	tentativesMaxCodeConnexion = 5
-	sujetEmailConnexion        = "Votre code de connexion RAYCARD"
+	dureeTicketConnexion         = 10 * time.Minute
+	tentativesMaxCodeConnexion   = 5
+	sujetEmailConnexion          = "Votre code de connexion RAYCARD"
+	sujetEmailNouvelleConnexion  = "Nouvelle connexion à votre compte RAYCARD"
+	sujetEmailTentativesEpuisees = "Alerte de sécurité RAYCARD : tentatives de connexion échouées"
 )
 
 type authService struct {
@@ -130,8 +132,9 @@ func (s *authService) demarrerTicketConnexion(ctx context.Context, utilisateur *
 // VerifierCode2FA échange un ticket de connexion valide et son code
 // contre une session complète. Un code incorrect consomme une
 // tentative ; à zéro, le ticket est définitivement mort (il faut
-// recommencer depuis Connexion).
-func (s *authService) VerifierCode2FA(ctx context.Context, ticketBrut, code string) (*input.SessionResultat, error) {
+// recommencer depuis Connexion) et une alerte de sécurité est envoyée.
+// Une connexion réussie déclenche elle aussi une notification.
+func (s *authService) VerifierCode2FA(ctx context.Context, ticketBrut, code string, metadonnees input.MetadonneesConnexion) (*input.SessionResultat, error) {
 	ticket, err := s.ticketsConnexion.FindByHash(ctx, hacherToken(ticketBrut))
 	if err != nil {
 		if errors.Is(err, domain.ErrTokenInvalide) {
@@ -151,6 +154,12 @@ func (s *authService) VerifierCode2FA(ctx context.Context, ticketBrut, code stri
 		if err := s.ticketsConnexion.Update(ctx, ticket); err != nil {
 			return nil, fmt.Errorf("mise à jour ticket connexion: %w", err)
 		}
+		if ticket.TentativesRestantes == 0 {
+			// Signal fort : quelqu'un connaît déjà le mot de passe et essaie
+			// de deviner le code. Best-effort — un échec d'envoi ne doit pas
+			// masquer l'erreur d'authentification déjà décidée.
+			_ = s.alerterTentativesEpuisees(ctx, ticket.UtilisateurID)
+		}
 		return nil, domain.ErrTokenInvalide
 	}
 
@@ -164,7 +173,55 @@ func (s *authService) VerifierCode2FA(ctx context.Context, ticketBrut, code stri
 		return nil, fmt.Errorf("consommation ticket connexion: %w", err)
 	}
 
-	return s.emettreSession(ctx, utilisateur)
+	session, err := s.emettreSession(ctx, utilisateur)
+	if err != nil {
+		return nil, err
+	}
+
+	// Best-effort, même logique : ne bloque jamais une connexion réussie.
+	_ = s.notifierConnexionReussie(ctx, utilisateur, metadonnees)
+
+	return session, nil
+}
+
+// notifierConnexionReussie envoie un email de confirmation à chaque
+// connexion effective — permet à l'utilisateur de repérer rapidement un
+// accès qu'il n'a pas initié.
+func (s *authService) notifierConnexionReussie(ctx context.Context, utilisateur *domain.Utilisateur, metadonnees input.MetadonneesConnexion) error {
+	corps := fmt.Sprintf(
+		"<p>Une connexion à votre compte RAYCARD vient d'avoir lieu.</p>"+
+			"<p>Adresse IP : %s<br>Appareil : %s</p>"+
+			"<p>Si ce n'est pas vous, réinitialisez votre mot de passe immédiatement.</p>",
+		valeurOuDefaut(metadonnees.AdresseIP, "inconnue"),
+		valeurOuDefaut(metadonnees.AppareilInfo, "inconnu"),
+	)
+	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailNouvelleConnexion, corps)
+}
+
+// alerterTentativesEpuisees prévient l'utilisateur que les 5 tentatives
+// de code ont été consommées sans succès — le mot de passe seul ne
+// suffisant pas à se connecter, ceci indique que quelqu'un d'autre le
+// connaît probablement.
+func (s *authService) alerterTentativesEpuisees(ctx context.Context, utilisateurID string) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return fmt.Errorf("recherche utilisateur pour alerte: %w", err)
+	}
+
+	corps := "<p>Les 5 tentatives de code pour une connexion à votre compte RAYCARD ont échoué.</p>" +
+		"<p>Cela signifie que votre mot de passe est probablement connu de quelqu'un d'autre. " +
+		"Si ce n'est pas vous qui avez tenté de vous connecter, réinitialisez votre mot de passe immédiatement.</p>"
+	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailTentativesEpuisees, corps)
+}
+
+// valeurOuDefaut renvoie v s'il est renseigné, sinon defaut — évite un
+// email affichant un champ vide quand la métadonnée n'a pas été
+// transmise.
+func valeurOuDefaut(v, defaut string) string {
+	if v == "" {
+		return defaut
+	}
+	return v
 }
 
 // ConnexionGoogle authentifie ou crée un utilisateur à partir d'un ID

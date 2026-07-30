@@ -123,7 +123,7 @@ const docTemplate = `{
         },
         "/auth/connexion/verifier-code": {
             "post": {
-                "description": "Échange le ticket obtenu à l'étape 1 et le code reçu par email contre une session complète (access + refresh token). 5 tentatives maximum ; au-delà, le ticket est définitivement invalidé.",
+                "description": "Échange le ticket obtenu à l'étape 1 et le code reçu par email contre une session complète (access + refresh token). 5 tentatives maximum ; au-delà, le ticket est définitivement invalidé et une alerte de sécurité est envoyée. Une connexion réussie déclenche aussi une notification par email.",
                 "consumes": [
                     "application/json"
                 ],
