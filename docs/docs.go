@@ -37,7 +37,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ConnexionRequestDTO"
+                            "$ref": "#/definitions/auth.ConnexionRequestDTO"
                         }
                     }
                 ],
@@ -45,25 +45,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.ConnexionResponseDTO"
+                            "$ref": "#/definitions/auth.ConnexionResponseDTO"
                         }
                     },
                     "400": {
                         "description": "corps de requête invalide",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "401": {
                         "description": "identifiants invalides",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -89,7 +89,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ConnexionGoogleRequestDTO"
+                            "$ref": "#/definitions/auth.ConnexionGoogleRequestDTO"
                         }
                     }
                 ],
@@ -97,25 +97,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.ConnexionResponseDTO"
+                            "$ref": "#/definitions/auth.ConnexionResponseDTO"
                         }
                     },
                     "400": {
                         "description": "corps de requête invalide, ou téléphone/pays manquants pour une première connexion",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "401": {
                         "description": "id token invalide, ou email non vérifié pour lier un compte existant",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -141,7 +141,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.VerifierCode2FARequestDTO"
+                            "$ref": "#/definitions/auth.VerifierCode2FARequestDTO"
                         }
                     }
                 ],
@@ -149,25 +149,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.SessionResponseDTO"
+                            "$ref": "#/definitions/auth.SessionResponseDTO"
                         }
                     },
                     "400": {
                         "description": "corps de requête invalide",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "401": {
                         "description": "ticket ou code invalide, expiré, ou tentatives épuisées",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -193,7 +193,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.RafraichirRequestDTO"
+                            "$ref": "#/definitions/auth.RafraichirRequestDTO"
                         }
                     }
                 ],
@@ -204,13 +204,13 @@ const docTemplate = `{
                     "400": {
                         "description": "corps de requête invalide",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -236,7 +236,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.DemanderReinitialisationRequestDTO"
+                            "$ref": "#/definitions/auth.DemanderReinitialisationRequestDTO"
                         }
                     }
                 ],
@@ -247,13 +247,13 @@ const docTemplate = `{
                     "400": {
                         "description": "corps de requête invalide",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -279,7 +279,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.RafraichirRequestDTO"
+                            "$ref": "#/definitions/auth.RafraichirRequestDTO"
                         }
                     }
                 ],
@@ -287,25 +287,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/dto.SessionResponseDTO"
+                            "$ref": "#/definitions/auth.SessionResponseDTO"
                         }
                     },
                     "400": {
                         "description": "corps de requête invalide",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "401": {
                         "description": "refresh token invalide, expiré ou révoqué",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -331,7 +331,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ReinitialiserRequestDTO"
+                            "$ref": "#/definitions/auth.ReinitialiserRequestDTO"
                         }
                     }
                 ],
@@ -342,19 +342,19 @@ const docTemplate = `{
                     "400": {
                         "description": "corps de requête invalide",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "401": {
                         "description": "code invalide, expiré ou déjà utilisé",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -380,26 +380,26 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/dto.DossierKycDTO"
+                                "$ref": "#/definitions/kyc.DossierKycDTO"
                             }
                         }
                     },
                     "401": {
                         "description": "non authentifié",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "403": {
                         "description": "réservé aux administrateurs",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -436,31 +436,31 @@ const docTemplate = `{
                     "401": {
                         "description": "non authentifié",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "403": {
                         "description": "réservé aux administrateurs",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "404": {
                         "description": "dossier introuvable",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "422": {
                         "description": "dossier déjà traité",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -498,7 +498,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.RejeterDossierRequestDTO"
+                            "$ref": "#/definitions/kyc.RejeterDossierRequestDTO"
                         }
                     }
                 ],
@@ -509,37 +509,37 @@ const docTemplate = `{
                     "400": {
                         "description": "corps de requête invalide",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "401": {
                         "description": "non authentifié",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "403": {
                         "description": "réservé aux administrateurs",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "404": {
                         "description": "dossier introuvable",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "422": {
                         "description": "dossier déjà traité",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -564,31 +564,31 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/dto.DossierKycDTO"
+                            "$ref": "#/definitions/kyc.DossierKycDTO"
                         }
                     },
                     "401": {
                         "description": "non authentifié",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "409": {
                         "description": "une demande est déjà en attente",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "422": {
                         "description": "l'utilisateur n'est pas au Tier 1",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -614,7 +614,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.InscriptionRequestDTO"
+                            "$ref": "#/definitions/kyc.InscriptionRequestDTO"
                         }
                     }
                 ],
@@ -622,31 +622,31 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/dto.InscriptionResponseDTO"
+                            "$ref": "#/definitions/kyc.InscriptionResponseDTO"
                         }
                     },
                     "400": {
                         "description": "corps de requête invalide ou données de validation incorrectes",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "409": {
                         "description": "email ou téléphone déjà utilisé",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "422": {
                         "description": "pays non supporté ou données métier invalides",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
-                            "$ref": "#/definitions/dto.ErreurDTO"
+                            "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     }
                 }
@@ -654,7 +654,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "dto.ConnexionGoogleRequestDTO": {
+        "auth.ConnexionGoogleRequestDTO": {
             "type": "object",
             "required": [
                 "id_token",
@@ -675,7 +675,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.ConnexionRequestDTO": {
+        "auth.ConnexionRequestDTO": {
             "type": "object",
             "required": [
                 "email",
@@ -692,7 +692,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.ConnexionResponseDTO": {
+        "auth.ConnexionResponseDTO": {
             "type": "object",
             "properties": {
                 "expire_dans_sec": {
@@ -703,7 +703,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.DemanderReinitialisationRequestDTO": {
+        "auth.DemanderReinitialisationRequestDTO": {
             "type": "object",
             "required": [
                 "email"
@@ -715,7 +715,78 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.DossierKycDTO": {
+        "auth.RafraichirRequestDTO": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.ReinitialiserRequestDTO": {
+            "type": "object",
+            "required": [
+                "nouveau_mot_de_passe",
+                "token"
+            ],
+            "properties": {
+                "nouveau_mot_de_passe": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "nouveaumotdepasse123"
+                },
+                "token": {
+                    "type": "string",
+                    "example": "042951"
+                }
+            }
+        },
+        "auth.SessionResponseDTO": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "access_token_expire_at": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "refresh_token_expire_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.VerifierCode2FARequestDTO": {
+            "type": "object",
+            "required": [
+                "code",
+                "ticket"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "042951"
+                },
+                "ticket": {
+                    "type": "string"
+                }
+            }
+        },
+        "commun.ErreurDTO": {
+            "type": "object",
+            "properties": {
+                "erreur": {
+                    "type": "string",
+                    "example": "un compte existe déjà avec cet email"
+                }
+            }
+        },
+        "kyc.DossierKycDTO": {
             "type": "object",
             "properties": {
                 "admin_id": {
@@ -744,16 +815,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.ErreurDTO": {
-            "type": "object",
-            "properties": {
-                "erreur": {
-                    "type": "string",
-                    "example": "un compte existe déjà avec cet email"
-                }
-            }
-        },
-        "dto.InscriptionRequestDTO": {
+        "kyc.InscriptionRequestDTO": {
             "type": "object",
             "required": [
                 "email",
@@ -795,47 +857,18 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.InscriptionResponseDTO": {
+        "kyc.InscriptionResponseDTO": {
             "type": "object",
             "properties": {
                 "utilisateur": {
-                    "$ref": "#/definitions/dto.UtilisateurDTO"
+                    "$ref": "#/definitions/kyc.UtilisateurDTO"
                 },
                 "wallet": {
-                    "$ref": "#/definitions/dto.WalletDTO"
+                    "$ref": "#/definitions/kyc.WalletDTO"
                 }
             }
         },
-        "dto.RafraichirRequestDTO": {
-            "type": "object",
-            "required": [
-                "refresh_token"
-            ],
-            "properties": {
-                "refresh_token": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.ReinitialiserRequestDTO": {
-            "type": "object",
-            "required": [
-                "nouveau_mot_de_passe",
-                "token"
-            ],
-            "properties": {
-                "nouveau_mot_de_passe": {
-                    "type": "string",
-                    "minLength": 8,
-                    "example": "nouveaumotdepasse123"
-                },
-                "token": {
-                    "type": "string",
-                    "example": "042951"
-                }
-            }
-        },
-        "dto.RejeterDossierRequestDTO": {
+        "kyc.RejeterDossierRequestDTO": {
             "type": "object",
             "required": [
                 "motif"
@@ -848,24 +881,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.SessionResponseDTO": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "type": "string"
-                },
-                "access_token_expire_at": {
-                    "type": "string"
-                },
-                "refresh_token": {
-                    "type": "string"
-                },
-                "refresh_token_expire_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.UtilisateurDTO": {
+        "kyc.UtilisateurDTO": {
             "type": "object",
             "properties": {
                 "email": {
@@ -902,23 +918,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.VerifierCode2FARequestDTO": {
-            "type": "object",
-            "required": [
-                "code",
-                "ticket"
-            ],
-            "properties": {
-                "code": {
-                    "type": "string",
-                    "example": "042951"
-                },
-                "ticket": {
-                    "type": "string"
-                }
-            }
-        },
-        "dto.WalletDTO": {
+        "kyc.WalletDTO": {
             "type": "object",
             "properties": {
                 "devise": {

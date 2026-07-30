@@ -1,4 +1,4 @@
-// Package google implémente output.GoogleAuthProvider en vérifiant la
+// Package google implémente auth.GoogleAuthProvider en vérifiant la
 // signature d'un ID token directement contre les clés publiques
 // publiées par Google (JWKS), avec golang-jwt (déjà une dépendance du
 // projet) — plutôt que le client Google Cloud complet
@@ -20,7 +20,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"raycard/internal/core/ports/output"
+	"raycard/internal/core/ports/output/auth"
 )
 
 const urlClesGoogle = "https://www.googleapis.com/oauth2/v3/certs"
@@ -51,7 +51,7 @@ func NewVerificateurToken(clientID string) *VerificateurToken {
 	}
 }
 
-func (v *VerificateurToken) VerifierIDToken(ctx context.Context, idTokenBrut string) (output.IdentiteGoogle, error) {
+func (v *VerificateurToken) VerifierIDToken(ctx context.Context, idTokenBrut string) (auth.IdentiteGoogle, error) {
 	claims := jwt.MapClaims{}
 
 	token, err := jwt.ParseWithClaims(idTokenBrut, claims, func(t *jwt.Token) (any, error) {
@@ -65,27 +65,27 @@ func (v *VerificateurToken) VerifierIDToken(ctx context.Context, idTokenBrut str
 		return v.cle(ctx, kid)
 	})
 	if err != nil || !token.Valid {
-		return output.IdentiteGoogle{}, fmt.Errorf("id token google invalide: %w", err)
+		return auth.IdentiteGoogle{}, fmt.Errorf("id token google invalide: %w", err)
 	}
 
 	iss, _ := claims["iss"].(string)
 	if !issuersValides[iss] {
-		return output.IdentiteGoogle{}, errors.New("émetteur id token invalide")
+		return auth.IdentiteGoogle{}, errors.New("émetteur id token invalide")
 	}
 	if aud, _ := claims["aud"].(string); aud != v.clientID {
-		return output.IdentiteGoogle{}, errors.New("audience id token invalide")
+		return auth.IdentiteGoogle{}, errors.New("audience id token invalide")
 	}
 
 	sub, _ := claims["sub"].(string)
 	email, _ := claims["email"].(string)
 	if sub == "" || email == "" {
-		return output.IdentiteGoogle{}, errors.New("id token incomplet")
+		return auth.IdentiteGoogle{}, errors.New("id token incomplet")
 	}
 	emailVerifie, _ := claims["email_verified"].(bool)
 	prenom, _ := claims["given_name"].(string)
 	nom, _ := claims["family_name"].(string)
 
-	return output.IdentiteGoogle{
+	return auth.IdentiteGoogle{
 		GoogleID:     sub,
 		Email:        email,
 		EmailVerifie: emailVerifie,

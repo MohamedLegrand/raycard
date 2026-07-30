@@ -12,14 +12,18 @@ import (
 	"github.com/rs/zerolog"
 
 	_ "raycard/docs" // docs générés par `swag init`, nécessaires pour servir la spec Swagger
-	"raycard/internal/application"
+	appauth "raycard/internal/application/auth"
+	appkyc "raycard/internal/application/kyc"
 	"raycard/internal/infrastructure/auth/google"
 	"raycard/internal/infrastructure/auth/jwt"
 	"raycard/internal/infrastructure/config"
-	"raycard/internal/infrastructure/database/postgres"
+	pgauth "raycard/internal/infrastructure/database/postgres/auth"
+	pgcommun "raycard/internal/infrastructure/database/postgres/commun"
+	pgkyc "raycard/internal/infrastructure/database/postgres/kyc"
 	"raycard/internal/infrastructure/notification/brevo"
 	apihttp "raycard/internal/transport/http"
-	"raycard/internal/transport/http/handlers"
+	handlersauth "raycard/internal/transport/http/handlers/auth"
+	handlerskyc "raycard/internal/transport/http/handlers/kyc"
 	"raycard/internal/transport/http/middleware"
 )
 
@@ -43,22 +47,22 @@ func main() {
 	connCtx, cancelConn := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelConn()
 
-	pool, err := postgres.NewPool(connCtx, cfg.DatabaseURL)
+	pool, err := pgcommun.NewPool(connCtx, cfg.DatabaseURL)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("connexion base de données")
 	}
 	defer pool.Close()
 
 	// Adapters de persistance
-	utilisateurRepo := postgres.NewUtilisateurRepository(pool)
-	walletRepo := postgres.NewWalletRepository(pool)
-	reglesKycRepo := postgres.NewReglesKycRepository(pool)
-	refreshTokenRepo := postgres.NewRefreshTokenRepository(pool)
-	tokenReinitialisationRepo := postgres.NewTokenReinitialisationRepository(pool)
-	ticketConnexionRepo := postgres.NewTicketConnexionRepository(pool)
-	dossierKycRepo := postgres.NewDossierKycRepository(pool)
-	auditLogRepo := postgres.NewAuditLogRepository(pool)
-	txManager := postgres.NewTxManager(pool)
+	utilisateurRepo := pgcommun.NewUtilisateurRepository(pool)
+	walletRepo := pgcommun.NewWalletRepository(pool)
+	reglesKycRepo := pgcommun.NewReglesKycRepository(pool)
+	refreshTokenRepo := pgauth.NewRefreshTokenRepository(pool)
+	tokenReinitialisationRepo := pgauth.NewTokenReinitialisationRepository(pool)
+	ticketConnexionRepo := pgauth.NewTicketConnexionRepository(pool)
+	dossierKycRepo := pgkyc.NewDossierKycRepository(pool)
+	auditLogRepo := pgcommun.NewAuditLogRepository(pool)
+	txManager := pgcommun.NewTxManager(pool)
 
 	// Adapters de sécurité et de notification
 	tokenGenerator := jwt.NewTokenGenerator(cfg.JWTSecret)
@@ -66,18 +70,18 @@ func main() {
 	googleAuthProvider := google.NewVerificateurToken(cfg.GoogleClientID)
 
 	// Use cases (application)
-	kycUseCase := application.NewKycService(utilisateurRepo, walletRepo, reglesKycRepo, dossierKycRepo, txManager)
-	authUseCase := application.NewAuthService(
+	kycUseCase := appkyc.NewKycService(utilisateurRepo, walletRepo, reglesKycRepo, dossierKycRepo, txManager)
+	authUseCase := appauth.NewAuthService(
 		utilisateurRepo, walletRepo, reglesKycRepo, refreshTokenRepo, tokenReinitialisationRepo, ticketConnexionRepo,
 		tokenGenerator, notifieur, googleAuthProvider, txManager,
 	)
-	adminKycUseCase := application.NewAdminKycService(utilisateurRepo, dossierKycRepo, auditLogRepo, txManager)
+	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, auditLogRepo, txManager)
 
 	// Transport HTTP
 	validate := validator.New()
-	kycHandler := handlers.NewKycHandler(kycUseCase, validate)
-	authHandler := handlers.NewAuthHandler(authUseCase, validate)
-	adminKycHandler := handlers.NewAdminKycHandler(adminKycUseCase, validate)
+	kycHandler := handlerskyc.NewKycHandler(kycUseCase, validate)
+	authHandler := handlersauth.NewAuthHandler(authUseCase, validate)
+	adminKycHandler := handlerskyc.NewAdminKycHandler(adminKycUseCase, validate)
 
 	app := fiber.New(fiber.Config{
 		ErrorHandler: func(c *fiber.Ctx, err error) error {

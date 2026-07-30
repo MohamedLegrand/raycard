@@ -14,9 +14,9 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"raycard/internal/core/domain"
+	"raycard/internal/core/domain/commun"
 	"raycard/internal/infrastructure/config"
-	"raycard/internal/infrastructure/database/postgres"
+	postgres "raycard/internal/infrastructure/database/postgres/commun"
 )
 
 func main() {
@@ -51,7 +51,7 @@ func main() {
 
 	utilisateurRepo := postgres.NewUtilisateurRepository(pool)
 
-	if _, err := utilisateurRepo.FindByEmail(ctx, *email); !errors.Is(err, domain.ErrUtilisateurIntrouvable) {
+	if _, err := utilisateurRepo.FindByEmail(ctx, *email); !errors.Is(err, commun.ErrUtilisateurIntrouvable) {
 		if err == nil {
 			fmt.Fprintln(os.Stderr, "un compte existe déjà avec cet email")
 			os.Exit(1)
@@ -66,7 +66,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	admin, err := domain.NouvelAdministrateur(*nom, *prenom, *email, *telephone, *paysCode, string(hash))
+	admin, err := commun.NouvelAdministrateur(*nom, *prenom, *email, *telephone, *paysCode, string(hash))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "construction administrateur:", err)
 		os.Exit(1)

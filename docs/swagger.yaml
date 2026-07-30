@@ -1,6 +1,6 @@
 basePath: /api/v1
 definitions:
-  dto.ConnexionGoogleRequestDTO:
+  auth.ConnexionGoogleRequestDTO:
     properties:
       id_token:
         type: string
@@ -15,7 +15,7 @@ definitions:
     - pays_code
     - telephone
     type: object
-  dto.ConnexionRequestDTO:
+  auth.ConnexionRequestDTO:
     properties:
       email:
         example: awa.kone@example.com
@@ -27,14 +27,14 @@ definitions:
     - email
     - mot_de_passe
     type: object
-  dto.ConnexionResponseDTO:
+  auth.ConnexionResponseDTO:
     properties:
       expire_dans_sec:
         type: integer
       ticket:
         type: string
     type: object
-  dto.DemanderReinitialisationRequestDTO:
+  auth.DemanderReinitialisationRequestDTO:
     properties:
       email:
         example: awa.kone@example.com
@@ -42,7 +42,55 @@ definitions:
     required:
     - email
     type: object
-  dto.DossierKycDTO:
+  auth.RafraichirRequestDTO:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  auth.ReinitialiserRequestDTO:
+    properties:
+      nouveau_mot_de_passe:
+        example: nouveaumotdepasse123
+        minLength: 8
+        type: string
+      token:
+        example: "042951"
+        type: string
+    required:
+    - nouveau_mot_de_passe
+    - token
+    type: object
+  auth.SessionResponseDTO:
+    properties:
+      access_token:
+        type: string
+      access_token_expire_at:
+        type: string
+      refresh_token:
+        type: string
+      refresh_token_expire_at:
+        type: string
+    type: object
+  auth.VerifierCode2FARequestDTO:
+    properties:
+      code:
+        example: "042951"
+        type: string
+      ticket:
+        type: string
+    required:
+    - code
+    - ticket
+    type: object
+  commun.ErreurDTO:
+    properties:
+      erreur:
+        example: un compte existe déjà avec cet email
+        type: string
+    type: object
+  kyc.DossierKycDTO:
     properties:
       admin_id:
         type: string
@@ -61,13 +109,7 @@ definitions:
       utilisateur_id:
         type: string
     type: object
-  dto.ErreurDTO:
-    properties:
-      erreur:
-        example: un compte existe déjà avec cet email
-        type: string
-    type: object
-  dto.InscriptionRequestDTO:
+  kyc.InscriptionRequestDTO:
     properties:
       email:
         example: awa.kone@example.com
@@ -100,34 +142,14 @@ definitions:
     - prenom
     - telephone
     type: object
-  dto.InscriptionResponseDTO:
+  kyc.InscriptionResponseDTO:
     properties:
       utilisateur:
-        $ref: '#/definitions/dto.UtilisateurDTO'
+        $ref: '#/definitions/kyc.UtilisateurDTO'
       wallet:
-        $ref: '#/definitions/dto.WalletDTO'
+        $ref: '#/definitions/kyc.WalletDTO'
     type: object
-  dto.RafraichirRequestDTO:
-    properties:
-      refresh_token:
-        type: string
-    required:
-    - refresh_token
-    type: object
-  dto.ReinitialiserRequestDTO:
-    properties:
-      nouveau_mot_de_passe:
-        example: nouveaumotdepasse123
-        minLength: 8
-        type: string
-      token:
-        example: "042951"
-        type: string
-    required:
-    - nouveau_mot_de_passe
-    - token
-    type: object
-  dto.RejeterDossierRequestDTO:
+  kyc.RejeterDossierRequestDTO:
     properties:
       motif:
         example: pièce d'identité illisible
@@ -136,18 +158,7 @@ definitions:
     required:
     - motif
     type: object
-  dto.SessionResponseDTO:
-    properties:
-      access_token:
-        type: string
-      access_token_expire_at:
-        type: string
-      refresh_token:
-        type: string
-      refresh_token_expire_at:
-        type: string
-    type: object
-  dto.UtilisateurDTO:
+  kyc.UtilisateurDTO:
     properties:
       email:
         example: awa.kone@example.com
@@ -174,18 +185,7 @@ definitions:
         example: "+2250700000000"
         type: string
     type: object
-  dto.VerifierCode2FARequestDTO:
-    properties:
-      code:
-        example: "042951"
-        type: string
-      ticket:
-        type: string
-    required:
-    - code
-    - ticket
-    type: object
-  dto.WalletDTO:
+  kyc.WalletDTO:
     properties:
       devise:
         example: XOF
@@ -222,26 +222,26 @@ paths:
         name: connexion
         required: true
         schema:
-          $ref: '#/definitions/dto.ConnexionRequestDTO'
+          $ref: '#/definitions/auth.ConnexionRequestDTO'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.ConnexionResponseDTO'
+            $ref: '#/definitions/auth.ConnexionResponseDTO'
         "400":
           description: corps de requête invalide
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "401":
           description: identifiants invalides
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       summary: Connexion (étape 1/2)
       tags:
       - auth
@@ -260,28 +260,28 @@ paths:
         name: connexion
         required: true
         schema:
-          $ref: '#/definitions/dto.ConnexionGoogleRequestDTO'
+          $ref: '#/definitions/auth.ConnexionGoogleRequestDTO'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.ConnexionResponseDTO'
+            $ref: '#/definitions/auth.ConnexionResponseDTO'
         "400":
           description: corps de requête invalide, ou téléphone/pays manquants pour
             une première connexion
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "401":
           description: id token invalide, ou email non vérifié pour lier un compte
             existant
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       summary: Connexion via Google (étape 1/2)
       tags:
       - auth
@@ -299,26 +299,26 @@ paths:
         name: verification
         required: true
         schema:
-          $ref: '#/definitions/dto.VerifierCode2FARequestDTO'
+          $ref: '#/definitions/auth.VerifierCode2FARequestDTO'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.SessionResponseDTO'
+            $ref: '#/definitions/auth.SessionResponseDTO'
         "400":
           description: corps de requête invalide
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "401":
           description: ticket ou code invalide, expiré, ou tentatives épuisées
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       summary: Connexion (étape 2/2) — vérification du code
       tags:
       - auth
@@ -334,7 +334,7 @@ paths:
         name: deconnexion
         required: true
         schema:
-          $ref: '#/definitions/dto.RafraichirRequestDTO'
+          $ref: '#/definitions/auth.RafraichirRequestDTO'
       produces:
       - application/json
       responses:
@@ -343,11 +343,11 @@ paths:
         "400":
           description: corps de requête invalide
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       summary: Déconnexion
       tags:
       - auth
@@ -364,7 +364,7 @@ paths:
         name: demande
         required: true
         schema:
-          $ref: '#/definitions/dto.DemanderReinitialisationRequestDTO'
+          $ref: '#/definitions/auth.DemanderReinitialisationRequestDTO'
       produces:
       - application/json
       responses:
@@ -373,11 +373,11 @@ paths:
         "400":
           description: corps de requête invalide
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       summary: Demande de réinitialisation de mot de passe
       tags:
       - auth
@@ -393,26 +393,26 @@ paths:
         name: rafraichir
         required: true
         schema:
-          $ref: '#/definitions/dto.RafraichirRequestDTO'
+          $ref: '#/definitions/auth.RafraichirRequestDTO'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/dto.SessionResponseDTO'
+            $ref: '#/definitions/auth.SessionResponseDTO'
         "400":
           description: corps de requête invalide
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "401":
           description: refresh token invalide, expiré ou révoqué
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       summary: Rafraîchissement de session
       tags:
       - auth
@@ -428,7 +428,7 @@ paths:
         name: reinitialisation
         required: true
         schema:
-          $ref: '#/definitions/dto.ReinitialiserRequestDTO'
+          $ref: '#/definitions/auth.ReinitialiserRequestDTO'
       produces:
       - application/json
       responses:
@@ -437,15 +437,15 @@ paths:
         "400":
           description: corps de requête invalide
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "401":
           description: code invalide, expiré ou déjà utilisé
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       summary: Réinitialisation du mot de passe
       tags:
       - auth
@@ -458,20 +458,20 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/dto.DossierKycDTO'
+              $ref: '#/definitions/kyc.DossierKycDTO'
             type: array
         "401":
           description: non authentifié
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "403":
           description: réservé aux administrateurs
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       security:
       - BearerAuth: []
       summary: Liste des dossiers KYC en attente
@@ -494,23 +494,23 @@ paths:
         "401":
           description: non authentifié
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "403":
           description: réservé aux administrateurs
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "404":
           description: dossier introuvable
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "422":
           description: dossier déjà traité
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       security:
       - BearerAuth: []
       summary: Approuve un dossier KYC
@@ -533,7 +533,7 @@ paths:
         name: rejet
         required: true
         schema:
-          $ref: '#/definitions/dto.RejeterDossierRequestDTO'
+          $ref: '#/definitions/kyc.RejeterDossierRequestDTO'
       produces:
       - application/json
       responses:
@@ -542,27 +542,27 @@ paths:
         "400":
           description: corps de requête invalide
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "401":
           description: non authentifié
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "403":
           description: réservé aux administrateurs
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "404":
           description: dossier introuvable
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "422":
           description: dossier déjà traité
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       security:
       - BearerAuth: []
       summary: Rejette un dossier KYC
@@ -577,23 +577,23 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.DossierKycDTO'
+            $ref: '#/definitions/kyc.DossierKycDTO'
         "401":
           description: non authentifié
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "409":
           description: une demande est déjà en attente
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "422":
           description: l'utilisateur n'est pas au Tier 1
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       security:
       - BearerAuth: []
       summary: Demande de passage au Tier 2
@@ -611,30 +611,30 @@ paths:
         name: inscription
         required: true
         schema:
-          $ref: '#/definitions/dto.InscriptionRequestDTO'
+          $ref: '#/definitions/kyc.InscriptionRequestDTO'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/dto.InscriptionResponseDTO'
+            $ref: '#/definitions/kyc.InscriptionResponseDTO'
         "400":
           description: corps de requête invalide ou données de validation incorrectes
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "409":
           description: email ou téléphone déjà utilisé
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "422":
           description: pays non supporté ou données métier invalides
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
-            $ref: '#/definitions/dto.ErreurDTO'
+            $ref: '#/definitions/commun.ErreurDTO'
       summary: Inscription d'un nouvel utilisateur
       tags:
       - kyc

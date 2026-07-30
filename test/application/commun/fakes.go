@@ -1,0 +1,147 @@
+// Package commun fournit de faux repositories en mémoire, partagés par
+// les tests des différents modules applicatifs (auth, kyc), pour les
+// entités communes (utilisateur, wallet, règles KYC, transactions).
+// Ce n'est volontairement pas un fichier _test.go : les tests d'un
+// autre package ne peuvent pas importer les symboles d'un fichier de
+// test, seulement ceux d'un paquet normal.
+package commun
+
+import (
+	"context"
+
+	domaincommun "raycard/internal/core/domain/commun"
+)
+
+type UtilisateurRepoFake struct {
+	parEmail     map[string]*domaincommun.Utilisateur
+	parTelephone map[string]*domaincommun.Utilisateur
+	parGoogleID  map[string]*domaincommun.Utilisateur
+}
+
+func NewUtilisateurRepoFake() *UtilisateurRepoFake {
+	return &UtilisateurRepoFake{
+		parEmail:     make(map[string]*domaincommun.Utilisateur),
+		parTelephone: make(map[string]*domaincommun.Utilisateur),
+		parGoogleID:  make(map[string]*domaincommun.Utilisateur),
+	}
+}
+
+func (r *UtilisateurRepoFake) Create(_ context.Context, u *domaincommun.Utilisateur) error {
+	r.parEmail[u.Email] = u
+	r.parTelephone[u.Telephone] = u
+	if u.GoogleID != "" {
+		r.parGoogleID[u.GoogleID] = u
+	}
+	return nil
+}
+
+func (r *UtilisateurRepoFake) FindByID(_ context.Context, id string) (*domaincommun.Utilisateur, error) {
+	for _, u := range r.parEmail {
+		if u.ID == id {
+			return u, nil
+		}
+	}
+	return nil, domaincommun.ErrUtilisateurIntrouvable
+}
+
+func (r *UtilisateurRepoFake) FindByEmail(_ context.Context, email string) (*domaincommun.Utilisateur, error) {
+	if u, ok := r.parEmail[email]; ok {
+		return u, nil
+	}
+	return nil, domaincommun.ErrUtilisateurIntrouvable
+}
+
+func (r *UtilisateurRepoFake) FindByTelephone(_ context.Context, telephone string) (*domaincommun.Utilisateur, error) {
+	if u, ok := r.parTelephone[telephone]; ok {
+		return u, nil
+	}
+	return nil, domaincommun.ErrUtilisateurIntrouvable
+}
+
+func (r *UtilisateurRepoFake) FindByGoogleID(_ context.Context, googleID string) (*domaincommun.Utilisateur, error) {
+	if u, ok := r.parGoogleID[googleID]; ok {
+		return u, nil
+	}
+	return nil, domaincommun.ErrUtilisateurIntrouvable
+}
+
+func (r *UtilisateurRepoFake) UpdateStatutKyc(_ context.Context, u *domaincommun.Utilisateur) error {
+	r.parEmail[u.Email] = u
+	return nil
+}
+
+func (r *UtilisateurRepoFake) UpdateMotDePasse(_ context.Context, u *domaincommun.Utilisateur) error {
+	r.parEmail[u.Email] = u
+	return nil
+}
+
+func (r *UtilisateurRepoFake) LierGoogleID(_ context.Context, u *domaincommun.Utilisateur) error {
+	r.parEmail[u.Email] = u
+	if u.GoogleID != "" {
+		r.parGoogleID[u.GoogleID] = u
+	}
+	return nil
+}
+
+type WalletRepoFake struct {
+	parUtilisateurID map[string]*domaincommun.Wallet
+}
+
+func NewWalletRepoFake() *WalletRepoFake {
+	return &WalletRepoFake{parUtilisateurID: make(map[string]*domaincommun.Wallet)}
+}
+
+func (r *WalletRepoFake) Create(_ context.Context, w *domaincommun.Wallet) error {
+	r.parUtilisateurID[w.UtilisateurID] = w
+	return nil
+}
+
+func (r *WalletRepoFake) FindByID(_ context.Context, id string) (*domaincommun.Wallet, error) {
+	for _, w := range r.parUtilisateurID {
+		if w.ID == id {
+			return w, nil
+		}
+	}
+	return nil, domaincommun.ErrWalletIntrouvable
+}
+
+func (r *WalletRepoFake) FindByUtilisateurID(_ context.Context, utilisateurID string) (*domaincommun.Wallet, error) {
+	if w, ok := r.parUtilisateurID[utilisateurID]; ok {
+		return w, nil
+	}
+	return nil, domaincommun.ErrWalletIntrouvable
+}
+
+func (r *WalletRepoFake) UpdateSolde(_ context.Context, w *domaincommun.Wallet) error {
+	r.parUtilisateurID[w.UtilisateurID] = w
+	return nil
+}
+
+type ReglesKycRepoFake struct {
+	regles map[string]*domaincommun.RegleKyc
+}
+
+func NewReglesKycRepoFake() *ReglesKycRepoFake {
+	return &ReglesKycRepoFake{
+		regles: map[string]*domaincommun.RegleKyc{
+			"CI-1": {PaysCode: "CI", Tier: domaincommun.KycTier1, Devise: "XOF", PlafondSoldeCentimes: 200000, PlafondMensuelCentimes: 500000},
+		},
+	}
+}
+
+func (r *ReglesKycRepoFake) FindByPaysEtTier(_ context.Context, paysCode string, tier domaincommun.KycTier) (*domaincommun.RegleKyc, error) {
+	cle := paysCode + "-" + string(rune('0'+tier))
+	if regle, ok := r.regles[cle]; ok {
+		return regle, nil
+	}
+	return nil, domaincommun.ErrPaysNonSupporte
+}
+
+// TxManagerFake exécute fn directement, sans transaction réelle : les
+// repositories fake ci-dessus ne participent à aucune transaction, donc
+// il n'y a rien à isoler.
+type TxManagerFake struct{}
+
+func (TxManagerFake) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(ctx)
+}

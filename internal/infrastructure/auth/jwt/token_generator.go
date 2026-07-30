@@ -7,8 +7,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"raycard/internal/core/domain"
-	"raycard/internal/core/ports/output"
+	authdomain "raycard/internal/core/domain/auth"
+	"raycard/internal/core/domain/commun"
+	"raycard/internal/core/ports/output/auth"
 )
 
 const dureeAccessToken = 15 * time.Minute
@@ -18,7 +19,7 @@ const dureeAccessToken = 15 * time.Minute
 // puisse trancher sans relire la base à chaque requête.
 type claimsJWT struct {
 	jwt.RegisteredClaims
-	Role domain.RoleUtilisateur `json:"role"`
+	Role commun.RoleUtilisateur `json:"role"`
 }
 
 type TokenGenerator struct {
@@ -29,7 +30,7 @@ func NewTokenGenerator(secret string) *TokenGenerator {
 	return &TokenGenerator{secret: []byte(secret)}
 }
 
-func (g *TokenGenerator) GenererAccessToken(claims output.Claims) (string, time.Time, error) {
+func (g *TokenGenerator) GenererAccessToken(claims auth.Claims) (string, time.Time, error) {
 	maintenant := time.Now().UTC()
 	expireAt := maintenant.Add(dureeAccessToken)
 
@@ -50,7 +51,7 @@ func (g *TokenGenerator) GenererAccessToken(claims output.Claims) (string, time.
 	return signe, expireAt, nil
 }
 
-func (g *TokenGenerator) ValiderAccessToken(tokenString string) (output.Claims, error) {
+func (g *TokenGenerator) ValiderAccessToken(tokenString string) (auth.Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &claimsJWT{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
@@ -58,12 +59,12 @@ func (g *TokenGenerator) ValiderAccessToken(tokenString string) (output.Claims, 
 		return g.secret, nil
 	})
 	if err != nil || !token.Valid {
-		return output.Claims{}, domain.ErrTokenInvalide
+		return auth.Claims{}, authdomain.ErrTokenInvalide
 	}
 
 	claims, ok := token.Claims.(*claimsJWT)
 	if !ok || claims.Subject == "" {
-		return output.Claims{}, domain.ErrTokenInvalide
+		return auth.Claims{}, authdomain.ErrTokenInvalide
 	}
-	return output.Claims{UtilisateurID: claims.Subject, Role: claims.Role}, nil
+	return auth.Claims{UtilisateurID: claims.Subject, Role: claims.Role}, nil
 }
