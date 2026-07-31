@@ -24,5 +24,9 @@ type DossierKycRepository interface {
 type DocumentKycRepository interface {
 	Create(ctx context.Context, d *kyc.DocumentKyc) error
 	FindByID(ctx context.Context, id string) (*kyc.DocumentKyc, error)
-	ListByUtilisateurID(ctx context.Context, utilisateurID string) ([]*kyc.DocumentKyc, error)
+
+	// ListByDossierKycID renvoie les documents d'une demande précise —
+	// jamais tous les documents d'un utilisateur, pour ne pas mélanger
+	// les pièces d'une éventuelle tentative précédente rejetée.
+	ListByDossierKycID(ctx context.Context, dossierKycID string) ([]*kyc.DocumentKyc, error)
 }

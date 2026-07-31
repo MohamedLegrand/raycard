@@ -1025,6 +1025,61 @@ const docTemplate = `{
                 }
             }
         },
+        "/backoffice/kyc/dossiers/{id}/documents": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Renvoie les documents téléversés pour cette demande précise (jamais ceux d'une éventuelle tentative précédente rejetée) et le texte que l'OCR local en a extrait.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-kyc"
+                ],
+                "summary": "Liste des documents d'une demande de passage de palier",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID du dossier",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/kyc.DocumentKycDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/backoffice/kyc/dossiers/{id}/rejeter": {
             "post": {
                 "security": [
@@ -1104,61 +1159,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/backoffice/kyc/utilisateurs/{id}/documents": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Renvoie les documents téléversés et le texte que l'OCR local en a extrait, pour aider à traiter son dossier de passage de palier.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "backoffice-kyc"
-                ],
-                "summary": "Liste des documents d'identité d'un utilisateur",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "ID de l'utilisateur",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/kyc.DocumentKycDTO"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "non authentifié",
-                        "schema": {
-                            "$ref": "#/definitions/commun.ErreurDTO"
-                        }
-                    },
-                    "403": {
-                        "description": "réservé aux administrateurs",
-                        "schema": {
-                            "$ref": "#/definitions/commun.ErreurDTO"
-                        }
-                    },
-                    "500": {
-                        "description": "erreur interne",
-                        "schema": {
-                            "$ref": "#/definitions/commun.ErreurDTO"
-                        }
-                    }
-                }
-            }
-        },
         "/kyc/demande-tier2": {
             "post": {
                 "security": [
@@ -1215,7 +1215,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Stocke le document et en extrait le texte par OCR local (Tesseract) — une aide à la saisie pour l'administrateur qui traitera le dossier, jamais une décision automatique. Formats acceptés : JPEG, PNG.",
+                "description": "Stocke le document et en extrait le texte par OCR local (Tesseract) — une aide à la saisie pour l'administrateur qui traitera le dossier, jamais une décision automatique. Le dossier ciblé doit appartenir à l'utilisateur et être encore en attente. Formats acceptés : JPEG, PNG.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -1228,8 +1228,22 @@ const docTemplate = `{
                 "summary": "Téléversement d'un document d'identité",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "ID du dossier de passage de palier (voir /kyc/demande-tier2)",
+                        "name": "dossier_id",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "recto_piece_identite, verso_piece_identite, justificatif_domicile ou selfie",
+                        "name": "type_document",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
                         "type": "file",
-                        "description": "Photo du document (CNI, passeport...)",
+                        "description": "Photo du document",
                         "name": "document",
                         "in": "formData",
                         "required": true
@@ -1243,7 +1257,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "fichier manquant ou illisible",
+                        "description": "fichier ou champ manquant, ou illisible",
                         "schema": {
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
@@ -1254,8 +1268,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
+                    "404": {
+                        "description": "dossier introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
                     "422": {
-                        "description": "format de document non supporté",
+                        "description": "format de document ou type de document non supporté, ou dossier déjà traité",
                         "schema": {
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
@@ -1643,6 +1663,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "dossier_kyc_id": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -1651,6 +1674,10 @@ const docTemplate = `{
                 },
                 "texte_extrait": {
                     "type": "string"
+                },
+                "type_document": {
+                    "type": "string",
+                    "example": "recto_piece_identite"
                 }
             }
         },

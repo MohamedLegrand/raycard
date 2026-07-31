@@ -14,10 +14,12 @@ type AdminKycUseCase interface {
 	ApprouverDossier(ctx context.Context, adminID, dossierID string) error
 	RejeterDossier(ctx context.Context, adminID, dossierID, motif string) error
 
-	// ListerDocuments renvoie les documents d'identité téléversés par un
-	// utilisateur (et le texte que l'OCR en a extrait), pour aider
-	// l'administrateur à traiter son dossier de passage de palier.
-	ListerDocuments(ctx context.Context, utilisateurID string) ([]*kycdomain.DocumentKyc, error)
+	// ListerDocuments renvoie les documents téléversés pour une demande
+	// précise (et le texte que l'OCR en a extrait), pour aider
+	// l'administrateur à la traiter. Jamais tous les documents d'un
+	// utilisateur : une tentative précédente rejetée ne doit pas se
+	// mélanger à la demande en cours.
+	ListerDocuments(ctx context.Context, dossierKycID string) ([]*kycdomain.DocumentKyc, error)
 
 	// RecupererDocument renvoie le contenu brut d'un document (l'image
 	// elle-même), pour que l'administrateur puisse l'examiner visuellement

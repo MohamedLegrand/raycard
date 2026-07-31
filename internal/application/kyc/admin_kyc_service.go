@@ -44,10 +44,10 @@ func (s *adminKycService) ListerDossiersEnAttente(ctx context.Context) ([]*domai
 	return s.dossiersKyc.ListEnAttente(ctx)
 }
 
-// ListerDocuments renvoie les documents d'identité téléversés par un
-// utilisateur, pour aider l'administrateur pendant la revue.
-func (s *adminKycService) ListerDocuments(ctx context.Context, utilisateurID string) ([]*domainkyc.DocumentKyc, error) {
-	return s.documentsKyc.ListByUtilisateurID(ctx, utilisateurID)
+// ListerDocuments renvoie les documents téléversés pour une demande
+// précise, pour aider l'administrateur à la traiter.
+func (s *adminKycService) ListerDocuments(ctx context.Context, dossierKycID string) ([]*domainkyc.DocumentKyc, error) {
+	return s.documentsKyc.ListByDossierKycID(ctx, dossierKycID)
 }
 
 // RecupererDocument renvoie le contenu brut d'un document, pour que

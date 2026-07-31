@@ -217,11 +217,16 @@ definitions:
     properties:
       created_at:
         type: string
+      dossier_kyc_id:
+        type: string
       id:
         type: string
       nom_fichier:
         type: string
       texte_extrait:
+        type: string
+      type_document:
+        example: recto_piece_identite
         type: string
     type: object
   kyc.DossierKycDTO:
@@ -1020,6 +1025,43 @@ paths:
       summary: Approuve un dossier KYC
       tags:
       - backoffice-kyc
+  /backoffice/kyc/dossiers/{id}/documents:
+    get:
+      description: Renvoie les documents téléversés pour cette demande précise (jamais
+        ceux d'une éventuelle tentative précédente rejetée) et le texte que l'OCR
+        local en a extrait.
+      parameters:
+      - description: ID du dossier
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/kyc.DocumentKycDTO'
+            type: array
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Liste des documents d'une demande de passage de palier
+      tags:
+      - backoffice-kyc
   /backoffice/kyc/dossiers/{id}/rejeter:
     post:
       consumes:
@@ -1072,42 +1114,6 @@ paths:
       summary: Rejette un dossier KYC
       tags:
       - backoffice-kyc
-  /backoffice/kyc/utilisateurs/{id}/documents:
-    get:
-      description: Renvoie les documents téléversés et le texte que l'OCR local en
-        a extrait, pour aider à traiter son dossier de passage de palier.
-      parameters:
-      - description: ID de l'utilisateur
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/kyc.DocumentKycDTO'
-            type: array
-        "401":
-          description: non authentifié
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-        "403":
-          description: réservé aux administrateurs
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-        "500":
-          description: erreur interne
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-      security:
-      - BearerAuth: []
-      summary: Liste des documents d'identité d'un utilisateur
-      tags:
-      - backoffice-kyc
   /kyc/demande-tier2:
     post:
       description: Crée un dossier KYC en attente de revue par un administrateur
@@ -1145,9 +1151,21 @@ paths:
       - multipart/form-data
       description: 'Stocke le document et en extrait le texte par OCR local (Tesseract)
         — une aide à la saisie pour l''administrateur qui traitera le dossier, jamais
-        une décision automatique. Formats acceptés : JPEG, PNG.'
+        une décision automatique. Le dossier ciblé doit appartenir à l''utilisateur
+        et être encore en attente. Formats acceptés : JPEG, PNG.'
       parameters:
-      - description: Photo du document (CNI, passeport...)
+      - description: ID du dossier de passage de palier (voir /kyc/demande-tier2)
+        in: formData
+        name: dossier_id
+        required: true
+        type: string
+      - description: recto_piece_identite, verso_piece_identite, justificatif_domicile
+          ou selfie
+        in: formData
+        name: type_document
+        required: true
+        type: string
+      - description: Photo du document
         in: formData
         name: document
         required: true
@@ -1160,15 +1178,20 @@ paths:
           schema:
             $ref: '#/definitions/kyc.DocumentKycDTO'
         "400":
-          description: fichier manquant ou illisible
+          description: fichier ou champ manquant, ou illisible
           schema:
             $ref: '#/definitions/commun.ErreurDTO'
         "401":
           description: non authentifié
           schema:
             $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: dossier introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
         "422":
-          description: format de document non supporté
+          description: format de document ou type de document non supporté, ou dossier
+            déjà traité
           schema:
             $ref: '#/definitions/commun.ErreurDTO'
         "500":

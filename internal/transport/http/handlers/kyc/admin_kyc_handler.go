@@ -101,23 +101,23 @@ func (h *AdminKycHandler) Rejeter(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-// ListerDocuments gère GET /api/v1/backoffice/kyc/utilisateurs/:id/documents.
+// ListerDocuments gère GET /api/v1/backoffice/kyc/dossiers/:id/documents.
 //
-//	@Summary		Liste des documents d'identité d'un utilisateur
-//	@Description	Renvoie les documents téléversés et le texte que l'OCR local en a extrait, pour aider à traiter son dossier de passage de palier.
+//	@Summary		Liste des documents d'une demande de passage de palier
+//	@Description	Renvoie les documents téléversés pour cette demande précise (jamais ceux d'une éventuelle tentative précédente rejetée) et le texte que l'OCR local en a extrait.
 //	@Tags			backoffice-kyc
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			id	path		string	true	"ID de l'utilisateur"
+//	@Param			id	path		string	true	"ID du dossier"
 //	@Success		200	{array}		kyc.DocumentKycDTO
 //	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
 //	@Failure		403	{object}	commun.ErreurDTO	"réservé aux administrateurs"
 //	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
-//	@Router			/backoffice/kyc/utilisateurs/{id}/documents [get]
+//	@Router			/backoffice/kyc/dossiers/{id}/documents [get]
 func (h *AdminKycHandler) ListerDocuments(c *fiber.Ctx) error {
-	utilisateurID := c.Params("id")
+	dossierID := c.Params("id")
 
-	documents, err := h.adminKycUseCase.ListerDocuments(c.Context(), utilisateurID)
+	documents, err := h.adminKycUseCase.ListerDocuments(c.Context(), dossierID)
 	if err != nil {
 		return handlerscommun.MapErreurDomaine(err)
 	}

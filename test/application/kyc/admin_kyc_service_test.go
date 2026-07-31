@@ -105,13 +105,13 @@ func TestAdminKycService_ApprouverDossier_Introuvable(t *testing.T) {
 
 func TestAdminKycService_ListerDocuments(t *testing.T) {
 	service, utilisateurs, dossiers, documents, _ := setupAdminKycService()
-	u, _ := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
+	u, dossier := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
 
-	d, err := kyc.NouveauDocumentKyc(u.ID, "cni.jpg", "/faux/chemin/cni.jpg", "NOM: KONE")
+	d, err := kyc.NouveauDocumentKyc(u.ID, dossier.ID, kyc.TypeDocumentRectoPieceIdentite, "cni.jpg", "/faux/chemin/cni.jpg", "NOM: KONE")
 	require.NoError(t, err)
 	require.NoError(t, documents.Create(context.Background(), d))
 
-	liste, err := service.ListerDocuments(context.Background(), u.ID)
+	liste, err := service.ListerDocuments(context.Background(), dossier.ID)
 	require.NoError(t, err)
 	require.Len(t, liste, 1)
 	assert.Equal(t, "NOM: KONE", liste[0].TexteExtrait)
@@ -119,9 +119,9 @@ func TestAdminKycService_ListerDocuments(t *testing.T) {
 
 func TestAdminKycService_RecupererDocument_Succes(t *testing.T) {
 	service, utilisateurs, dossiers, documents, _ := setupAdminKycService()
-	u, _ := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
+	u, dossier := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
 
-	d, err := kyc.NouveauDocumentKyc(u.ID, "cni.jpg", "/faux/chemin/cni.jpg", "NOM: KONE")
+	d, err := kyc.NouveauDocumentKyc(u.ID, dossier.ID, kyc.TypeDocumentRectoPieceIdentite, "cni.jpg", "/faux/chemin/cni.jpg", "NOM: KONE")
 	require.NoError(t, err)
 	require.NoError(t, documents.Create(context.Background(), d))
 

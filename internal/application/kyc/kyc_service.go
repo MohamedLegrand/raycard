@@ -147,13 +147,28 @@ func (s *kycService) DemanderTier2(ctx context.Context, utilisateurID string) (*
 // TeleverserDocument stocke un document d'identité puis en extrait le
 // texte par OCR local. Le texte extrait est une aide à la saisie pour
 // l'administrateur qui traitera le dossier de passage de palier :
-// aucune décision n'est prise ici à partir de son contenu.
-func (s *kycService) TeleverserDocument(ctx context.Context, utilisateurID, nomFichier string, contenu []byte) (*domainkyc.DocumentKyc, error) {
-	if !formatsDocumentAutorises[http.DetectContentType(contenu)] {
+// aucune décision n'est prise ici à partir de son contenu. Le dossier
+// ciblé doit appartenir à l'utilisateur et être encore en attente : on
+// n'ajoute jamais de pièce à un dossier déjà traité.
+func (s *kycService) TeleverserDocument(ctx context.Context, utilisateurID string, req inputkyc.TeleverserDocumentRequest) (*domainkyc.DocumentKyc, error) {
+	if !formatsDocumentAutorises[http.DetectContentType(req.Contenu)] {
 		return nil, domainkyc.ErrFormatDocumentInvalide
 	}
 
-	chemin, err := s.stockage.Sauvegarder(ctx, nomFichier, contenu)
+	dossier, err := s.dossiersKyc.FindByID(ctx, req.DossierKycID)
+	if err != nil {
+		return nil, err
+	}
+	if dossier.UtilisateurID != utilisateurID {
+		// Même erreur générique qu'un dossier inexistant : ne jamais
+		// confirmer l'existence d'un dossier qui ne nous appartient pas.
+		return nil, domainkyc.ErrDossierKycIntrouvable
+	}
+	if dossier.Statut != domainkyc.StatutDossierEnAttente {
+		return nil, domainkyc.ErrDossierKycNonModifiable
+	}
+
+	chemin, err := s.stockage.Sauvegarder(ctx, req.NomFichier, req.Contenu)
 	if err != nil {
 		return nil, fmt.Errorf("stockage document: %w", err)
 	}
@@ -166,7 +181,7 @@ func (s *kycService) TeleverserDocument(ctx context.Context, utilisateurID, nomF
 		texteExtrait = ""
 	}
 
-	document, err := domainkyc.NouveauDocumentKyc(utilisateurID, nomFichier, chemin, texteExtrait)
+	document, err := domainkyc.NouveauDocumentKyc(utilisateurID, req.DossierKycID, req.TypeDocument, req.NomFichier, chemin, texteExtrait)
 	if err != nil {
 		return nil, err
 	}
