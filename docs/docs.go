@@ -755,6 +755,61 @@ const docTemplate = `{
                 }
             }
         },
+        "/backoffice/kyc/utilisateurs/{id}/documents": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Renvoie les documents téléversés et le texte que l'OCR local en a extrait, pour aider à traiter son dossier de passage de palier.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-kyc"
+                ],
+                "summary": "Liste des documents d'identité d'un utilisateur",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de l'utilisateur",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/kyc.DocumentKycDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/kyc/demande-tier2": {
             "post": {
                 "security": [
@@ -791,6 +846,67 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "l'utilisateur n'est pas au Tier 1",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/kyc/documents": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Stocke le document et en extrait le texte par OCR local (Tesseract) — une aide à la saisie pour l'administrateur qui traitera le dossier, jamais une décision automatique. Formats acceptés : JPEG, PNG.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kyc"
+                ],
+                "summary": "Téléversement d'un document d'identité",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Photo du document (CNI, passeport...)",
+                        "name": "document",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/kyc.DocumentKycDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "fichier manquant ou illisible",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "format de document non supporté",
                         "schema": {
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
@@ -1066,6 +1182,23 @@ const docTemplate = `{
                 "erreur": {
                     "type": "string",
                     "example": "un compte existe déjà avec cet email"
+                }
+            }
+        },
+        "kyc.DocumentKycDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "nom_fichier": {
+                    "type": "string"
+                },
+                "texte_extrait": {
+                    "type": "string"
                 }
             }
         },

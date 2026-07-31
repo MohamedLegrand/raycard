@@ -23,12 +23,13 @@ func (r *auditLogRepoFake) Create(_ context.Context, entry *commun.AuditLog) err
 	return nil
 }
 
-func setupAdminKycService() (inputkyc.AdminKycUseCase, *testcommun.UtilisateurRepoFake, *dossierKycRepoFake, *auditLogRepoFake) {
+func setupAdminKycService() (inputkyc.AdminKycUseCase, *testcommun.UtilisateurRepoFake, *dossierKycRepoFake, *documentKycRepoFake, *auditLogRepoFake) {
 	utilisateurs := testcommun.NewUtilisateurRepoFake()
 	dossiers := nouveauDossierKycRepoFake()
+	documents := nouveauDocumentKycRepoFake()
 	auditLog := &auditLogRepoFake{}
-	service := appkyc.NewAdminKycService(utilisateurs, dossiers, auditLog, testcommun.TxManagerFake{})
-	return service, utilisateurs, dossiers, auditLog
+	service := appkyc.NewAdminKycService(utilisateurs, dossiers, documents, auditLog, testcommun.TxManagerFake{})
+	return service, utilisateurs, dossiers, documents, auditLog
 }
 
 // utilisateurTier1AvecDossier crée un utilisateur au Tier 1 avec un
@@ -49,7 +50,7 @@ func utilisateurTier1AvecDossier(t *testing.T, utilisateurs *testcommun.Utilisat
 }
 
 func TestAdminKycService_ListerDossiersEnAttente(t *testing.T) {
-	service, utilisateurs, dossiers, _ := setupAdminKycService()
+	service, utilisateurs, dossiers, _, _ := setupAdminKycService()
 	utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
 
 	liste, err := service.ListerDossiersEnAttente(context.Background())
@@ -58,7 +59,7 @@ func TestAdminKycService_ListerDossiersEnAttente(t *testing.T) {
 }
 
 func TestAdminKycService_ApprouverDossier(t *testing.T) {
-	service, utilisateurs, dossiers, auditLog := setupAdminKycService()
+	service, utilisateurs, dossiers, _, auditLog := setupAdminKycService()
 	u, d := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
 
 	require.NoError(t, service.ApprouverDossier(context.Background(), "admin-1", d.ID))
@@ -77,7 +78,7 @@ func TestAdminKycService_ApprouverDossier(t *testing.T) {
 }
 
 func TestAdminKycService_RejeterDossier(t *testing.T) {
-	service, utilisateurs, dossiers, auditLog := setupAdminKycService()
+	service, utilisateurs, dossiers, _, auditLog := setupAdminKycService()
 	u, d := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
 
 	require.NoError(t, service.RejeterDossier(context.Background(), "admin-1", d.ID, "pièce illisible"))
@@ -96,8 +97,22 @@ func TestAdminKycService_RejeterDossier(t *testing.T) {
 }
 
 func TestAdminKycService_ApprouverDossier_Introuvable(t *testing.T) {
-	service, _, _, _ := setupAdminKycService()
+	service, _, _, _, _ := setupAdminKycService()
 
 	err := service.ApprouverDossier(context.Background(), "admin-1", "dossier-inconnu")
 	assert.ErrorIs(t, err, kyc.ErrDossierKycIntrouvable)
+}
+
+func TestAdminKycService_ListerDocuments(t *testing.T) {
+	service, utilisateurs, dossiers, documents, _ := setupAdminKycService()
+	u, _ := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
+
+	d, err := kyc.NouveauDocumentKyc(u.ID, "cni.jpg", "/faux/chemin/cni.jpg", "NOM: KONE")
+	require.NoError(t, err)
+	require.NoError(t, documents.Create(context.Background(), d))
+
+	liste, err := service.ListerDocuments(context.Background(), u.ID)
+	require.NoError(t, err)
+	require.Len(t, liste, 1)
+	assert.Equal(t, "NOM: KONE", liste[0].TexteExtrait)
 }

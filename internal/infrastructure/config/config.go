@@ -19,6 +19,8 @@ type Config struct {
 	BrevoEmailExpediteur string
 	GoogleClientID       string
 	Env                  string
+	UploadsDir           string
+	TesseractLang        string
 }
 
 func Load() (*Config, error) {
@@ -32,6 +34,8 @@ func Load() (*Config, error) {
 		BrevoEmailExpediteur: os.Getenv("BREVO_EMAIL_EXPEDITEUR"),
 		GoogleClientID:       os.Getenv("GOOGLE_CLIENT_ID"),
 		Env:                  getEnv("APP_ENV", "development"),
+		UploadsDir:           getEnv("UPLOADS_DIR", "./uploads"),
+		TesseractLang:        getEnv("TESSERACT_LANG", "fra"),
 	}
 
 	if cfg.DatabaseURL == "" {

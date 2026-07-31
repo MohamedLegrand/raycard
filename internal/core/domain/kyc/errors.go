@@ -6,4 +6,6 @@ import "errors"
 var (
 	ErrDossierKycIntrouvable   = errors.New("dossier kyc introuvable")
 	ErrDossierKycDejaEnAttente = errors.New("une demande de passage de palier est déjà en attente")
+	ErrDocumentKycIntrouvable  = errors.New("document kyc introuvable")
+	ErrFormatDocumentInvalide  = errors.New("format de document non supporté (jpg, jpeg ou png attendu)")
 )

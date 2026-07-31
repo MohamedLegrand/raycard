@@ -2,6 +2,7 @@ package kyc_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,13 +72,53 @@ func (r *dossierKycRepoFake) Update(_ context.Context, d *kyc.DossierKyc) error 
 	return nil
 }
 
-func setupService() (inputkyc.KycUseCase, *testcommun.UtilisateurRepoFake, *testcommun.WalletRepoFake, *dossierKycRepoFake) {
+type documentKycRepoFake struct {
+	parUtilisateurID map[string][]*kyc.DocumentKyc
+}
+
+func nouveauDocumentKycRepoFake() *documentKycRepoFake {
+	return &documentKycRepoFake{parUtilisateurID: make(map[string][]*kyc.DocumentKyc)}
+}
+
+func (r *documentKycRepoFake) Create(_ context.Context, d *kyc.DocumentKyc) error {
+	r.parUtilisateurID[d.UtilisateurID] = append(r.parUtilisateurID[d.UtilisateurID], d)
+	return nil
+}
+
+func (r *documentKycRepoFake) ListByUtilisateurID(_ context.Context, utilisateurID string) ([]*kyc.DocumentKyc, error) {
+	return r.parUtilisateurID[utilisateurID], nil
+}
+
+// stockageFichierFake écrit "quelque part" sans toucher au disque : les
+// tests n'ont pas besoin d'un vrai fichier, seulement d'un chemin.
+type stockageFichierFake struct{}
+
+func (stockageFichierFake) Sauvegarder(_ context.Context, nomFichier string, _ []byte) (string, error) {
+	return "/faux/chemin/" + nomFichier, nil
+}
+
+// ocrExtracteurFake simule Tesseract sans dépendre du binaire réel.
+type ocrExtracteurFake struct{}
+
+func (ocrExtracteurFake) ExtraireTexte(_ context.Context, _ string) (string, error) {
+	return "NOM: KONE\nPRENOM: AWA", nil
+}
+
+// jpegFactice : préfixe suffisant pour que http.DetectContentType
+// reconnaisse un JPEG (FF D8 FF), sans avoir besoin d'une vraie image.
+var jpegFactice = []byte{0xFF, 0xD8, 0xFF, 0x00}
+
+func setupService() (inputkyc.KycUseCase, *testcommun.UtilisateurRepoFake, *testcommun.WalletRepoFake, *dossierKycRepoFake, *documentKycRepoFake) {
 	utilisateurs := testcommun.NewUtilisateurRepoFake()
 	wallets := testcommun.NewWalletRepoFake()
 	regles := testcommun.NewReglesKycRepoFake()
 	dossiers := nouveauDossierKycRepoFake()
-	service := appkyc.NewKycService(utilisateurs, wallets, regles, dossiers, testcommun.TxManagerFake{})
-	return service, utilisateurs, wallets, dossiers
+	documents := nouveauDocumentKycRepoFake()
+	service := appkyc.NewKycService(
+		utilisateurs, wallets, regles, dossiers, documents,
+		stockageFichierFake{}, ocrExtracteurFake{}, testcommun.TxManagerFake{},
+	)
+	return service, utilisateurs, wallets, dossiers, documents
 }
 
 func requeteValide() inputkyc.InscriptionRequest {
@@ -92,7 +133,7 @@ func requeteValide() inputkyc.InscriptionRequest {
 }
 
 func TestKycService_Inscrire_Succes(t *testing.T) {
-	service, utilisateurs, wallets, _ := setupService()
+	service, utilisateurs, wallets, _, _ := setupService()
 
 	resultat, err := service.Inscrire(context.Background(), requeteValide())
 	require.NoError(t, err)
@@ -114,7 +155,7 @@ func TestKycService_Inscrire_Succes(t *testing.T) {
 }
 
 func TestKycService_Inscrire_EmailDejaUtilise(t *testing.T) {
-	service, _, _, _ := setupService()
+	service, _, _, _, _ := setupService()
 
 	_, err := service.Inscrire(context.Background(), requeteValide())
 	require.NoError(t, err)
@@ -124,7 +165,7 @@ func TestKycService_Inscrire_EmailDejaUtilise(t *testing.T) {
 }
 
 func TestKycService_Inscrire_TelephoneDejaUtilise(t *testing.T) {
-	service, _, _, _ := setupService()
+	service, _, _, _, _ := setupService()
 
 	_, err := service.Inscrire(context.Background(), requeteValide())
 	require.NoError(t, err)
@@ -136,7 +177,7 @@ func TestKycService_Inscrire_TelephoneDejaUtilise(t *testing.T) {
 }
 
 func TestKycService_Inscrire_PaysNonSupporte(t *testing.T) {
-	service, _, _, _ := setupService()
+	service, _, _, _, _ := setupService()
 
 	req := requeteValide()
 	req.Email = "autre@example.com"
@@ -148,7 +189,7 @@ func TestKycService_Inscrire_PaysNonSupporte(t *testing.T) {
 }
 
 func TestKycService_DemanderTier2_Succes(t *testing.T) {
-	service, _, _, dossiers := setupService()
+	service, _, _, dossiers, _ := setupService()
 
 	resultat, err := service.Inscrire(context.Background(), requeteValide())
 	require.NoError(t, err)
@@ -162,7 +203,7 @@ func TestKycService_DemanderTier2_Succes(t *testing.T) {
 }
 
 func TestKycService_DemanderTier2_DejaEnAttente(t *testing.T) {
-	service, _, _, _ := setupService()
+	service, _, _, _, _ := setupService()
 
 	resultat, err := service.Inscrire(context.Background(), requeteValide())
 	require.NoError(t, err)
@@ -175,7 +216,7 @@ func TestKycService_DemanderTier2_DejaEnAttente(t *testing.T) {
 }
 
 func TestKycService_DemanderTier2_PasEncoreTier1(t *testing.T) {
-	service, utilisateurs, _, _ := setupService()
+	service, utilisateurs, _, _, _ := setupService()
 
 	// Un utilisateur qui n'a pas encore de wallet/tier (créé directement,
 	// sans passer par Inscrire) ne peut pas demander le Tier 2.
@@ -185,4 +226,50 @@ func TestKycService_DemanderTier2_PasEncoreTier1(t *testing.T) {
 
 	_, err = service.DemanderTier2(context.Background(), u.ID)
 	assert.ErrorIs(t, err, commun.ErrTransitionKycInvalide)
+}
+
+func TestKycService_TeleverserDocument_Succes(t *testing.T) {
+	service, _, _, _, documents := setupService()
+
+	document, err := service.TeleverserDocument(context.Background(), "user-1", "cni.jpg", jpegFactice)
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, document.ID)
+	assert.Equal(t, "cni.jpg", document.NomFichier)
+	assert.Equal(t, "NOM: KONE\nPRENOM: AWA", document.TexteExtrait)
+	assert.Contains(t, document.CheminFichier, "cni.jpg")
+
+	stockes, err := documents.ListByUtilisateurID(context.Background(), "user-1")
+	require.NoError(t, err)
+	assert.Len(t, stockes, 1)
+}
+
+func TestKycService_TeleverserDocument_FormatInvalide(t *testing.T) {
+	service, _, _, _, _ := setupService()
+
+	_, err := service.TeleverserDocument(context.Background(), "user-1", "cni.txt", []byte("pas une image"))
+	assert.ErrorIs(t, err, kyc.ErrFormatDocumentInvalide)
+}
+
+// ocrEnErreurFake simule une panne du moteur OCR (ex: tesseract non
+// installé) : le document doit quand même être stocké, l'administrateur
+// pourra toujours l'examiner visuellement pendant la revue manuelle.
+type ocrEnErreurFake struct{}
+
+func (ocrEnErreurFake) ExtraireTexte(_ context.Context, _ string) (string, error) {
+	return "", errors.New("tesseract: exécutable introuvable")
+}
+
+func TestKycService_TeleverserDocument_OcrEnEchec_DocumentQuandMemeStocke(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	documents := nouveauDocumentKycRepoFake()
+	service := appkyc.NewKycService(
+		utilisateurs, wallets, testcommun.NewReglesKycRepoFake(), nouveauDossierKycRepoFake(), documents,
+		stockageFichierFake{}, ocrEnErreurFake{}, testcommun.TxManagerFake{},
+	)
+
+	document, err := service.TeleverserDocument(context.Background(), "user-1", "cni.jpg", jpegFactice)
+	require.NoError(t, err)
+	assert.Empty(t, document.TexteExtrait)
 }

@@ -16,6 +16,9 @@ raycard.exe
 *.dump
 *.sql.gz
 
+# Documents KYC téléversés (pièces d'identité réelles — jamais commités)
+/uploads/
+
 # IDE / OS
 .vscode/
 .idea/

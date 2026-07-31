@@ -37,4 +37,10 @@ type KycUseCase interface {
 	// DemanderTier2 crée une demande de passage au Tier 2 pour
 	// l'utilisateur authentifié donné. Toujours revue manuellement.
 	DemanderTier2(ctx context.Context, utilisateurID string) (*kycdomain.DossierKyc, error)
+
+	// TeleverserDocument stocke un document d'identité et en extrait le
+	// texte par OCR local (Tesseract). Le texte extrait n'est qu'une aide
+	// à la saisie pour l'administrateur qui traitera le dossier — aucune
+	// décision n'est prise automatiquement à partir de son contenu.
+	TeleverserDocument(ctx context.Context, utilisateurID, nomFichier string, contenu []byte) (*kycdomain.DocumentKyc, error)
 }

@@ -17,3 +17,10 @@ type DossierKycRepository interface {
 	ListEnAttente(ctx context.Context) ([]*kyc.DossierKyc, error)
 	Update(ctx context.Context, d *kyc.DossierKyc) error
 }
+
+// DocumentKycRepository persiste les documents d'identité téléversés et
+// le texte que l'OCR en a extrait.
+type DocumentKycRepository interface {
+	Create(ctx context.Context, d *kyc.DocumentKyc) error
+	ListByUtilisateurID(ctx context.Context, utilisateurID string) ([]*kyc.DocumentKyc, error)
+}

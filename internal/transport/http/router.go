@@ -31,6 +31,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	kyc := api.Group("/kyc")
 	kyc.Post("/inscription", h.Kyc.Inscrire)
 	kyc.Post("/demande-tier2", authmw.RequireAuth(tokenGenerator), h.Kyc.DemanderTier2)
+	kyc.Post("/documents", authmw.RequireAuth(tokenGenerator), h.Kyc.TeleverserDocument)
 
 	auth := api.Group("/auth")
 	auth.Post("/connexion", h.Auth.Connexion)
@@ -50,4 +51,5 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	backofficeKyc.Get("/dossiers", h.AdminKyc.ListerDossiersEnAttente)
 	backofficeKyc.Post("/dossiers/:id/approuver", h.AdminKyc.Approuver)
 	backofficeKyc.Post("/dossiers/:id/rejeter", h.AdminKyc.Rejeter)
+	backofficeKyc.Get("/utilisateurs/:id/documents", h.AdminKyc.ListerDocuments)
 }

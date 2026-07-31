@@ -21,11 +21,18 @@ import (
 	pgcommun "raycard/internal/infrastructure/database/postgres/commun"
 	pgkyc "raycard/internal/infrastructure/database/postgres/kyc"
 	"raycard/internal/infrastructure/notification/brevo"
+	"raycard/internal/infrastructure/ocr/tesseract"
+	"raycard/internal/infrastructure/storage/local"
 	apihttp "raycard/internal/transport/http"
 	handlersauth "raycard/internal/transport/http/handlers/auth"
 	handlerskyc "raycard/internal/transport/http/handlers/kyc"
 	"raycard/internal/transport/http/middleware"
 )
+
+// tailleMaxCorpsRequete autorise l'upload de photos de documents KYC
+// (plusieurs Mo depuis un téléphone), au-delà de la limite par défaut
+// de Fiber (4 Mo).
+const tailleMaxCorpsRequete = 10 * 1024 * 1024
 
 // @title						RAYCARD API
 // @version					1.0
@@ -63,6 +70,7 @@ func main() {
 	cleAppareilRepo := pgauth.NewCleAppareilRepository(pool)
 	challengeEmpreinteRepo := pgauth.NewChallengeEmpreinteRepository(pool)
 	dossierKycRepo := pgkyc.NewDossierKycRepository(pool)
+	documentKycRepo := pgkyc.NewDocumentKycRepository(pool)
 	auditLogRepo := pgcommun.NewAuditLogRepository(pool)
 	txManager := pgcommun.NewTxManager(pool)
 
@@ -71,14 +79,22 @@ func main() {
 	notifieur := brevo.NewNotifieur(cfg.BrevoAPIKey, cfg.BrevoEmailExpediteur)
 	googleAuthProvider := google.NewVerificateurToken(cfg.GoogleClientID)
 
+	// Adapters OCR (documents KYC) : stockage sur disque local et
+	// extraction du texte via le binaire tesseract.
+	stockageDocuments := local.NewStockageFichier(cfg.UploadsDir)
+	ocrExtracteur := tesseract.NewExtracteur(cfg.TesseractLang)
+
 	// Use cases (application)
-	kycUseCase := appkyc.NewKycService(utilisateurRepo, walletRepo, reglesKycRepo, dossierKycRepo, txManager)
+	kycUseCase := appkyc.NewKycService(
+		utilisateurRepo, walletRepo, reglesKycRepo, dossierKycRepo, documentKycRepo,
+		stockageDocuments, ocrExtracteur, txManager,
+	)
 	authUseCase := appauth.NewAuthService(
 		utilisateurRepo, walletRepo, reglesKycRepo, refreshTokenRepo, tokenReinitialisationRepo, ticketConnexionRepo,
 		cleAppareilRepo, challengeEmpreinteRepo,
 		tokenGenerator, notifieur, googleAuthProvider, txManager,
 	)
-	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, auditLogRepo, txManager)
+	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, documentKycRepo, auditLogRepo, txManager)
 
 	// Transport HTTP
 	validate := validator.New()
@@ -87,6 +103,7 @@ func main() {
 	adminKycHandler := handlerskyc.NewAdminKycHandler(adminKycUseCase, validate)
 
 	app := fiber.New(fiber.Config{
+		BodyLimit: tailleMaxCorpsRequete,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {

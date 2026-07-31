@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -23,6 +24,9 @@ type kycService struct {
 	wallets      outputcommun.WalletRepository
 	reglesKyc    outputcommun.ReglesKycRepository
 	dossiersKyc  outputkyc.DossierKycRepository
+	documentsKyc outputkyc.DocumentKycRepository
+	stockage     outputkyc.StockageFichier
+	ocr          outputkyc.OcrExtracteur
 	txManager    outputcommun.TxManager
 }
 
@@ -32,6 +36,9 @@ func NewKycService(
 	wallets outputcommun.WalletRepository,
 	reglesKyc outputcommun.ReglesKycRepository,
 	dossiersKyc outputkyc.DossierKycRepository,
+	documentsKyc outputkyc.DocumentKycRepository,
+	stockage outputkyc.StockageFichier,
+	ocr outputkyc.OcrExtracteur,
 	txManager outputcommun.TxManager,
 ) inputkyc.KycUseCase {
 	return &kycService{
@@ -39,8 +46,18 @@ func NewKycService(
 		wallets:      wallets,
 		reglesKyc:    reglesKyc,
 		dossiersKyc:  dossiersKyc,
+		documentsKyc: documentsKyc,
+		stockage:     stockage,
+		ocr:          ocr,
 		txManager:    txManager,
 	}
+}
+
+// formatsDocumentAutorises : les seuls formats d'image que Tesseract
+// lit correctement et que l'on accepte en entrée.
+var formatsDocumentAutorises = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
 }
 
 func (s *kycService) Inscrire(ctx context.Context, req inputkyc.InscriptionRequest) (*inputkyc.InscriptionResultat, error) {
@@ -125,4 +142,37 @@ func (s *kycService) DemanderTier2(ctx context.Context, utilisateurID string) (*
 	}
 
 	return dossier, nil
+}
+
+// TeleverserDocument stocke un document d'identité puis en extrait le
+// texte par OCR local. Le texte extrait est une aide à la saisie pour
+// l'administrateur qui traitera le dossier de passage de palier :
+// aucune décision n'est prise ici à partir de son contenu.
+func (s *kycService) TeleverserDocument(ctx context.Context, utilisateurID, nomFichier string, contenu []byte) (*domainkyc.DocumentKyc, error) {
+	if !formatsDocumentAutorises[http.DetectContentType(contenu)] {
+		return nil, domainkyc.ErrFormatDocumentInvalide
+	}
+
+	chemin, err := s.stockage.Sauvegarder(ctx, nomFichier, contenu)
+	if err != nil {
+		return nil, fmt.Errorf("stockage document: %w", err)
+	}
+
+	// Best-effort : un échec de l'OCR ne doit pas empêcher le document
+	// d'être conservé — l'administrateur pourra toujours l'examiner
+	// visuellement pendant la revue manuelle.
+	texteExtrait, err := s.ocr.ExtraireTexte(ctx, chemin)
+	if err != nil {
+		texteExtrait = ""
+	}
+
+	document, err := domainkyc.NouveauDocumentKyc(utilisateurID, nomFichier, chemin, texteExtrait)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.documentsKyc.Create(ctx, document); err != nil {
+		return nil, fmt.Errorf("persistance document kyc: %w", err)
+	}
+
+	return document, nil
 }

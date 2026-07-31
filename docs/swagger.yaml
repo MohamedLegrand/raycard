@@ -139,6 +139,17 @@ definitions:
         example: un compte existe déjà avec cet email
         type: string
     type: object
+  kyc.DocumentKycDTO:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      nom_fichier:
+        type: string
+      texte_extrait:
+        type: string
+    type: object
   kyc.DossierKycDTO:
     properties:
       admin_id:
@@ -759,6 +770,42 @@ paths:
       summary: Rejette un dossier KYC
       tags:
       - backoffice-kyc
+  /backoffice/kyc/utilisateurs/{id}/documents:
+    get:
+      description: Renvoie les documents téléversés et le texte que l'OCR local en
+        a extrait, pour aider à traiter son dossier de passage de palier.
+      parameters:
+      - description: ID de l'utilisateur
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/kyc.DocumentKycDTO'
+            type: array
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Liste des documents d'identité d'un utilisateur
+      tags:
+      - backoffice-kyc
   /kyc/demande-tier2:
     post:
       description: Crée un dossier KYC en attente de revue par un administrateur
@@ -788,6 +835,47 @@ paths:
       security:
       - BearerAuth: []
       summary: Demande de passage au Tier 2
+      tags:
+      - kyc
+  /kyc/documents:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 'Stocke le document et en extrait le texte par OCR local (Tesseract)
+        — une aide à la saisie pour l''administrateur qui traitera le dossier, jamais
+        une décision automatique. Formats acceptés : JPEG, PNG.'
+      parameters:
+      - description: Photo du document (CNI, passeport...)
+        in: formData
+        name: document
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/kyc.DocumentKycDTO'
+        "400":
+          description: fichier manquant ou illisible
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: format de document non supporté
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Téléversement d'un document d'identité
       tags:
       - kyc
   /kyc/inscription:

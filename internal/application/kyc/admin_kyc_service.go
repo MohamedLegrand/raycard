@@ -15,6 +15,7 @@ import (
 type adminKycService struct {
 	utilisateurs outputcommun.UtilisateurRepository
 	dossiersKyc  outputkyc.DossierKycRepository
+	documentsKyc outputkyc.DocumentKycRepository
 	auditLog     outputcommun.AuditLogRepository
 	txManager    outputcommun.TxManager
 }
@@ -23,12 +24,14 @@ type adminKycService struct {
 func NewAdminKycService(
 	utilisateurs outputcommun.UtilisateurRepository,
 	dossiersKyc outputkyc.DossierKycRepository,
+	documentsKyc outputkyc.DocumentKycRepository,
 	auditLog outputcommun.AuditLogRepository,
 	txManager outputcommun.TxManager,
 ) inputkyc.AdminKycUseCase {
 	return &adminKycService{
 		utilisateurs: utilisateurs,
 		dossiersKyc:  dossiersKyc,
+		documentsKyc: documentsKyc,
 		auditLog:     auditLog,
 		txManager:    txManager,
 	}
@@ -36,6 +39,12 @@ func NewAdminKycService(
 
 func (s *adminKycService) ListerDossiersEnAttente(ctx context.Context) ([]*domainkyc.DossierKyc, error) {
 	return s.dossiersKyc.ListEnAttente(ctx)
+}
+
+// ListerDocuments renvoie les documents d'identité téléversés par un
+// utilisateur, pour aider l'administrateur pendant la revue.
+func (s *adminKycService) ListerDocuments(ctx context.Context, utilisateurID string) ([]*domainkyc.DocumentKyc, error) {
+	return s.documentsKyc.ListByUtilisateurID(ctx, utilisateurID)
 }
 
 func (s *adminKycService) ApprouverDossier(ctx context.Context, adminID, dossierID string) error {
