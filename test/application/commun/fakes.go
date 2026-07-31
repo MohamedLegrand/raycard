@@ -83,6 +83,25 @@ func (r *UtilisateurRepoFake) LierGoogleID(_ context.Context, u *domaincommun.Ut
 	return nil
 }
 
+func (r *UtilisateurRepoFake) UpdateProfil(_ context.Context, u *domaincommun.Utilisateur) error {
+	r.parEmail[u.Email] = u
+	return nil
+}
+
+// UpdateEmail réindexe par la nouvelle adresse : la clé de parEmail
+// doit rester cohérente avec le champ Email de l'objet stocké, sans
+// quoi FindByEmail(nouvelEmail) échouerait juste après ce changement.
+func (r *UtilisateurRepoFake) UpdateEmail(_ context.Context, u *domaincommun.Utilisateur) error {
+	for email, existant := range r.parEmail {
+		if existant.ID == u.ID {
+			delete(r.parEmail, email)
+			break
+		}
+	}
+	r.parEmail[u.Email] = u
+	return nil
+}
+
 type WalletRepoFake struct {
 	parUtilisateurID map[string]*domaincommun.Wallet
 }
@@ -135,6 +154,14 @@ func (r *ReglesKycRepoFake) FindByPaysEtTier(_ context.Context, paysCode string,
 		return regle, nil
 	}
 	return nil, domaincommun.ErrPaysNonSupporte
+}
+
+// StockageFichierFake écrit "quelque part" sans toucher au disque : les
+// tests n'ont pas besoin d'un vrai fichier, seulement d'un chemin.
+type StockageFichierFake struct{}
+
+func (StockageFichierFake) Sauvegarder(_ context.Context, nomFichier string, _ []byte) (string, error) {
+	return "/faux/chemin/" + nomFichier, nil
 }
 
 // TxManagerFake exécute fn directement, sans transaction réelle : les

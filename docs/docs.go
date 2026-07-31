@@ -469,6 +469,296 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/profil": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Met à jour le nom et le prénom de l'utilisateur authentifié.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Modification du profil",
+                "parameters": [
+                    {
+                        "description": "Nouveau nom et prénom",
+                        "name": "profil",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.ModifierProfilRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.UtilisateurDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/profil/email": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Envoie un code de confirmation au NOUVEL email. Le changement ne prend effet qu'après confirmation (voir /auth/profil/email/confirmer).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Demande de changement d'email",
+                "parameters": [
+                    {
+                        "description": "Nouvelle adresse email",
+                        "name": "demande",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.DemanderChangementEmailRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "email déjà utilisé",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/profil/email/confirmer": {
+            "post": {
+                "description": "Applique le changement d'email si le code reçu au nouvel email est valide. Notifie l'ancienne adresse du changement.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Confirmation du changement d'email",
+                "parameters": [
+                    {
+                        "description": "Code reçu au nouvel email",
+                        "name": "confirmation",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.ConfirmerChangementEmailRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.UtilisateurDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "code invalide, expiré ou déjà utilisé",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "email déjà utilisé",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/profil/mot-de-passe": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Change le mot de passe de l'utilisateur authentifié, après vérification du mot de passe actuel, et révoque toutes les autres sessions actives.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Changement de mot de passe",
+                "parameters": [
+                    {
+                        "description": "Mot de passe actuel et nouveau mot de passe",
+                        "name": "motDePasse",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.ChangerMotDePasseRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié, ou mot de passe actuel incorrect",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/profil/photo": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Stocke la nouvelle photo de profil. Formats acceptés : JPEG, PNG.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Modification de la photo de profil",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Nouvelle photo de profil",
+                        "name": "photo",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.UtilisateurDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "fichier manquant ou illisible",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "format de fichier non supporté",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/rafraichir": {
             "post": {
                 "description": "Échange un refresh token valide contre une nouvelle paire access/refresh token (rotation)",
@@ -1008,6 +1298,36 @@ const docTemplate = `{
                 }
             }
         },
+        "auth.ChangerMotDePasseRequestDTO": {
+            "type": "object",
+            "required": [
+                "mot_de_passe_actuel",
+                "nouveau_mot_de_passe"
+            ],
+            "properties": {
+                "mot_de_passe_actuel": {
+                    "type": "string",
+                    "example": "ancienmotdepasse123"
+                },
+                "nouveau_mot_de_passe": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "nouveaumotdepasse456"
+                }
+            }
+        },
+        "auth.ConfirmerChangementEmailRequestDTO": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "042951"
+                }
+            }
+        },
         "auth.ConnexionGoogleRequestDTO": {
             "type": "object",
             "required": [
@@ -1068,6 +1388,18 @@ const docTemplate = `{
                 }
             }
         },
+        "auth.DemanderChangementEmailRequestDTO": {
+            "type": "object",
+            "required": [
+                "nouvel_email"
+            ],
+            "properties": {
+                "nouvel_email": {
+                    "type": "string",
+                    "example": "nouveau.email@example.com"
+                }
+            }
+        },
         "auth.DemanderReinitialisationRequestDTO": {
             "type": "object",
             "required": [
@@ -1096,6 +1428,27 @@ const docTemplate = `{
                     "maxLength": 100,
                     "minLength": 1,
                     "example": "iPhone d'Awa"
+                }
+            }
+        },
+        "auth.ModifierProfilRequestDTO": {
+            "type": "object",
+            "required": [
+                "nom",
+                "prenom"
+            ],
+            "properties": {
+                "nom": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Koné"
+                },
+                "prenom": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Awa"
                 }
             }
         },
@@ -1142,6 +1495,46 @@ const docTemplate = `{
                 },
                 "refresh_token_expire_at": {
                     "type": "string"
+                }
+            }
+        },
+        "auth.UtilisateurDTO": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "awa.kone@example.com"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d"
+                },
+                "kyc_statut": {
+                    "type": "string",
+                    "example": "verifie"
+                },
+                "kyc_tier": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "nom": {
+                    "type": "string",
+                    "example": "Koné"
+                },
+                "pays_code": {
+                    "type": "string",
+                    "example": "CI"
+                },
+                "photo_profil": {
+                    "type": "string"
+                },
+                "prenom": {
+                    "type": "string",
+                    "example": "Awa"
+                },
+                "telephone": {
+                    "type": "string",
+                    "example": "+2250700000000"
                 }
             }
         },

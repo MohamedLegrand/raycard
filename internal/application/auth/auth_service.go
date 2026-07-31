@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/http"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -34,7 +35,19 @@ const (
 	sujetEmailTentativesEpuisees = "Alerte de sécurité RAYCARD : tentatives de connexion échouées"
 
 	dureeChallengeEmpreinte = 2 * time.Minute
+
+	dureeTokenChangementEmail   = 15 * time.Minute
+	sujetEmailChangementEmail   = "Confirmez votre nouvelle adresse email RAYCARD"
+	sujetEmailEmailModifie      = "Votre adresse email RAYCARD a été modifiée"
+	sujetEmailMotDePasseModifie = "Votre mot de passe RAYCARD a été modifié"
 )
+
+// formatsPhotoAutorises : mêmes formats que pour les documents KYC —
+// ceux qu'on sait afficher sans surprise côté client.
+var formatsPhotoAutorises = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+}
 
 type authService struct {
 	utilisateurs           commonoutput.UtilisateurRepository
@@ -45,6 +58,8 @@ type authService struct {
 	ticketsConnexion       authoutput.TicketConnexionRepository
 	clesAppareil           authoutput.CleAppareilRepository
 	challengesEmpreinte    authoutput.ChallengeEmpreinteRepository
+	tokensChangementEmail  authoutput.TokenChangementEmailRepository
+	stockage               commonoutput.StockageFichier
 	tokenGenerator         authoutput.TokenGenerator
 	notifieur              authoutput.Notifieur
 	googleAuthProvider     authoutput.GoogleAuthProvider
@@ -61,6 +76,8 @@ func NewAuthService(
 	ticketsConnexion authoutput.TicketConnexionRepository,
 	clesAppareil authoutput.CleAppareilRepository,
 	challengesEmpreinte authoutput.ChallengeEmpreinteRepository,
+	tokensChangementEmail authoutput.TokenChangementEmailRepository,
+	stockage commonoutput.StockageFichier,
 	tokenGenerator authoutput.TokenGenerator,
 	notifieur authoutput.Notifieur,
 	googleAuthProvider authoutput.GoogleAuthProvider,
@@ -75,6 +92,8 @@ func NewAuthService(
 		ticketsConnexion:       ticketsConnexion,
 		clesAppareil:           clesAppareil,
 		challengesEmpreinte:    challengesEmpreinte,
+		tokensChangementEmail:  tokensChangementEmail,
+		stockage:               stockage,
 		tokenGenerator:         tokenGenerator,
 		notifieur:              notifieur,
 		googleAuthProvider:     googleAuthProvider,
@@ -651,4 +670,192 @@ func genererCodeOTP() (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%06d", n.Int64()), nil
+}
+
+// ModifierProfil met à jour le nom et le prénom de l'utilisateur
+// authentifié.
+func (s *authService) ModifierProfil(ctx context.Context, utilisateurID string, req authinput.ModifierProfilRequest) (*commun.Utilisateur, error) {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return nil, fmt.Errorf("recherche utilisateur: %w", err)
+	}
+
+	if err := utilisateur.ModifierIdentite(req.Nom, req.Prenom); err != nil {
+		return nil, err
+	}
+	if err := s.utilisateurs.UpdateProfil(ctx, utilisateur); err != nil {
+		return nil, fmt.Errorf("mise à jour profil: %w", err)
+	}
+
+	return utilisateur, nil
+}
+
+// ModifierPhotoProfil stocke la nouvelle photo de profil de
+// l'utilisateur authentifié.
+func (s *authService) ModifierPhotoProfil(ctx context.Context, utilisateurID, nomFichier string, contenu []byte) (*commun.Utilisateur, error) {
+	if !formatsPhotoAutorises[http.DetectContentType(contenu)] {
+		return nil, commun.ErrDonneesInvalides
+	}
+
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return nil, fmt.Errorf("recherche utilisateur: %w", err)
+	}
+
+	chemin, err := s.stockage.Sauvegarder(ctx, nomFichier, contenu)
+	if err != nil {
+		return nil, fmt.Errorf("stockage photo profil: %w", err)
+	}
+
+	if err := utilisateur.ModifierPhotoProfil(chemin); err != nil {
+		return nil, err
+	}
+	if err := s.utilisateurs.UpdateProfil(ctx, utilisateur); err != nil {
+		return nil, fmt.Errorf("mise à jour profil: %w", err)
+	}
+
+	return utilisateur, nil
+}
+
+// ChangerMotDePasse change le mot de passe de l'utilisateur authentifié
+// après vérification du mot de passe actuel, et révoque toutes les
+// autres sessions actives : si ce changement répond à un soupçon de
+// compromission, les sessions ouvertes ailleurs ne doivent pas
+// survivre.
+func (s *authService) ChangerMotDePasse(ctx context.Context, utilisateurID, motDePasseActuel, nouveauMotDePasse string) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return fmt.Errorf("recherche utilisateur: %w", err)
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(utilisateur.MotDePasseHash), []byte(motDePasseActuel)); err != nil {
+		return authdomain.ErrIdentifiantsInvalides
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(nouveauMotDePasse), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hachage mot de passe: %w", err)
+	}
+	utilisateur.MotDePasseHash = string(hash)
+
+	err = s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := s.utilisateurs.UpdateMotDePasse(ctx, utilisateur); err != nil {
+			return fmt.Errorf("mise à jour mot de passe: %w", err)
+		}
+		if err := s.refreshTokens.RevokeAllForUtilisateur(ctx, utilisateur.ID); err != nil {
+			return fmt.Errorf("révocation sessions actives: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Best-effort : ne bloque jamais un changement de mot de passe réussi.
+	corps := "<p>Le mot de passe de votre compte RAYCARD vient d'être modifié.</p>" +
+		"<p>Si vous n'êtes pas à l'origine de ce changement, contactez le support immédiatement.</p>"
+	_ = s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailMotDePasseModifie, corps)
+
+	return nil
+}
+
+// DemanderChangementEmail envoie un code de confirmation au NOUVEL
+// email : le changement ne prend effet qu'après ConfirmerChangementEmail.
+func (s *authService) DemanderChangementEmail(ctx context.Context, utilisateurID, nouvelEmail string) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return fmt.Errorf("recherche utilisateur: %w", err)
+	}
+
+	if _, err := s.utilisateurs.FindByEmail(ctx, nouvelEmail); !errors.Is(err, commun.ErrUtilisateurIntrouvable) {
+		if err == nil {
+			return commun.ErrEmailDejaUtilise
+		}
+		return fmt.Errorf("vérification email: %w", err)
+	}
+
+	code, err := genererCodeOTP()
+	if err != nil {
+		return fmt.Errorf("génération code: %w", err)
+	}
+
+	token, err := authdomain.NouveauTokenChangementEmail(utilisateur.ID, nouvelEmail, hacherToken(code), dureeTokenChangementEmail)
+	if err != nil {
+		return err
+	}
+	if err := s.tokensChangementEmail.Create(ctx, token); err != nil {
+		return fmt.Errorf("persistance token changement email: %w", err)
+	}
+
+	corps := fmt.Sprintf(
+		"<p>Voici votre code de confirmation RAYCARD : <strong>%s</strong></p>"+
+			"<p>Ce code expire dans 15 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>",
+		code,
+	)
+	if err := s.notifieur.EnvoyerEmail(ctx, nouvelEmail, sujetEmailChangementEmail, corps); err != nil {
+		return fmt.Errorf("envoi email confirmation: %w", err)
+	}
+
+	return nil
+}
+
+// ConfirmerChangementEmail applique le changement d'email si le code
+// est valide, et notifie l'ancienne adresse du changement — pour que le
+// propriétaire légitime du compte le remarque si ce n'est pas lui qui
+// est à l'origine du changement.
+func (s *authService) ConfirmerChangementEmail(ctx context.Context, code string) (*commun.Utilisateur, error) {
+	token, err := s.tokensChangementEmail.FindByHash(ctx, hacherToken(code))
+	if err != nil {
+		if errors.Is(err, authdomain.ErrTokenInvalide) {
+			return nil, authdomain.ErrTokenInvalide
+		}
+		return nil, fmt.Errorf("recherche token changement email: %w", err)
+	}
+	if !token.EstValide() {
+		return nil, authdomain.ErrTokenInvalide
+	}
+
+	utilisateur, err := s.utilisateurs.FindByID(ctx, token.UtilisateurID)
+	if err != nil {
+		return nil, fmt.Errorf("recherche utilisateur: %w", err)
+	}
+	ancienEmail := utilisateur.Email
+
+	// Le nouvel email a pu être pris par quelqu'un d'autre entre la
+	// demande et la confirmation : revérifié ici pour ne jamais écraser
+	// silencieusement l'unicité.
+	if _, err := s.utilisateurs.FindByEmail(ctx, token.NouvelEmail); !errors.Is(err, commun.ErrUtilisateurIntrouvable) {
+		if err == nil {
+			return nil, commun.ErrEmailDejaUtilise
+		}
+		return nil, fmt.Errorf("vérification email: %w", err)
+	}
+
+	if err := utilisateur.ModifierEmail(token.NouvelEmail); err != nil {
+		return nil, err
+	}
+
+	err = s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := s.utilisateurs.UpdateEmail(ctx, utilisateur); err != nil {
+			return fmt.Errorf("mise à jour email: %w", err)
+		}
+		if err := s.tokensChangementEmail.MarquerUtilise(ctx, token.ID); err != nil {
+			return fmt.Errorf("consommation token changement email: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Best-effort, envoyé à l'ANCIEN email : ne bloque jamais un
+	// changement réussi.
+	corps := fmt.Sprintf(
+		"<p>L'adresse email de votre compte RAYCARD a été changée pour <strong>%s</strong>.</p>"+
+			"<p>Si vous n'êtes pas à l'origine de ce changement, contactez le support immédiatement.</p>",
+		utilisateur.Email,
+	)
+	_ = s.notifieur.EnvoyerEmail(ctx, ancienEmail, sujetEmailEmailModifie, corps)
+
+	return utilisateur, nil
 }

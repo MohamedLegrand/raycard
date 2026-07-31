@@ -18,6 +18,27 @@ definitions:
       expire_dans_sec:
         type: integer
     type: object
+  auth.ChangerMotDePasseRequestDTO:
+    properties:
+      mot_de_passe_actuel:
+        example: ancienmotdepasse123
+        type: string
+      nouveau_mot_de_passe:
+        example: nouveaumotdepasse456
+        minLength: 8
+        type: string
+    required:
+    - mot_de_passe_actuel
+    - nouveau_mot_de_passe
+    type: object
+  auth.ConfirmerChangementEmailRequestDTO:
+    properties:
+      code:
+        example: "042951"
+        type: string
+    required:
+    - code
+    type: object
   auth.ConnexionGoogleRequestDTO:
     properties:
       id_token:
@@ -59,6 +80,14 @@ definitions:
     required:
     - appareil_id
     type: object
+  auth.DemanderChangementEmailRequestDTO:
+    properties:
+      nouvel_email:
+        example: nouveau.email@example.com
+        type: string
+    required:
+    - nouvel_email
+    type: object
   auth.DemanderReinitialisationRequestDTO:
     properties:
       email:
@@ -80,6 +109,22 @@ definitions:
     required:
     - cle_publique
     - nom_appareil
+    type: object
+  auth.ModifierProfilRequestDTO:
+    properties:
+      nom:
+        example: Koné
+        maxLength: 100
+        minLength: 2
+        type: string
+      prenom:
+        example: Awa
+        maxLength: 100
+        minLength: 2
+        type: string
+    required:
+    - nom
+    - prenom
     type: object
   auth.RafraichirRequestDTO:
     properties:
@@ -110,6 +155,35 @@ definitions:
       refresh_token:
         type: string
       refresh_token_expire_at:
+        type: string
+    type: object
+  auth.UtilisateurDTO:
+    properties:
+      email:
+        example: awa.kone@example.com
+        type: string
+      id:
+        example: 3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d
+        type: string
+      kyc_statut:
+        example: verifie
+        type: string
+      kyc_tier:
+        example: 1
+        type: integer
+      nom:
+        example: Koné
+        type: string
+      pays_code:
+        example: CI
+        type: string
+      photo_profil:
+        type: string
+      prenom:
+        example: Awa
+        type: string
+      telephone:
+        example: "+2250700000000"
         type: string
     type: object
   auth.VerifierCode2FARequestDTO:
@@ -581,6 +655,194 @@ paths:
           schema:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Demande de réinitialisation de mot de passe
+      tags:
+      - auth
+  /auth/profil:
+    put:
+      consumes:
+      - application/json
+      description: Met à jour le nom et le prénom de l'utilisateur authentifié.
+      parameters:
+      - description: Nouveau nom et prénom
+        in: body
+        name: profil
+        required: true
+        schema:
+          $ref: '#/definitions/auth.ModifierProfilRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.UtilisateurDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Modification du profil
+      tags:
+      - auth
+  /auth/profil/email:
+    post:
+      consumes:
+      - application/json
+      description: Envoie un code de confirmation au NOUVEL email. Le changement ne
+        prend effet qu'après confirmation (voir /auth/profil/email/confirmer).
+      parameters:
+      - description: Nouvelle adresse email
+        in: body
+        name: demande
+        required: true
+        schema:
+          $ref: '#/definitions/auth.DemanderChangementEmailRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: email déjà utilisé
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Demande de changement d'email
+      tags:
+      - auth
+  /auth/profil/email/confirmer:
+    post:
+      consumes:
+      - application/json
+      description: Applique le changement d'email si le code reçu au nouvel email
+        est valide. Notifie l'ancienne adresse du changement.
+      parameters:
+      - description: Code reçu au nouvel email
+        in: body
+        name: confirmation
+        required: true
+        schema:
+          $ref: '#/definitions/auth.ConfirmerChangementEmailRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.UtilisateurDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: code invalide, expiré ou déjà utilisé
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: email déjà utilisé
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      summary: Confirmation du changement d'email
+      tags:
+      - auth
+  /auth/profil/mot-de-passe:
+    post:
+      consumes:
+      - application/json
+      description: Change le mot de passe de l'utilisateur authentifié, après vérification
+        du mot de passe actuel, et révoque toutes les autres sessions actives.
+      parameters:
+      - description: Mot de passe actuel et nouveau mot de passe
+        in: body
+        name: motDePasse
+        required: true
+        schema:
+          $ref: '#/definitions/auth.ChangerMotDePasseRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié, ou mot de passe actuel incorrect
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Changement de mot de passe
+      tags:
+      - auth
+  /auth/profil/photo:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 'Stocke la nouvelle photo de profil. Formats acceptés : JPEG, PNG.'
+      parameters:
+      - description: Nouvelle photo de profil
+        in: formData
+        name: photo
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.UtilisateurDTO'
+        "400":
+          description: fichier manquant ou illisible
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: format de fichier non supporté
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Modification de la photo de profil
       tags:
       - auth
   /auth/rafraichir:

@@ -36,6 +36,32 @@ func (r *UtilisateurRepository) Create(ctx context.Context, u *commun.Utilisateu
 	return nil
 }
 
+func (r *UtilisateurRepository) UpdateProfil(ctx context.Context, u *commun.Utilisateur) error {
+	const query = `UPDATE utilisateurs SET nom = $1, prenom = $2, photo_profil = $3, updated_at = now() WHERE id = $4`
+
+	tag, err := DbFromContext(ctx, r.pool).Exec(ctx, query, u.Nom, u.Prenom, aNilSiVide(u.PhotoProfil), u.ID)
+	if err != nil {
+		return fmt.Errorf("mise à jour profil: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return commun.ErrUtilisateurIntrouvable
+	}
+	return nil
+}
+
+func (r *UtilisateurRepository) UpdateEmail(ctx context.Context, u *commun.Utilisateur) error {
+	const query = `UPDATE utilisateurs SET email = $1, updated_at = now() WHERE id = $2`
+
+	tag, err := DbFromContext(ctx, r.pool).Exec(ctx, query, u.Email, u.ID)
+	if err != nil {
+		return fmt.Errorf("mise à jour email: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return commun.ErrUtilisateurIntrouvable
+	}
+	return nil
+}
+
 func (r *UtilisateurRepository) FindByID(ctx context.Context, id string) (*commun.Utilisateur, error) {
 	return r.findOneBy(ctx, "id", id)
 }
@@ -57,13 +83,13 @@ func (r *UtilisateurRepository) FindByGoogleID(ctx context.Context, googleID str
 // risque d'injection SQL malgré la construction de la requête.
 func (r *UtilisateurRepository) findOneBy(ctx context.Context, colonne string, valeur any) (*commun.Utilisateur, error) {
 	query := fmt.Sprintf(`
-		SELECT id, nom, prenom, email, telephone, pays_code, mot_de_passe_hash, google_id, role, kyc_tier, kyc_statut, created_at, updated_at
+		SELECT id, nom, prenom, email, telephone, pays_code, mot_de_passe_hash, google_id, photo_profil, role, kyc_tier, kyc_statut, created_at, updated_at
 		FROM utilisateurs WHERE %s = $1`, colonne)
 
 	var u commun.Utilisateur
-	var motDePasseHash, googleID *string
+	var motDePasseHash, googleID, photoProfil *string
 	err := DbFromContext(ctx, r.pool).QueryRow(ctx, query, valeur).Scan(
-		&u.ID, &u.Nom, &u.Prenom, &u.Email, &u.Telephone, &u.PaysCode, &motDePasseHash, &googleID, &u.Role,
+		&u.ID, &u.Nom, &u.Prenom, &u.Email, &u.Telephone, &u.PaysCode, &motDePasseHash, &googleID, &photoProfil, &u.Role,
 		&u.KycTier, &u.KycStatut, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -75,6 +101,7 @@ func (r *UtilisateurRepository) findOneBy(ctx context.Context, colonne string, v
 
 	u.MotDePasseHash = videSiNil(motDePasseHash)
 	u.GoogleID = videSiNil(googleID)
+	u.PhotoProfil = videSiNil(photoProfil)
 	return &u, nil
 }
 

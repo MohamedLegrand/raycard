@@ -6,6 +6,8 @@ package auth
 import (
 	"context"
 	"time"
+
+	"raycard/internal/core/domain/commun"
 )
 
 // ConnexionRequest transporte les identifiants bruts depuis le transport.
@@ -85,6 +87,14 @@ type VerifierEmpreinteRequest struct {
 	Signature   string // encodée en base64
 }
 
+// ModifierProfilRequest transporte les champs de profil auto-gérables
+// par l'utilisateur. L'email n'en fait pas partie : il suit son propre
+// circuit de vérification (voir DemanderChangementEmail).
+type ModifierProfilRequest struct {
+	Nom    string
+	Prenom string
+}
+
 // AuthUseCase orchestre l'authentification et le cycle de vie de la
 // session (access + refresh token, rotation, révocation).
 type AuthUseCase interface {
@@ -140,4 +150,28 @@ type AuthUseCase interface {
 	// en zone sécurisée) et l'empreinte qui l'a déverrouillée constituent
 	// déjà deux facteurs.
 	ConnexionEmpreinte(ctx context.Context, req VerifierEmpreinteRequest, metadonnees MetadonneesConnexion) (*SessionResultat, error)
+
+	// ModifierProfil met à jour le nom et le prénom de l'utilisateur
+	// authentifié.
+	ModifierProfil(ctx context.Context, utilisateurID string, req ModifierProfilRequest) (*commun.Utilisateur, error)
+
+	// ModifierPhotoProfil stocke la nouvelle photo de profil de
+	// l'utilisateur authentifié.
+	ModifierPhotoProfil(ctx context.Context, utilisateurID, nomFichier string, contenu []byte) (*commun.Utilisateur, error)
+
+	// ChangerMotDePasse change le mot de passe de l'utilisateur
+	// authentifié, après vérification du mot de passe actuel, et révoque
+	// toutes les autres sessions actives.
+	ChangerMotDePasse(ctx context.Context, utilisateurID, motDePasseActuel, nouveauMotDePasse string) error
+
+	// DemanderChangementEmail envoie un code de confirmation au NOUVEL
+	// email : le changement ne prend effet qu'après ConfirmerChangementEmail,
+	// pour ne jamais risquer de perdre l'accès au compte sur une simple
+	// faute de frappe ou une session compromise.
+	DemanderChangementEmail(ctx context.Context, utilisateurID, nouvelEmail string) error
+
+	// ConfirmerChangementEmail applique le changement d'email si le code
+	// reçu au nouvel email est valide, et notifie l'ancien email du
+	// changement.
+	ConfirmerChangementEmail(ctx context.Context, code string) (*commun.Utilisateur, error)
 }

@@ -89,14 +89,6 @@ func (r *documentKycRepoFake) ListByUtilisateurID(_ context.Context, utilisateur
 	return r.parUtilisateurID[utilisateurID], nil
 }
 
-// stockageFichierFake écrit "quelque part" sans toucher au disque : les
-// tests n'ont pas besoin d'un vrai fichier, seulement d'un chemin.
-type stockageFichierFake struct{}
-
-func (stockageFichierFake) Sauvegarder(_ context.Context, nomFichier string, _ []byte) (string, error) {
-	return "/faux/chemin/" + nomFichier, nil
-}
-
 // ocrExtracteurFake simule Tesseract sans dépendre du binaire réel.
 type ocrExtracteurFake struct{}
 
@@ -116,7 +108,7 @@ func setupService() (inputkyc.KycUseCase, *testcommun.UtilisateurRepoFake, *test
 	documents := nouveauDocumentKycRepoFake()
 	service := appkyc.NewKycService(
 		utilisateurs, wallets, regles, dossiers, documents,
-		stockageFichierFake{}, ocrExtracteurFake{}, testcommun.TxManagerFake{},
+		testcommun.StockageFichierFake{}, ocrExtracteurFake{}, testcommun.TxManagerFake{},
 	)
 	return service, utilisateurs, wallets, dossiers, documents
 }
@@ -266,7 +258,7 @@ func TestKycService_TeleverserDocument_OcrEnEchec_DocumentQuandMemeStocke(t *tes
 	documents := nouveauDocumentKycRepoFake()
 	service := appkyc.NewKycService(
 		utilisateurs, wallets, testcommun.NewReglesKycRepoFake(), nouveauDossierKycRepoFake(), documents,
-		stockageFichierFake{}, ocrEnErreurFake{}, testcommun.TxManagerFake{},
+		testcommun.StockageFichierFake{}, ocrEnErreurFake{}, testcommun.TxManagerFake{},
 	)
 
 	document, err := service.TeleverserDocument(context.Background(), "user-1", "cni.jpg", jpegFactice)

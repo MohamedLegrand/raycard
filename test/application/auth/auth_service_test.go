@@ -124,6 +124,42 @@ func (r *tokenReinitialisationRepoFake) MarquerUtilise(_ context.Context, id str
 	return nil
 }
 
+type tokenChangementEmailRepoFake struct {
+	parHash map[string]*authdomain.TokenChangementEmail
+	parID   map[string]*authdomain.TokenChangementEmail
+}
+
+func nouveauTokenChangementEmailRepoFake() *tokenChangementEmailRepoFake {
+	return &tokenChangementEmailRepoFake{
+		parHash: make(map[string]*authdomain.TokenChangementEmail),
+		parID:   make(map[string]*authdomain.TokenChangementEmail),
+	}
+}
+
+func (r *tokenChangementEmailRepoFake) Create(_ context.Context, t *authdomain.TokenChangementEmail) error {
+	r.parHash[t.TokenHash] = t
+	r.parID[t.ID] = t
+	return nil
+}
+
+func (r *tokenChangementEmailRepoFake) FindByHash(_ context.Context, tokenHash string) (*authdomain.TokenChangementEmail, error) {
+	t, ok := r.parHash[tokenHash]
+	if !ok {
+		return nil, authdomain.ErrTokenInvalide
+	}
+	copie := *t
+	return &copie, nil
+}
+
+func (r *tokenChangementEmailRepoFake) MarquerUtilise(_ context.Context, id string) error {
+	t, ok := r.parID[id]
+	if !ok || t.UtiliseAt != nil {
+		return authdomain.ErrTokenInvalide
+	}
+	t.MarquerUtilise()
+	return nil
+}
+
 type ticketConnexionRepoFake struct {
 	parHash map[string]*authdomain.TicketConnexion
 	parID   map[string]*authdomain.TicketConnexion
@@ -268,6 +304,7 @@ type authServiceFakes struct {
 	ticketsConnexion       *ticketConnexionRepoFake
 	clesAppareil           *cleAppareilRepoFake
 	challengesEmpreinte    *challengeEmpreinteRepoFake
+	tokensChangementEmail  *tokenChangementEmailRepoFake
 	notifieur              *notifieurFake
 	googleAuthProvider     *googleAuthProviderFake
 }
@@ -281,13 +318,14 @@ func setupAuthService() (authinput.AuthUseCase, *authServiceFakes) {
 		ticketsConnexion:       nouveauTicketConnexionRepoFake(),
 		clesAppareil:           nouveauCleAppareilRepoFake(),
 		challengesEmpreinte:    nouveauChallengeEmpreinteRepoFake(),
+		tokensChangementEmail:  nouveauTokenChangementEmailRepoFake(),
 		notifieur:              &notifieurFake{},
 		googleAuthProvider:     &googleAuthProviderFake{},
 	}
 	service := appauth.NewAuthService(
 		fakes.utilisateurs, fakes.wallets, testcommun.NewReglesKycRepoFake(),
 		fakes.refreshTokens, fakes.tokensReinitialisation, fakes.ticketsConnexion,
-		fakes.clesAppareil, fakes.challengesEmpreinte,
+		fakes.clesAppareil, fakes.challengesEmpreinte, fakes.tokensChangementEmail, testcommun.StockageFichierFake{},
 		tokenGeneratorFake{}, fakes.notifieur, fakes.googleAuthProvider, testcommun.TxManagerFake{},
 	)
 	return service, fakes
@@ -841,4 +879,110 @@ func TestAuthService_RevoquerAppareil_DunAutreUtilisateur(t *testing.T) {
 	// L'appareil du propriétaire légitime doit rester valide.
 	_, err = service.DemanderChallengeEmpreinte(context.Background(), appareilID)
 	assert.NoError(t, err)
+}
+
+// jpegFactice : préfixe suffisant pour que http.DetectContentType
+// reconnaisse un JPEG (FF D8 FF), sans avoir besoin d'une vraie image.
+var jpegFactice = []byte{0xFF, 0xD8, 0xFF, 0x00}
+
+func TestAuthService_ModifierProfil_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	utilisateurMaj, err := service.ModifierProfil(context.Background(), u.ID, authinput.ModifierProfilRequest{Nom: "Traoré", Prenom: "Ibrahim"})
+	require.NoError(t, err)
+	assert.Equal(t, "Traoré", utilisateurMaj.Nom)
+	assert.Equal(t, "Ibrahim", utilisateurMaj.Prenom)
+}
+
+func TestAuthService_ModifierPhotoProfil_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	utilisateurMaj, err := service.ModifierPhotoProfil(context.Background(), u.ID, "photo.jpg", jpegFactice)
+	require.NoError(t, err)
+	assert.Contains(t, utilisateurMaj.PhotoProfil, "photo.jpg")
+}
+
+func TestAuthService_ModifierPhotoProfil_FormatInvalide(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	_, err := service.ModifierPhotoProfil(context.Background(), u.ID, "photo.txt", []byte("pas une image"))
+	assert.ErrorIs(t, err, commun.ErrDonneesInvalides)
+}
+
+func TestAuthService_ChangerMotDePasse_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "ancienmotdepasse123")
+	session := connecterAvec2FA(t, service, fakes.notifieur, "awa@example.com", "ancienmotdepasse123")
+
+	require.NoError(t, service.ChangerMotDePasse(context.Background(), u.ID, "ancienmotdepasse123", "nouveaumotdepasse456"))
+
+	_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "ancienmotdepasse123"})
+	assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides, "l'ancien mot de passe ne doit plus fonctionner")
+
+	_, err = service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "nouveaumotdepasse456"})
+	assert.NoError(t, err)
+
+	// Les sessions actives d'avant le changement doivent être révoquées.
+	_, err = service.RafraichirToken(context.Background(), session.RefreshToken)
+	assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
+}
+
+func TestAuthService_ChangerMotDePasse_MotDePasseActuelIncorrect(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	err := service.ChangerMotDePasse(context.Background(), u.ID, "mauvais-mot-de-passe", "nouveaumotdepasse456")
+	assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides)
+
+	_, err = service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
+	assert.NoError(t, err, "le mot de passe original doit rester inchangé")
+}
+
+func TestAuthService_DemanderChangementEmail_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	require.NoError(t, service.DemanderChangementEmail(context.Background(), u.ID, "nouveau@example.com"))
+
+	require.Len(t, fakes.notifieur.emailsEnvoyes, 1)
+	assert.Equal(t, "nouveau@example.com", fakes.notifieur.emailsEnvoyes[0].destinataire, "le code doit être envoyé au NOUVEL email, jamais à l'ancien")
+}
+
+func TestAuthService_DemanderChangementEmail_EmailDejaUtilise(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+	creerUtilisateurTest(t, fakes.utilisateurs, "dejapris@example.com", "motdepasse123")
+
+	err := service.DemanderChangementEmail(context.Background(), u.ID, "dejapris@example.com")
+	assert.ErrorIs(t, err, commun.ErrEmailDejaUtilise)
+}
+
+func TestAuthService_ConfirmerChangementEmail_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	require.NoError(t, service.DemanderChangementEmail(context.Background(), u.ID, "nouveau@example.com"))
+	code := extraireCodeOTP(t, fakes.notifieur.emailsEnvoyes[0].corps)
+
+	utilisateurMaj, err := service.ConfirmerChangementEmail(context.Background(), code)
+	require.NoError(t, err)
+	assert.Equal(t, "nouveau@example.com", utilisateurMaj.Email)
+
+	// La notification de changement doit partir vers l'ANCIEN email.
+	require.Len(t, fakes.notifieur.emailsEnvoyes, 2)
+	assert.Equal(t, "awa@example.com", fakes.notifieur.emailsEnvoyes[1].destinataire)
+
+	// La connexion ne fonctionne plus qu'avec le nouvel email.
+	_, err = service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "nouveau@example.com", MotDePasse: "motdepasse123"})
+	assert.NoError(t, err)
+}
+
+func TestAuthService_ConfirmerChangementEmail_CodeInvalide(t *testing.T) {
+	service, _ := setupAuthService()
+
+	_, err := service.ConfirmerChangementEmail(context.Background(), "000000")
+	assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
 }

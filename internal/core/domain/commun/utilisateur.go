@@ -51,6 +51,7 @@ type Utilisateur struct {
 	PaysCode       string // ISO 3166-1 alpha-2, ex: "CI", "SN"
 	MotDePasseHash string // vide pour un compte connecté uniquement via Google
 	GoogleID       string // vide si aucun compte Google lié
+	PhotoProfil    string // chemin de stockage ; vide si aucune photo
 	Role           RoleUtilisateur
 	KycTier        KycTier
 	KycStatut      KycStatut
@@ -146,6 +147,45 @@ func (u *Utilisateur) LierGoogleID(googleID string) error {
 		return ErrDonneesInvalides
 	}
 	u.GoogleID = googleID
+	u.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// ModifierIdentite met à jour le nom et le prénom affichés.
+func (u *Utilisateur) ModifierIdentite(nom, prenom string) error {
+	nom = strings.TrimSpace(nom)
+	prenom = strings.TrimSpace(prenom)
+	if nom == "" || prenom == "" {
+		return ErrDonneesInvalides
+	}
+	u.Nom = nom
+	u.Prenom = prenom
+	u.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// ModifierPhotoProfil met à jour le chemin de stockage de la photo de
+// profil.
+func (u *Utilisateur) ModifierPhotoProfil(chemin string) error {
+	if chemin == "" {
+		return ErrDonneesInvalides
+	}
+	u.PhotoProfil = chemin
+	u.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// ModifierEmail change l'adresse email, avec la même normalisation et
+// validation qu'à l'inscription. Ne doit être appelée qu'après
+// confirmation de la propriété du nouvel email (voir
+// AuthUseCase.ConfirmerChangementEmail) : ce n'est pas à ce niveau que
+// la vérification a lieu.
+func (u *Utilisateur) ModifierEmail(nouvelEmail string) error {
+	nouvelEmail = strings.ToLower(strings.TrimSpace(nouvelEmail))
+	if !emailRegex.MatchString(nouvelEmail) {
+		return ErrDonneesInvalides
+	}
+	u.Email = nouvelEmail
 	u.UpdatedAt = time.Now().UTC()
 	return nil
 }

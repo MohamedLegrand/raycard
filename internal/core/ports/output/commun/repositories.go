@@ -22,6 +22,14 @@ type UtilisateurRepository interface {
 	UpdateStatutKyc(ctx context.Context, u *commun.Utilisateur) error
 	UpdateMotDePasse(ctx context.Context, u *commun.Utilisateur) error
 	LierGoogleID(ctx context.Context, u *commun.Utilisateur) error
+
+	// UpdateProfil met à jour les informations de profil auto-gérées par
+	// l'utilisateur (nom, prénom, photo) — jamais l'email, qui suit son
+	// propre circuit de vérification (voir UpdateEmail).
+	UpdateProfil(ctx context.Context, u *commun.Utilisateur) error
+
+	// UpdateEmail change l'adresse email, une fois sa propriété vérifiée.
+	UpdateEmail(ctx context.Context, u *commun.Utilisateur) error
 }
 
 // WalletRepository persiste les wallets. V1 : un wallet par utilisateur.
@@ -42,6 +50,13 @@ type ReglesKycRepository interface {
 // sensibles, séparément des logs applicatifs.
 type AuditLogRepository interface {
 	Create(ctx context.Context, entry *commun.AuditLog) error
+}
+
+// StockageFichier persiste le contenu brut d'un fichier téléversé (ex:
+// document d'identité, photo de profil) et renvoie un chemin permettant
+// de le relire ensuite.
+type StockageFichier interface {
+	Sauvegarder(ctx context.Context, nomFichier string, contenu []byte) (chemin string, err error)
 }
 
 // TxManager exécute fn dans une transaction ACID unique. L'implémentation

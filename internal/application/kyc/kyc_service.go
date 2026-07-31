@@ -25,7 +25,7 @@ type kycService struct {
 	reglesKyc    outputcommun.ReglesKycRepository
 	dossiersKyc  outputkyc.DossierKycRepository
 	documentsKyc outputkyc.DocumentKycRepository
-	stockage     outputkyc.StockageFichier
+	stockage     outputcommun.StockageFichier
 	ocr          outputkyc.OcrExtracteur
 	txManager    outputcommun.TxManager
 }
@@ -37,7 +37,7 @@ func NewKycService(
 	reglesKyc outputcommun.ReglesKycRepository,
 	dossiersKyc outputkyc.DossierKycRepository,
 	documentsKyc outputkyc.DocumentKycRepository,
-	stockage outputkyc.StockageFichier,
+	stockage outputcommun.StockageFichier,
 	ocr outputkyc.OcrExtracteur,
 	txManager outputcommun.TxManager,
 ) inputkyc.KycUseCase {

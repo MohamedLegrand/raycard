@@ -63,3 +63,12 @@ type ChallengeEmpreinteRepository interface {
 	FindByID(ctx context.Context, id string) (*auth.ChallengeEmpreinte, error)
 	Update(ctx context.Context, c *auth.ChallengeEmpreinte) error
 }
+
+// TokenChangementEmailRepository persiste les codes de confirmation de
+// changement d'email (hashés). Une absence de résultat doit être
+// signalée par auth.ErrTokenInvalide.
+type TokenChangementEmailRepository interface {
+	Create(ctx context.Context, t *auth.TokenChangementEmail) error
+	FindByHash(ctx context.Context, tokenHash string) (*auth.TokenChangementEmail, error)
+	MarquerUtilise(ctx context.Context, id string) error
+}

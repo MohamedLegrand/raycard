@@ -69,6 +69,7 @@ func main() {
 	ticketConnexionRepo := pgauth.NewTicketConnexionRepository(pool)
 	cleAppareilRepo := pgauth.NewCleAppareilRepository(pool)
 	challengeEmpreinteRepo := pgauth.NewChallengeEmpreinteRepository(pool)
+	tokenChangementEmailRepo := pgauth.NewTokenChangementEmailRepository(pool)
 	dossierKycRepo := pgkyc.NewDossierKycRepository(pool)
 	documentKycRepo := pgkyc.NewDocumentKycRepository(pool)
 	auditLogRepo := pgcommun.NewAuditLogRepository(pool)
@@ -79,19 +80,20 @@ func main() {
 	notifieur := brevo.NewNotifieur(cfg.BrevoAPIKey, cfg.BrevoEmailExpediteur)
 	googleAuthProvider := google.NewVerificateurToken(cfg.GoogleClientID)
 
-	// Adapters OCR (documents KYC) : stockage sur disque local et
-	// extraction du texte via le binaire tesseract.
-	stockageDocuments := local.NewStockageFichier(cfg.UploadsDir)
+	// Stockage disque local des fichiers téléversés (documents KYC,
+	// photos de profil) et extraction du texte des documents via le
+	// binaire tesseract.
+	stockageFichiers := local.NewStockageFichier(cfg.UploadsDir)
 	ocrExtracteur := tesseract.NewExtracteur(cfg.TesseractLang)
 
 	// Use cases (application)
 	kycUseCase := appkyc.NewKycService(
 		utilisateurRepo, walletRepo, reglesKycRepo, dossierKycRepo, documentKycRepo,
-		stockageDocuments, ocrExtracteur, txManager,
+		stockageFichiers, ocrExtracteur, txManager,
 	)
 	authUseCase := appauth.NewAuthService(
 		utilisateurRepo, walletRepo, reglesKycRepo, refreshTokenRepo, tokenReinitialisationRepo, ticketConnexionRepo,
-		cleAppareilRepo, challengeEmpreinteRepo,
+		cleAppareilRepo, challengeEmpreinteRepo, tokenChangementEmailRepo, stockageFichiers,
 		tokenGenerator, notifieur, googleAuthProvider, txManager,
 	)
 	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, documentKycRepo, auditLogRepo, txManager)
