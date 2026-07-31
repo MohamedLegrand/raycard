@@ -2,8 +2,10 @@ package kyc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"raycard/internal/core/domain/kyc"
@@ -30,6 +32,24 @@ func (r *DocumentKycRepository) Create(ctx context.Context, d *kyc.DocumentKyc) 
 		return fmt.Errorf("création document kyc: %w", err)
 	}
 	return nil
+}
+
+func (r *DocumentKycRepository) FindByID(ctx context.Context, id string) (*kyc.DocumentKyc, error) {
+	const query = `
+		SELECT id, utilisateur_id, nom_fichier, chemin_fichier, texte_extrait, created_at
+		FROM documents_kyc WHERE id = $1`
+
+	var d kyc.DocumentKyc
+	err := commun.DbFromContext(ctx, r.pool).QueryRow(ctx, query, id).Scan(
+		&d.ID, &d.UtilisateurID, &d.NomFichier, &d.CheminFichier, &d.TexteExtrait, &d.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, kyc.ErrDocumentKycIntrouvable
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lecture document kyc: %w", err)
+	}
+	return &d, nil
 }
 
 func (r *DocumentKycRepository) ListByUtilisateurID(ctx context.Context, utilisateurID string) ([]*kyc.DocumentKyc, error) {

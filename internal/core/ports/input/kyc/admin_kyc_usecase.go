@@ -18,4 +18,9 @@ type AdminKycUseCase interface {
 	// utilisateur (et le texte que l'OCR en a extrait), pour aider
 	// l'administrateur à traiter son dossier de passage de palier.
 	ListerDocuments(ctx context.Context, utilisateurID string) ([]*kycdomain.DocumentKyc, error)
+
+	// RecupererDocument renvoie le contenu brut d'un document (l'image
+	// elle-même), pour que l'administrateur puisse l'examiner visuellement
+	// pendant la revue — le texte OCR seul ne suffit jamais à une décision.
+	RecupererDocument(ctx context.Context, documentID string) (*kycdomain.DocumentKyc, []byte, error)
 }

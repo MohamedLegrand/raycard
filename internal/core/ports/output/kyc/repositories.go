@@ -19,8 +19,10 @@ type DossierKycRepository interface {
 }
 
 // DocumentKycRepository persiste les documents d'identité téléversés et
-// le texte que l'OCR en a extrait.
+// le texte que l'OCR en a extrait. Une absence de résultat doit être
+// signalée par kyc.ErrDocumentKycIntrouvable.
 type DocumentKycRepository interface {
 	Create(ctx context.Context, d *kyc.DocumentKyc) error
+	FindByID(ctx context.Context, id string) (*kyc.DocumentKyc, error)
 	ListByUtilisateurID(ctx context.Context, utilisateurID string) ([]*kyc.DocumentKyc, error)
 }

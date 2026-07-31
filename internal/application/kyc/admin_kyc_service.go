@@ -16,6 +16,7 @@ type adminKycService struct {
 	utilisateurs outputcommun.UtilisateurRepository
 	dossiersKyc  outputkyc.DossierKycRepository
 	documentsKyc outputkyc.DocumentKycRepository
+	stockage     outputcommun.StockageFichier
 	auditLog     outputcommun.AuditLogRepository
 	txManager    outputcommun.TxManager
 }
@@ -25,6 +26,7 @@ func NewAdminKycService(
 	utilisateurs outputcommun.UtilisateurRepository,
 	dossiersKyc outputkyc.DossierKycRepository,
 	documentsKyc outputkyc.DocumentKycRepository,
+	stockage outputcommun.StockageFichier,
 	auditLog outputcommun.AuditLogRepository,
 	txManager outputcommun.TxManager,
 ) inputkyc.AdminKycUseCase {
@@ -32,6 +34,7 @@ func NewAdminKycService(
 		utilisateurs: utilisateurs,
 		dossiersKyc:  dossiersKyc,
 		documentsKyc: documentsKyc,
+		stockage:     stockage,
 		auditLog:     auditLog,
 		txManager:    txManager,
 	}
@@ -45,6 +48,23 @@ func (s *adminKycService) ListerDossiersEnAttente(ctx context.Context) ([]*domai
 // utilisateur, pour aider l'administrateur pendant la revue.
 func (s *adminKycService) ListerDocuments(ctx context.Context, utilisateurID string) ([]*domainkyc.DocumentKyc, error) {
 	return s.documentsKyc.ListByUtilisateurID(ctx, utilisateurID)
+}
+
+// RecupererDocument renvoie le contenu brut d'un document, pour que
+// l'administrateur puisse l'examiner visuellement — la revue manuelle
+// ne peut pas se contenter du texte OCR seul.
+func (s *adminKycService) RecupererDocument(ctx context.Context, documentID string) (*domainkyc.DocumentKyc, []byte, error) {
+	document, err := s.documentsKyc.FindByID(ctx, documentID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	contenu, err := s.stockage.Lire(ctx, document.CheminFichier)
+	if err != nil {
+		return nil, nil, fmt.Errorf("lecture document: %w", err)
+	}
+
+	return document, contenu, nil
 }
 
 func (s *adminKycService) ApprouverDossier(ctx context.Context, adminID, dossierID string) error {

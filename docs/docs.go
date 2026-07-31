@@ -860,6 +860,65 @@ const docTemplate = `{
                 }
             }
         },
+        "/backoffice/kyc/documents/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Renvoie le contenu brut de l'image (jamais seulement le texte OCR) : c'est sur cette image que l'administrateur doit fonder sa décision d'approbation ou de rejet.",
+                "produces": [
+                    "image/jpeg",
+                    "image/png"
+                ],
+                "tags": [
+                    "backoffice-kyc"
+                ],
+                "summary": "Récupération d'un document d'identité",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID du document",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "document introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/backoffice/kyc/dossiers": {
             "get": {
                 "security": [

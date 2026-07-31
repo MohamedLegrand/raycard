@@ -24,7 +24,7 @@ func MapErreurDomaine(err error) error {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, authdomain.ErrIdentifiantsInvalides), errors.Is(err, authdomain.ErrTokenInvalide):
 		return fiber.NewError(fiber.StatusUnauthorized, err.Error())
-	case errors.Is(err, commun.ErrUtilisateurIntrouvable), errors.Is(err, kyc.ErrDossierKycIntrouvable), errors.Is(err, authdomain.ErrCleAppareilIntrouvable):
+	case errors.Is(err, commun.ErrUtilisateurIntrouvable), errors.Is(err, kyc.ErrDossierKycIntrouvable), errors.Is(err, kyc.ErrDocumentKycIntrouvable), errors.Is(err, authdomain.ErrCleAppareilIntrouvable):
 		return fiber.NewError(fiber.StatusNotFound, err.Error())
 	default:
 		return fiber.NewError(fiber.StatusInternalServerError, "erreur interne")

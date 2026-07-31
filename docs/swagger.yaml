@@ -913,6 +913,46 @@ paths:
       summary: Réinitialisation du mot de passe
       tags:
       - auth
+  /backoffice/kyc/documents/{id}:
+    get:
+      description: 'Renvoie le contenu brut de l''image (jamais seulement le texte
+        OCR) : c''est sur cette image que l''administrateur doit fonder sa décision
+        d''approbation ou de rejet.'
+      parameters:
+      - description: ID du document
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - image/jpeg
+      - image/png
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: document introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Récupération d'un document d'identité
+      tags:
+      - backoffice-kyc
   /backoffice/kyc/dossiers:
     get:
       produces:

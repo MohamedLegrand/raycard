@@ -58,4 +58,5 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	backofficeKyc.Post("/dossiers/:id/approuver", h.AdminKyc.Approuver)
 	backofficeKyc.Post("/dossiers/:id/rejeter", h.AdminKyc.Rejeter)
 	backofficeKyc.Get("/utilisateurs/:id/documents", h.AdminKyc.ListerDocuments)
+	backofficeKyc.Get("/documents/:id", h.AdminKyc.RecupererDocument)
 }

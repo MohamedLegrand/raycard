@@ -44,3 +44,12 @@ func (s *StockageFichier) Sauvegarder(_ context.Context, nomFichier string, cont
 	}
 	return chemin, nil
 }
+
+// Lire relit le contenu d'un fichier précédemment sauvegardé.
+func (s *StockageFichier) Lire(_ context.Context, chemin string) ([]byte, error) {
+	contenu, err := os.ReadFile(chemin)
+	if err != nil {
+		return nil, fmt.Errorf("lecture fichier: %w", err)
+	}
+	return contenu, nil
+}

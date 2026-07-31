@@ -53,10 +53,11 @@ type AuditLogRepository interface {
 }
 
 // StockageFichier persiste le contenu brut d'un fichier téléversé (ex:
-// document d'identité, photo de profil) et renvoie un chemin permettant
-// de le relire ensuite.
+// document d'identité, photo de profil) et permet de le relire ensuite
+// (ex: pour l'OCR, ou pour l'affichage côté back-office).
 type StockageFichier interface {
 	Sauvegarder(ctx context.Context, nomFichier string, contenu []byte) (chemin string, err error)
+	Lire(ctx context.Context, chemin string) (contenu []byte, err error)
 }
 
 // TxManager exécute fn dans une transaction ACID unique. L'implémentation

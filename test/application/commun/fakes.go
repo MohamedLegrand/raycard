@@ -164,6 +164,10 @@ func (StockageFichierFake) Sauvegarder(_ context.Context, nomFichier string, _ [
 	return "/faux/chemin/" + nomFichier, nil
 }
 
+func (StockageFichierFake) Lire(_ context.Context, _ string) ([]byte, error) {
+	return []byte("contenu-fichier-factice"), nil
+}
+
 // TxManagerFake exécute fn directement, sans transaction réelle : les
 // repositories fake ci-dessus ne participent à aucune transaction, donc
 // il n'y a rien à isoler.

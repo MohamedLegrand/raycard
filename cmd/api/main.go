@@ -96,7 +96,7 @@ func main() {
 		cleAppareilRepo, challengeEmpreinteRepo, tokenChangementEmailRepo, stockageFichiers,
 		tokenGenerator, notifieur, googleAuthProvider, txManager,
 	)
-	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, documentKycRepo, auditLogRepo, txManager)
+	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, documentKycRepo, stockageFichiers, auditLogRepo, txManager)
 
 	// Transport HTTP
 	validate := validator.New()

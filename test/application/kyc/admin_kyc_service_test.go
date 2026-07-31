@@ -28,7 +28,7 @@ func setupAdminKycService() (inputkyc.AdminKycUseCase, *testcommun.UtilisateurRe
 	dossiers := nouveauDossierKycRepoFake()
 	documents := nouveauDocumentKycRepoFake()
 	auditLog := &auditLogRepoFake{}
-	service := appkyc.NewAdminKycService(utilisateurs, dossiers, documents, auditLog, testcommun.TxManagerFake{})
+	service := appkyc.NewAdminKycService(utilisateurs, dossiers, documents, testcommun.StockageFichierFake{}, auditLog, testcommun.TxManagerFake{})
 	return service, utilisateurs, dossiers, documents, auditLog
 }
 
@@ -115,4 +115,25 @@ func TestAdminKycService_ListerDocuments(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, liste, 1)
 	assert.Equal(t, "NOM: KONE", liste[0].TexteExtrait)
+}
+
+func TestAdminKycService_RecupererDocument_Succes(t *testing.T) {
+	service, utilisateurs, dossiers, documents, _ := setupAdminKycService()
+	u, _ := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
+
+	d, err := kyc.NouveauDocumentKyc(u.ID, "cni.jpg", "/faux/chemin/cni.jpg", "NOM: KONE")
+	require.NoError(t, err)
+	require.NoError(t, documents.Create(context.Background(), d))
+
+	document, contenu, err := service.RecupererDocument(context.Background(), d.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "cni.jpg", document.NomFichier)
+	assert.NotEmpty(t, contenu, "l'administrateur doit recevoir l'image elle-même, pas seulement le texte OCR")
+}
+
+func TestAdminKycService_RecupererDocument_Introuvable(t *testing.T) {
+	service, _, _, _, _ := setupAdminKycService()
+
+	_, _, err := service.RecupererDocument(context.Background(), "document-inconnu")
+	assert.ErrorIs(t, err, kyc.ErrDocumentKycIntrouvable)
 }

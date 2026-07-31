@@ -85,6 +85,17 @@ func (r *documentKycRepoFake) Create(_ context.Context, d *kyc.DocumentKyc) erro
 	return nil
 }
 
+func (r *documentKycRepoFake) FindByID(_ context.Context, id string) (*kyc.DocumentKyc, error) {
+	for _, documents := range r.parUtilisateurID {
+		for _, d := range documents {
+			if d.ID == id {
+				return d, nil
+			}
+		}
+	}
+	return nil, kyc.ErrDocumentKycIntrouvable
+}
+
 func (r *documentKycRepoFake) ListByUtilisateurID(_ context.Context, utilisateurID string) ([]*kyc.DocumentKyc, error) {
 	return r.parUtilisateurID[utilisateurID], nil
 }

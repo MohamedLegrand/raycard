@@ -1,6 +1,8 @@
 package kyc
 
 import (
+	"net/http"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 
@@ -120,4 +122,30 @@ func (h *AdminKycHandler) ListerDocuments(c *fiber.Ctx) error {
 		return handlerscommun.MapErreurDomaine(err)
 	}
 	return c.Status(fiber.StatusOK).JSON(kycdto.FromDocumentsKyc(documents))
+}
+
+// RecupererDocument gère GET /api/v1/backoffice/kyc/documents/:id.
+//
+//	@Summary		Récupération d'un document d'identité
+//	@Description	Renvoie le contenu brut de l'image (jamais seulement le texte OCR) : c'est sur cette image que l'administrateur doit fonder sa décision d'approbation ou de rejet.
+//	@Tags			backoffice-kyc
+//	@Produce		image/jpeg,image/png
+//	@Security		BearerAuth
+//	@Param			id	path	string	true	"ID du document"
+//	@Success		200	{file}		file
+//	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		403	{object}	commun.ErreurDTO	"réservé aux administrateurs"
+//	@Failure		404	{object}	commun.ErreurDTO	"document introuvable"
+//	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/backoffice/kyc/documents/{id} [get]
+func (h *AdminKycHandler) RecupererDocument(c *fiber.Ctx) error {
+	documentID := c.Params("id")
+
+	_, contenu, err := h.adminKycUseCase.RecupererDocument(c.Context(), documentID)
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	c.Set(fiber.HeaderContentType, http.DetectContentType(contenu))
+	return c.Send(contenu)
 }
