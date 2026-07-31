@@ -72,3 +72,14 @@ type TokenChangementEmailRepository interface {
 	FindByHash(ctx context.Context, tokenHash string) (*auth.TokenChangementEmail, error)
 	MarquerUtilise(ctx context.Context, id string) error
 }
+
+// VerrouConnexionRepository persiste l'état de protection contre le
+// bourrage de mot de passe, une ligne par utilisateur. Une absence de
+// résultat doit être signalée par auth.ErrVerrouIntrouvable.
+type VerrouConnexionRepository interface {
+	FindByUtilisateurID(ctx context.Context, utilisateurID string) (*auth.VerrouConnexion, error)
+
+	// Sauvegarder crée ou met à jour le verrou de l'utilisateur concerné
+	// (upsert : au plus une ligne par utilisateur).
+	Sauvegarder(ctx context.Context, v *auth.VerrouConnexion) error
+}

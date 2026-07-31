@@ -4,7 +4,10 @@
 package http
 
 import (
+	"time"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/swagger"
 
 	authoutput "raycard/internal/core/ports/output/auth"
@@ -12,6 +15,16 @@ import (
 	handlerskyc "raycard/internal/transport/http/handlers/kyc"
 	authmw "raycard/internal/transport/http/middleware/auth"
 )
+
+// limiteurConnexion : première barrière (par IP) contre le bourrage de
+// mot de passe, avant même que la protection par compte (voir
+// application/auth.VerrouConnexion) n'entre en jeu. Volontairement plus
+// permissif que le seuil par compte (5 échecs) : il doit surtout freiner
+// les scripts qui tapent vite, pas gêner un usage normal.
+var limiteurConnexion = limiter.New(limiter.Config{
+	Max:        20,
+	Expiration: time.Minute,
+})
 
 // Handlers regroupe tous les handlers HTTP câblés par main.go. Un
 // champ est ajouté ici à chaque nouveau module (wallet, cartes...).
@@ -34,9 +47,9 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	kyc.Post("/documents", authmw.RequireAuth(tokenGenerator), h.Kyc.TeleverserDocument)
 
 	auth := api.Group("/auth")
-	auth.Post("/connexion", h.Auth.Connexion)
+	auth.Post("/connexion", limiteurConnexion, h.Auth.Connexion)
 	auth.Post("/connexion/verifier-code", h.Auth.VerifierCode2FA)
-	auth.Post("/connexion-google", h.Auth.ConnexionGoogle)
+	auth.Post("/connexion-google", limiteurConnexion, h.Auth.ConnexionGoogle)
 	auth.Post("/rafraichir", h.Auth.Rafraichir)
 	auth.Post("/deconnexion", h.Auth.Deconnexion)
 	auth.Post("/mot-de-passe-oublie", h.Auth.DemanderReinitialisation)
@@ -45,7 +58,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	auth.Post("/empreinte/appareils", authmw.RequireAuth(tokenGenerator), h.Auth.EnregistrerAppareil)
 	auth.Delete("/empreinte/appareils/:id", authmw.RequireAuth(tokenGenerator), h.Auth.RevoquerAppareil)
 	auth.Post("/empreinte/challenge", h.Auth.DemanderChallengeEmpreinte)
-	auth.Post("/empreinte/verifier", h.Auth.ConnexionEmpreinte)
+	auth.Post("/empreinte/verifier", limiteurConnexion, h.Auth.ConnexionEmpreinte)
 
 	auth.Put("/profil", authmw.RequireAuth(tokenGenerator), h.Auth.ModifierProfil)
 	auth.Post("/profil/photo", authmw.RequireAuth(tokenGenerator), h.Auth.ModifierPhotoProfil)

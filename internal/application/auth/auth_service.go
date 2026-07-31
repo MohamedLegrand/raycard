@@ -40,6 +40,17 @@ const (
 	sujetEmailChangementEmail   = "Confirmez votre nouvelle adresse email RAYCARD"
 	sujetEmailEmailModifie      = "Votre adresse email RAYCARD a été modifiée"
 	sujetEmailMotDePasseModifie = "Votre mot de passe RAYCARD a été modifié"
+
+	// Protection contre le bourrage de mot de passe : après
+	// seuilEchecsConnexion échecs, le compte est verrouillé pour
+	// dureeBaseVerrouConnexion, doublée à chaque nouveau cycle d'échecs
+	// jusqu'à dureeMaxVerrouConnexion. L'escalade repart de zéro après
+	// dureeResetEscaladeVerrou d'inactivité.
+	seuilEchecsConnexion       = 5
+	dureeBaseVerrouConnexion   = time.Minute
+	dureeMaxVerrouConnexion    = 30 * time.Minute
+	dureeResetEscaladeVerrou   = 24 * time.Hour
+	sujetEmailCompteVerrouille = "Alerte de sécurité RAYCARD : tentatives de connexion répétées échouées"
 )
 
 // formatsPhotoAutorises : mêmes formats que pour les documents KYC —
@@ -59,6 +70,7 @@ type authService struct {
 	clesAppareil           authoutput.CleAppareilRepository
 	challengesEmpreinte    authoutput.ChallengeEmpreinteRepository
 	tokensChangementEmail  authoutput.TokenChangementEmailRepository
+	verrousConnexion       authoutput.VerrouConnexionRepository
 	stockage               commonoutput.StockageFichier
 	tokenGenerator         authoutput.TokenGenerator
 	notifieur              authoutput.Notifieur
@@ -77,6 +89,7 @@ func NewAuthService(
 	clesAppareil authoutput.CleAppareilRepository,
 	challengesEmpreinte authoutput.ChallengeEmpreinteRepository,
 	tokensChangementEmail authoutput.TokenChangementEmailRepository,
+	verrousConnexion authoutput.VerrouConnexionRepository,
 	stockage commonoutput.StockageFichier,
 	tokenGenerator authoutput.TokenGenerator,
 	notifieur authoutput.Notifieur,
@@ -93,6 +106,7 @@ func NewAuthService(
 		clesAppareil:           clesAppareil,
 		challengesEmpreinte:    challengesEmpreinte,
 		tokensChangementEmail:  tokensChangementEmail,
+		verrousConnexion:       verrousConnexion,
 		stockage:               stockage,
 		tokenGenerator:         tokenGenerator,
 		notifieur:              notifieur,
@@ -114,11 +128,50 @@ func (s *authService) Connexion(ctx context.Context, req authinput.ConnexionRequ
 		return nil, fmt.Errorf("recherche utilisateur: %w", err)
 	}
 
+	verrou, err := s.verrouConnexionDe(ctx, utilisateur.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	maintenant := time.Now().UTC()
+	if verrou.EstVerrouille(maintenant) {
+		return nil, authdomain.ErrCompteVerrouille
+	}
+
 	if err := bcrypt.CompareHashAndPassword([]byte(utilisateur.MotDePasseHash), []byte(req.MotDePasse)); err != nil {
+		alerteNecessaire := verrou.EnregistrerEchec(maintenant, seuilEchecsConnexion, dureeBaseVerrouConnexion, dureeMaxVerrouConnexion, dureeResetEscaladeVerrou)
+		if err := s.verrousConnexion.Sauvegarder(ctx, verrou); err != nil {
+			return nil, fmt.Errorf("mise à jour verrou connexion: %w", err)
+		}
+		if alerteNecessaire {
+			// Best-effort : un échec d'envoi ne doit pas masquer l'erreur
+			// d'authentification déjà décidée.
+			_ = s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailCompteVerrouille,
+				"<p>Plusieurs tentatives de connexion à votre compte RAYCARD ont échoué et le compte a été temporairement verrouillé.</p>"+
+					"<p>Si ce n'est pas vous, quelqu'un connaît peut-être votre mot de passe : réinitialisez-le par précaution.</p>")
+		}
 		return nil, authdomain.ErrIdentifiantsInvalides
 	}
 
+	verrou.EnregistrerSucces()
+	if err := s.verrousConnexion.Sauvegarder(ctx, verrou); err != nil {
+		return nil, fmt.Errorf("mise à jour verrou connexion: %w", err)
+	}
+
 	return s.demarrerTicketConnexion(ctx, utilisateur)
+}
+
+// verrouConnexionDe renvoie le verrou existant de l'utilisateur, ou un
+// verrou vierge si aucune tentative n'a encore jamais échoué pour lui.
+func (s *authService) verrouConnexionDe(ctx context.Context, utilisateurID string) (*authdomain.VerrouConnexion, error) {
+	verrou, err := s.verrousConnexion.FindByUtilisateurID(ctx, utilisateurID)
+	if err == nil {
+		return verrou, nil
+	}
+	if !errors.Is(err, authdomain.ErrVerrouIntrouvable) {
+		return nil, fmt.Errorf("recherche verrou connexion: %w", err)
+	}
+	return authdomain.NouveauVerrouConnexion(utilisateurID)
 }
 
 // demarrerTicketConnexion émet le ticket + code du second facteur, une

@@ -160,6 +160,30 @@ func (r *tokenChangementEmailRepoFake) MarquerUtilise(_ context.Context, id stri
 	return nil
 }
 
+type verrouConnexionRepoFake struct {
+	parUtilisateurID map[string]*authdomain.VerrouConnexion
+}
+
+func nouveauVerrouConnexionRepoFake() *verrouConnexionRepoFake {
+	return &verrouConnexionRepoFake{parUtilisateurID: make(map[string]*authdomain.VerrouConnexion)}
+}
+
+func (r *verrouConnexionRepoFake) FindByUtilisateurID(_ context.Context, utilisateurID string) (*authdomain.VerrouConnexion, error) {
+	v, ok := r.parUtilisateurID[utilisateurID]
+	if !ok {
+		return nil, authdomain.ErrVerrouIntrouvable
+	}
+	// Copie défensive, comme les autres fakes de ce fichier.
+	copie := *v
+	return &copie, nil
+}
+
+func (r *verrouConnexionRepoFake) Sauvegarder(_ context.Context, v *authdomain.VerrouConnexion) error {
+	copie := *v
+	r.parUtilisateurID[v.UtilisateurID] = &copie
+	return nil
+}
+
 type ticketConnexionRepoFake struct {
 	parHash map[string]*authdomain.TicketConnexion
 	parID   map[string]*authdomain.TicketConnexion
@@ -305,6 +329,7 @@ type authServiceFakes struct {
 	clesAppareil           *cleAppareilRepoFake
 	challengesEmpreinte    *challengeEmpreinteRepoFake
 	tokensChangementEmail  *tokenChangementEmailRepoFake
+	verrousConnexion       *verrouConnexionRepoFake
 	notifieur              *notifieurFake
 	googleAuthProvider     *googleAuthProviderFake
 }
@@ -319,13 +344,14 @@ func setupAuthService() (authinput.AuthUseCase, *authServiceFakes) {
 		clesAppareil:           nouveauCleAppareilRepoFake(),
 		challengesEmpreinte:    nouveauChallengeEmpreinteRepoFake(),
 		tokensChangementEmail:  nouveauTokenChangementEmailRepoFake(),
+		verrousConnexion:       nouveauVerrouConnexionRepoFake(),
 		notifieur:              &notifieurFake{},
 		googleAuthProvider:     &googleAuthProviderFake{},
 	}
 	service := appauth.NewAuthService(
 		fakes.utilisateurs, fakes.wallets, testcommun.NewReglesKycRepoFake(),
 		fakes.refreshTokens, fakes.tokensReinitialisation, fakes.ticketsConnexion,
-		fakes.clesAppareil, fakes.challengesEmpreinte, fakes.tokensChangementEmail, testcommun.StockageFichierFake{},
+		fakes.clesAppareil, fakes.challengesEmpreinte, fakes.tokensChangementEmail, fakes.verrousConnexion, testcommun.StockageFichierFake{},
 		tokenGeneratorFake{}, fakes.notifieur, fakes.googleAuthProvider, testcommun.TxManagerFake{},
 	)
 	return service, fakes
@@ -420,6 +446,53 @@ func TestAuthService_Connexion_UtilisateurInconnu(t *testing.T) {
 	// Ne doit jamais fuiter commun.ErrUtilisateurIntrouvable : même erreur
 	// générique que pour un mot de passe incorrect.
 	assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides)
+}
+
+// seuilEchecsConnexionTest reflète authService.seuilEchecsConnexion (non
+// exporté) : à faire évoluer avec s'il change côté application.
+const seuilEchecsConnexionTest = 5
+
+func TestAuthService_Connexion_VerrouApresEchecsRepetes(t *testing.T) {
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	for i := 0; i < seuilEchecsConnexionTest; i++ {
+		_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "mauvais-mot-de-passe"})
+		assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides)
+	}
+
+	// Même avec le bon mot de passe, le compte reste bloqué jusqu'à
+	// expiration du verrou.
+	_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
+	assert.ErrorIs(t, err, authdomain.ErrCompteVerrouille)
+
+	// Pas d'alerte email dès le premier verrouillage (peut être une
+	// simple faute de frappe) : seul l'email du code 2FA aurait pu être
+	// envoyé, et ici aucune connexion n'a réussi.
+	assert.Empty(t, fakes.notifieur.emailsEnvoyes)
+}
+
+func TestAuthService_Connexion_ReussiteReinitialiseLeCompteurDEchecs(t *testing.T) {
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	// Quelques échecs, mais pas assez pour déclencher le verrou.
+	for i := 0; i < seuilEchecsConnexionTest-1; i++ {
+		_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "mauvais-mot-de-passe"})
+		assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides)
+	}
+
+	// Une connexion réussie doit effacer l'ardoise : les échecs suivants
+	// repartent de zéro, pas de verrouillage prématuré.
+	_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
+	require.NoError(t, err)
+
+	for i := 0; i < seuilEchecsConnexionTest-1; i++ {
+		_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "mauvais-mot-de-passe"})
+		assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides)
+	}
+	_, err = service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
+	assert.NoError(t, err, "le compteur remis à zéro après le premier succès ne doit pas s'être accumulé avec le second lot d'échecs")
 }
 
 func TestAuthService_VerifierCode2FA_Succes(t *testing.T) {

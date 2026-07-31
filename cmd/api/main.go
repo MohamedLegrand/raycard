@@ -70,6 +70,7 @@ func main() {
 	cleAppareilRepo := pgauth.NewCleAppareilRepository(pool)
 	challengeEmpreinteRepo := pgauth.NewChallengeEmpreinteRepository(pool)
 	tokenChangementEmailRepo := pgauth.NewTokenChangementEmailRepository(pool)
+	verrouConnexionRepo := pgauth.NewVerrouConnexionRepository(pool)
 	dossierKycRepo := pgkyc.NewDossierKycRepository(pool)
 	documentKycRepo := pgkyc.NewDocumentKycRepository(pool)
 	auditLogRepo := pgcommun.NewAuditLogRepository(pool)
@@ -93,7 +94,7 @@ func main() {
 	)
 	authUseCase := appauth.NewAuthService(
 		utilisateurRepo, walletRepo, reglesKycRepo, refreshTokenRepo, tokenReinitialisationRepo, ticketConnexionRepo,
-		cleAppareilRepo, challengeEmpreinteRepo, tokenChangementEmailRepo, stockageFichiers,
+		cleAppareilRepo, challengeEmpreinteRepo, tokenChangementEmailRepo, verrouConnexionRepo, stockageFichiers,
 		tokenGenerator, notifieur, googleAuthProvider, txManager,
 	)
 	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, documentKycRepo, stockageFichiers, auditLogRepo, txManager)
