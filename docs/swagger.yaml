@@ -632,6 +632,45 @@ paths:
       summary: Connexion par empreinte digitale
       tags:
       - auth
+  /auth/inscription:
+    post:
+      consumes:
+      - application/json
+      description: Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé
+        selon les règles du pays)
+      parameters:
+      - description: Données d'inscription
+        in: body
+        name: inscription
+        required: true
+        schema:
+          $ref: '#/definitions/kyc.InscriptionRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/kyc.InscriptionResponseDTO'
+        "400":
+          description: corps de requête invalide ou données de validation incorrectes
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: email ou téléphone déjà utilisé
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: pays non supporté ou données métier invalides
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      summary: Inscription d'un nouvel utilisateur
+      tags:
+      - auth
   /auth/mot-de-passe-oublie:
     post:
       consumes:
@@ -1201,45 +1240,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Téléversement d'un document d'identité
-      tags:
-      - kyc
-  /kyc/inscription:
-    post:
-      consumes:
-      - application/json
-      description: Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé
-        selon les règles du pays)
-      parameters:
-      - description: Données d'inscription
-        in: body
-        name: inscription
-        required: true
-        schema:
-          $ref: '#/definitions/kyc.InscriptionRequestDTO'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/kyc.InscriptionResponseDTO'
-        "400":
-          description: corps de requête invalide ou données de validation incorrectes
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-        "409":
-          description: email ou téléphone déjà utilisé
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-        "422":
-          description: pays non supporté ou données métier invalides
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-        "500":
-          description: erreur interne
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-      summary: Inscription d'un nouvel utilisateur
       tags:
       - kyc
 securityDefinitions:

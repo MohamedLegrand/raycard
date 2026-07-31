@@ -24,11 +24,14 @@ func NewKycHandler(kycUseCase inputkyc.KycUseCase, validate *validator.Validate)
 	return &KycHandler{kycUseCase: kycUseCase, validate: validate}
 }
 
-// Inscrire gère POST /api/v1/kyc/inscription.
+// Inscrire gère POST /api/v1/auth/inscription. Exposée sous /auth car
+// côté client, créer un compte est une action d'authentification ; la
+// validation du palier KYC 1 qu'elle déclenche en interne reste un
+// détail d'implémentation (voir inputkyc.KycUseCase.Inscrire).
 //
 //	@Summary		Inscription d'un nouvel utilisateur
 //	@Description	Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé selon les règles du pays)
-//	@Tags			kyc
+//	@Tags			auth
 //	@Accept			json
 //	@Produce		json
 //	@Param			inscription	body		kyc.InscriptionRequestDTO	true	"Données d'inscription"
@@ -37,7 +40,7 @@ func NewKycHandler(kycUseCase inputkyc.KycUseCase, validate *validator.Validate)
 //	@Failure		409			{object}	commun.ErreurDTO	"email ou téléphone déjà utilisé"
 //	@Failure		422			{object}	commun.ErreurDTO	"pays non supporté ou données métier invalides"
 //	@Failure		500			{object}	commun.ErreurDTO	"erreur interne"
-//	@Router			/kyc/inscription [post]
+//	@Router			/auth/inscription [post]
 func (h *KycHandler) Inscrire(c *fiber.Ctx) error {
 	var req kycdto.InscriptionRequestDTO
 	if err := c.BodyParser(&req); err != nil {

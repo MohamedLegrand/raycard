@@ -426,6 +426,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/inscription": {
+            "post": {
+                "description": "Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé selon les règles du pays)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Inscription d'un nouvel utilisateur",
+                "parameters": [
+                    {
+                        "description": "Données d'inscription",
+                        "name": "inscription",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/kyc.InscriptionRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/kyc.InscriptionResponseDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide ou données de validation incorrectes",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "email ou téléphone déjà utilisé",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "pays non supporté ou données métier invalides",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/mot-de-passe-oublie": {
             "post": {
                 "description": "Envoie un code par email si un compte existe pour cet email. Répond toujours le même succès générique, que le compte existe ou non (évite l'énumération de comptes).",
@@ -1276,64 +1334,6 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "format de document ou type de document non supporté, ou dossier déjà traité",
-                        "schema": {
-                            "$ref": "#/definitions/commun.ErreurDTO"
-                        }
-                    },
-                    "500": {
-                        "description": "erreur interne",
-                        "schema": {
-                            "$ref": "#/definitions/commun.ErreurDTO"
-                        }
-                    }
-                }
-            }
-        },
-        "/kyc/inscription": {
-            "post": {
-                "description": "Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé selon les règles du pays)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "kyc"
-                ],
-                "summary": "Inscription d'un nouvel utilisateur",
-                "parameters": [
-                    {
-                        "description": "Données d'inscription",
-                        "name": "inscription",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/kyc.InscriptionRequestDTO"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/kyc.InscriptionResponseDTO"
-                        }
-                    },
-                    "400": {
-                        "description": "corps de requête invalide ou données de validation incorrectes",
-                        "schema": {
-                            "$ref": "#/definitions/commun.ErreurDTO"
-                        }
-                    },
-                    "409": {
-                        "description": "email ou téléphone déjà utilisé",
-                        "schema": {
-                            "$ref": "#/definitions/commun.ErreurDTO"
-                        }
-                    },
-                    "422": {
-                        "description": "pays non supporté ou données métier invalides",
                         "schema": {
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }

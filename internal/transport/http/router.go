@@ -42,11 +42,15 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	api := app.Group("/api/v1")
 
 	kyc := api.Group("/kyc")
-	kyc.Post("/inscription", h.Kyc.Inscrire)
 	kyc.Post("/demande-tier2", authmw.RequireAuth(tokenGenerator), h.Kyc.DemanderTier2)
 	kyc.Post("/documents", authmw.RequireAuth(tokenGenerator), h.Kyc.TeleverserDocument)
 
 	auth := api.Group("/auth")
+	// L'inscription vit ici plutôt que dans /kyc : côté client, créer un
+	// compte est une action d'authentification (on s'en sert ensuite pour
+	// se connecter) — le fait qu'elle valide aussi le palier KYC 1 en
+	// interne est un détail d'implémentation, pas ce que l'utilisateur vit.
+	auth.Post("/inscription", h.Kyc.Inscrire)
 	auth.Post("/connexion", limiteurConnexion, h.Auth.Connexion)
 	auth.Post("/connexion/verifier-code", h.Auth.VerifierCode2FA)
 	auth.Post("/connexion-google", limiteurConnexion, h.Auth.ConnexionGoogle)
