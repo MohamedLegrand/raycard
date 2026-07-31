@@ -52,6 +52,39 @@ type MetadonneesConnexion struct {
 	AppareilInfo string
 }
 
+// EnregistrerAppareilRequest transporte la clé publique générée par
+// l'appareil (après déverrouillage biométrique) à associer à
+// l'utilisateur authentifié.
+type EnregistrerAppareilRequest struct {
+	ClePublique string // encodée en base64 (Ed25519, 32 octets)
+	NomAppareil string
+}
+
+// AppareilResultat représente un appareil enregistré pour la connexion
+// par empreinte, tel que renvoyé au client (jamais la clé publique :
+// le client la connaît déjà, inutile de la renvoyer).
+type AppareilResultat struct {
+	ID          string
+	NomAppareil string
+	CreatedAt   time.Time
+}
+
+// ChallengeEmpreinteResultat est le nonce que le client doit signer
+// avec la clé privée de l'appareil désigné pour obtenir une session.
+type ChallengeEmpreinteResultat struct {
+	ChallengeID   string
+	Challenge     string
+	ExpireDansSec int
+}
+
+// VerifierEmpreinteRequest transporte la signature du challenge,
+// produite par la clé privée de l'appareil après déverrouillage
+// biométrique.
+type VerifierEmpreinteRequest struct {
+	ChallengeID string
+	Signature   string // encodée en base64
+}
+
 // AuthUseCase orchestre l'authentification et le cycle de vie de la
 // session (access + refresh token, rotation, révocation).
 type AuthUseCase interface {
@@ -83,6 +116,28 @@ type AuthUseCase interface {
 	DemanderReinitialisation(ctx context.Context, email string) error
 
 	// Reinitialiser change le mot de passe si le code fourni est valide,
-	// et révoque toutes les sessions actives de l'utilisateur.
+	// et révoque toutes les sessions actives de l'utilisateur, y compris
+	// les appareils enregistrés pour la connexion par empreinte.
 	Reinitialiser(ctx context.Context, token, nouveauMotDePasse string) error
+
+	// EnregistrerAppareil associe une clé publique d'appareil à
+	// l'utilisateur authentifié donné, pour une future connexion par
+	// empreinte sur cet appareil.
+	EnregistrerAppareil(ctx context.Context, utilisateurID string, req EnregistrerAppareilRequest) (*AppareilResultat, error)
+
+	// RevoquerAppareil invalide définitivement un appareil enregistré
+	// (perte, vol, ou l'utilisateur ne veut plus l'utiliser).
+	RevoquerAppareil(ctx context.Context, utilisateurID, appareilID string) error
+
+	// DemanderChallengeEmpreinte émet un nonce à signer par la clé privée
+	// de l'appareil désigné, pour prouver sa possession sans transmettre
+	// l'empreinte elle-même.
+	DemanderChallengeEmpreinte(ctx context.Context, appareilID string) (*ChallengeEmpreinteResultat, error)
+
+	// ConnexionEmpreinte échange un challenge signé contre une session
+	// complète : contrairement à Connexion et ConnexionGoogle, aucun
+	// second facteur par email n'est requis ici — l'appareil (clé privée
+	// en zone sécurisée) et l'empreinte qui l'a déverrouillée constituent
+	// déjà deux facteurs.
+	ConnexionEmpreinte(ctx context.Context, req VerifierEmpreinteRequest, metadonnees MetadonneesConnexion) (*SessionResultat, error)
 }

@@ -2,9 +2,11 @@ package auth
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -30,6 +32,8 @@ const (
 	sujetEmailConnexion          = "Votre code de connexion RAYCARD"
 	sujetEmailNouvelleConnexion  = "Nouvelle connexion à votre compte RAYCARD"
 	sujetEmailTentativesEpuisees = "Alerte de sécurité RAYCARD : tentatives de connexion échouées"
+
+	dureeChallengeEmpreinte = 2 * time.Minute
 )
 
 type authService struct {
@@ -39,6 +43,8 @@ type authService struct {
 	refreshTokens          authoutput.RefreshTokenRepository
 	tokensReinitialisation authoutput.TokenReinitialisationRepository
 	ticketsConnexion       authoutput.TicketConnexionRepository
+	clesAppareil           authoutput.CleAppareilRepository
+	challengesEmpreinte    authoutput.ChallengeEmpreinteRepository
 	tokenGenerator         authoutput.TokenGenerator
 	notifieur              authoutput.Notifieur
 	googleAuthProvider     authoutput.GoogleAuthProvider
@@ -53,6 +59,8 @@ func NewAuthService(
 	refreshTokens authoutput.RefreshTokenRepository,
 	tokensReinitialisation authoutput.TokenReinitialisationRepository,
 	ticketsConnexion authoutput.TicketConnexionRepository,
+	clesAppareil authoutput.CleAppareilRepository,
+	challengesEmpreinte authoutput.ChallengeEmpreinteRepository,
 	tokenGenerator authoutput.TokenGenerator,
 	notifieur authoutput.Notifieur,
 	googleAuthProvider authoutput.GoogleAuthProvider,
@@ -65,6 +73,8 @@ func NewAuthService(
 		refreshTokens:          refreshTokens,
 		tokensReinitialisation: tokensReinitialisation,
 		ticketsConnexion:       ticketsConnexion,
+		clesAppareil:           clesAppareil,
+		challengesEmpreinte:    challengesEmpreinte,
 		tokenGenerator:         tokenGenerator,
 		notifieur:              notifieur,
 		googleAuthProvider:     googleAuthProvider,
@@ -425,7 +435,9 @@ func (s *authService) Reinitialiser(ctx context.Context, token, nouveauMotDePass
 	// pour ne pas fausser la vérification faite côté persistance.
 	//
 	// Le mot de passe, la consommation du token et la révocation de
-	// toutes les sessions actives doivent réussir ensemble.
+	// toutes les sessions actives (dont les appareils empreinte : un mot
+	// de passe compromis a pu servir à en enregistrer un frauduleux)
+	// doivent réussir ensemble.
 	return s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
 		if err := s.utilisateurs.UpdateMotDePasse(ctx, utilisateur); err != nil {
 			return fmt.Errorf("mise à jour mot de passe: %w", err)
@@ -436,8 +448,149 @@ func (s *authService) Reinitialiser(ctx context.Context, token, nouveauMotDePass
 		if err := s.refreshTokens.RevokeAllForUtilisateur(ctx, utilisateur.ID); err != nil {
 			return fmt.Errorf("révocation sessions actives: %w", err)
 		}
+		if err := s.clesAppareil.RevokeAllForUtilisateur(ctx, utilisateur.ID); err != nil {
+			return fmt.Errorf("révocation appareils empreinte: %w", err)
+		}
 		return nil
 	})
+}
+
+// EnregistrerAppareil associe une nouvelle clé publique d'appareil à
+// l'utilisateur authentifié, pour une future connexion par empreinte.
+func (s *authService) EnregistrerAppareil(ctx context.Context, utilisateurID string, req authinput.EnregistrerAppareilRequest) (*authinput.AppareilResultat, error) {
+	clePubliqueBrute, err := base64.StdEncoding.DecodeString(req.ClePublique)
+	if err != nil || len(clePubliqueBrute) != ed25519.PublicKeySize {
+		return nil, commun.ErrDonneesInvalides
+	}
+
+	cle, err := authdomain.NouvelleCleAppareil(utilisateurID, req.ClePublique, req.NomAppareil)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.clesAppareil.Create(ctx, cle); err != nil {
+		return nil, fmt.Errorf("persistance clé appareil: %w", err)
+	}
+
+	return &authinput.AppareilResultat{ID: cle.ID, NomAppareil: cle.NomAppareil, CreatedAt: cle.CreatedAt}, nil
+}
+
+// RevoquerAppareil invalide définitivement un appareil, à condition
+// qu'il appartienne bien à l'utilisateur qui en fait la demande.
+func (s *authService) RevoquerAppareil(ctx context.Context, utilisateurID, appareilID string) error {
+	cle, err := s.clesAppareil.FindByID(ctx, appareilID)
+	if err != nil {
+		return err
+	}
+	if cle.UtilisateurID != utilisateurID {
+		// Ne pas distinguer "appareil d'un autre utilisateur" de "appareil
+		// inexistant" : la même erreur générique évite de confirmer
+		// l'existence d'un appareil qui ne nous appartient pas.
+		return authdomain.ErrCleAppareilIntrouvable
+	}
+
+	cle.Revoquer()
+	return s.clesAppareil.Update(ctx, cle)
+}
+
+// DemanderChallengeEmpreinte émet un nonce à signer par la clé privée
+// de l'appareil désigné.
+func (s *authService) DemanderChallengeEmpreinte(ctx context.Context, appareilID string) (*authinput.ChallengeEmpreinteResultat, error) {
+	cle, err := s.clesAppareil.FindByID(ctx, appareilID)
+	if err != nil {
+		if errors.Is(err, authdomain.ErrCleAppareilIntrouvable) {
+			// Générique : un appareil inconnu et un appareil révoqué doivent
+			// être indiscernables pour l'appelant.
+			return nil, authdomain.ErrIdentifiantsInvalides
+		}
+		return nil, fmt.Errorf("recherche clé appareil: %w", err)
+	}
+	if !cle.EstValide() {
+		return nil, authdomain.ErrIdentifiantsInvalides
+	}
+
+	nonce, err := genererSecretAleatoire()
+	if err != nil {
+		return nil, fmt.Errorf("génération challenge: %w", err)
+	}
+
+	challenge, err := authdomain.NouveauChallengeEmpreinte(cle.ID, nonce, dureeChallengeEmpreinte)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.challengesEmpreinte.Create(ctx, challenge); err != nil {
+		return nil, fmt.Errorf("persistance challenge: %w", err)
+	}
+
+	return &authinput.ChallengeEmpreinteResultat{
+		ChallengeID:   challenge.ID,
+		Challenge:     nonce,
+		ExpireDansSec: int(dureeChallengeEmpreinte.Seconds()),
+	}, nil
+}
+
+// ConnexionEmpreinte vérifie la signature du challenge avec la clé
+// publique de l'appareil désigné et, si elle est valide, émet
+// directement une session : la preuve de possession de la clé privée
+// (déverrouillée par empreinte) fait déjà office de second facteur, pas
+// de code par email ici.
+func (s *authService) ConnexionEmpreinte(ctx context.Context, req authinput.VerifierEmpreinteRequest, metadonnees authinput.MetadonneesConnexion) (*authinput.SessionResultat, error) {
+	challenge, err := s.challengesEmpreinte.FindByID(ctx, req.ChallengeID)
+	if err != nil {
+		if errors.Is(err, authdomain.ErrChallengeIntrouvable) {
+			return nil, authdomain.ErrIdentifiantsInvalides
+		}
+		return nil, fmt.Errorf("recherche challenge: %w", err)
+	}
+	if !challenge.EstValide() {
+		return nil, authdomain.ErrIdentifiantsInvalides
+	}
+
+	cle, err := s.clesAppareil.FindByID(ctx, challenge.CleAppareilID)
+	if err != nil {
+		return nil, fmt.Errorf("recherche clé appareil: %w", err)
+	}
+	if !cle.EstValide() {
+		return nil, authdomain.ErrIdentifiantsInvalides
+	}
+
+	clePubliqueBrute, err := base64.StdEncoding.DecodeString(cle.ClePublique)
+	if err != nil {
+		return nil, fmt.Errorf("décodage clé publique: %w", err)
+	}
+	signatureBrute, err := base64.StdEncoding.DecodeString(req.Signature)
+	if err != nil {
+		return nil, authdomain.ErrIdentifiantsInvalides
+	}
+
+	if !ed25519.Verify(clePubliqueBrute, []byte(challenge.Nonce), signatureBrute) {
+		return nil, authdomain.ErrIdentifiantsInvalides
+	}
+
+	challenge.Consommer()
+	if err := s.challengesEmpreinte.Update(ctx, challenge); err != nil {
+		return nil, fmt.Errorf("consommation challenge: %w", err)
+	}
+
+	cle.MarquerUtilisee()
+	if err := s.clesAppareil.Update(ctx, cle); err != nil {
+		return nil, fmt.Errorf("mise à jour clé appareil: %w", err)
+	}
+
+	utilisateur, err := s.utilisateurs.FindByID(ctx, cle.UtilisateurID)
+	if err != nil {
+		return nil, fmt.Errorf("recherche utilisateur: %w", err)
+	}
+
+	session, err := s.emettreSession(ctx, utilisateur)
+	if err != nil {
+		return nil, err
+	}
+
+	// Best-effort, même logique que pour les autres méthodes de connexion :
+	// ne bloque jamais une connexion réussie.
+	_ = s.notifierConnexionReussie(ctx, utilisateur, metadonnees)
+
+	return session, nil
 }
 
 func (s *authService) emettreSession(ctx context.Context, utilisateur *commun.Utilisateur) (*authinput.SessionResultat, error) {

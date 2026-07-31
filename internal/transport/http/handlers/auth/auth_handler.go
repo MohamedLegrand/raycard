@@ -8,6 +8,7 @@ import (
 	authinput "raycard/internal/core/ports/input/auth"
 	authdto "raycard/internal/transport/http/dto/auth"
 	handlerscommun "raycard/internal/transport/http/handlers/commun"
+	authmw "raycard/internal/transport/http/middleware/auth"
 )
 
 type AuthHandler struct {
@@ -224,4 +225,125 @@ func (h *AuthHandler) Reinitialiser(c *fiber.Ctx) error {
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// EnregistrerAppareil gère POST /api/v1/auth/empreinte/appareils (route
+// protégée).
+//
+//	@Summary		Enregistrement d'un appareil pour la connexion par empreinte
+//	@Description	Associe la clé publique générée par l'appareil (après déverrouillage biométrique) à l'utilisateur authentifié. L'empreinte elle-même et la clé privée ne quittent jamais l'appareil.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			appareil	body		auth.EnregistrerAppareilRequestDTO	true	"Clé publique de l'appareil"
+//	@Success		201			{object}	auth.AppareilResponseDTO
+//	@Failure		400			{object}	commun.ErreurDTO	"corps de requête invalide ou clé publique mal formée"
+//	@Failure		401			{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		500			{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/auth/empreinte/appareils [post]
+func (h *AuthHandler) EnregistrerAppareil(c *fiber.Ctx) error {
+	utilisateurID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+
+	var req authdto.EnregistrerAppareilRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	resultat, err := h.authUseCase.EnregistrerAppareil(c.Context(), utilisateurID, req.ToUseCaseRequest())
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(authdto.FromAppareilResultat(resultat))
+}
+
+// RevoquerAppareil gère DELETE /api/v1/auth/empreinte/appareils/:id
+// (route protégée).
+//
+//	@Summary		Révocation d'un appareil enregistré pour l'empreinte
+//	@Description	Invalide définitivement un appareil (perte, vol, ou l'utilisateur ne veut plus l'utiliser).
+//	@Tags			auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id	path	string	true	"ID de l'appareil"
+//	@Success		204
+//	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		404	{object}	commun.ErreurDTO	"appareil introuvable"
+//	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/auth/empreinte/appareils/{id} [delete]
+func (h *AuthHandler) RevoquerAppareil(c *fiber.Ctx) error {
+	utilisateurID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+	appareilID := c.Params("id")
+
+	if err := h.authUseCase.RevoquerAppareil(c.Context(), utilisateurID, appareilID); err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// DemanderChallengeEmpreinte gère POST /api/v1/auth/empreinte/challenge.
+//
+//	@Summary		Demande d'un challenge pour la connexion par empreinte
+//	@Description	Émet un nonce à signer avec la clé privée de l'appareil désigné (déverrouillée par empreinte côté client).
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			demande	body		auth.DemanderChallengeEmpreinteRequestDTO	true	"Appareil concerné"
+//	@Success		200		{object}	auth.ChallengeEmpreinteResponseDTO
+//	@Failure		400		{object}	commun.ErreurDTO	"corps de requête invalide"
+//	@Failure		401		{object}	commun.ErreurDTO	"appareil inconnu ou révoqué"
+//	@Failure		500		{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/auth/empreinte/challenge [post]
+func (h *AuthHandler) DemanderChallengeEmpreinte(c *fiber.Ctx) error {
+	var req authdto.DemanderChallengeEmpreinteRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	resultat, err := h.authUseCase.DemanderChallengeEmpreinte(c.Context(), req.AppareilID)
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(authdto.FromChallengeEmpreinteResultat(resultat))
+}
+
+// ConnexionEmpreinte gère POST /api/v1/auth/empreinte/verifier.
+//
+//	@Summary		Connexion par empreinte digitale
+//	@Description	Échange un challenge signé par la clé privée de l'appareil contre une session complète. Contrairement aux autres méthodes de connexion, aucun code par email n'est requis : l'appareil et l'empreinte qui l'a déverrouillé constituent déjà deux facteurs.
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			verification	body		auth.VerifierEmpreinteRequestDTO	true	"Challenge signé"
+//	@Success		200				{object}	auth.SessionResponseDTO
+//	@Failure		400				{object}	commun.ErreurDTO	"corps de requête invalide"
+//	@Failure		401				{object}	commun.ErreurDTO	"challenge invalide, expiré, ou signature incorrecte"
+//	@Failure		500				{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/auth/empreinte/verifier [post]
+func (h *AuthHandler) ConnexionEmpreinte(c *fiber.Ctx) error {
+	var req authdto.VerifierEmpreinteRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	metadonnees := authinput.MetadonneesConnexion{AdresseIP: c.IP(), AppareilInfo: c.Get(fiber.HeaderUserAgent)}
+
+	resultat, err := h.authUseCase.ConnexionEmpreinte(c.Context(), req.ToUseCaseRequest(), metadonnees)
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(authdto.FromSessionResultat(resultat))
 }

@@ -77,3 +77,57 @@ type ReinitialiserRequestDTO struct {
 	Token             string `json:"token" validate:"required,len=6,numeric" example:"042951"`
 	NouveauMotDePasse string `json:"nouveau_mot_de_passe" validate:"required,min=8" example:"nouveaumotdepasse123"`
 }
+
+// EnregistrerAppareilRequestDTO transporte la clé publique générée par
+// l'appareil après déverrouillage biométrique. La clé privée
+// correspondante et l'empreinte elle-même ne quittent jamais l'appareil.
+type EnregistrerAppareilRequestDTO struct {
+	ClePublique string `json:"cle_publique" validate:"required,base64" example:"MCowBQYDK2VwAyEA..."`
+	NomAppareil string `json:"nom_appareil" validate:"required,min=1,max=100" example:"iPhone d'Awa"`
+}
+
+func (d EnregistrerAppareilRequestDTO) ToUseCaseRequest() auth.EnregistrerAppareilRequest {
+	return auth.EnregistrerAppareilRequest{ClePublique: d.ClePublique, NomAppareil: d.NomAppareil}
+}
+
+type AppareilResponseDTO struct {
+	ID          string    `json:"id"`
+	NomAppareil string    `json:"nom_appareil"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+func FromAppareilResultat(res *auth.AppareilResultat) AppareilResponseDTO {
+	return AppareilResponseDTO{ID: res.ID, NomAppareil: res.NomAppareil, CreatedAt: res.CreatedAt}
+}
+
+// DemanderChallengeEmpreinteRequestDTO désigne l'appareil déjà
+// enregistré pour lequel un challenge à signer est demandé.
+type DemanderChallengeEmpreinteRequestDTO struct {
+	AppareilID string `json:"appareil_id" validate:"required,uuid4"`
+}
+
+type ChallengeEmpreinteResponseDTO struct {
+	ChallengeID   string `json:"challenge_id"`
+	Challenge     string `json:"challenge"`
+	ExpireDansSec int    `json:"expire_dans_sec"`
+}
+
+func FromChallengeEmpreinteResultat(res *auth.ChallengeEmpreinteResultat) ChallengeEmpreinteResponseDTO {
+	return ChallengeEmpreinteResponseDTO{
+		ChallengeID:   res.ChallengeID,
+		Challenge:     res.Challenge,
+		ExpireDansSec: res.ExpireDansSec,
+	}
+}
+
+// VerifierEmpreinteRequestDTO transporte la signature du challenge,
+// produite par la clé privée de l'appareil après déverrouillage
+// biométrique. Aucun code envoyé par email n'est requis ici.
+type VerifierEmpreinteRequestDTO struct {
+	ChallengeID string `json:"challenge_id" validate:"required,uuid4"`
+	Signature   string `json:"signature" validate:"required,base64"`
+}
+
+func (d VerifierEmpreinteRequestDTO) ToUseCaseRequest() auth.VerifierEmpreinteRequest {
+	return auth.VerifierEmpreinteRequest{ChallengeID: d.ChallengeID, Signature: d.Signature}
+}

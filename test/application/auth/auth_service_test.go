@@ -2,6 +2,8 @@ package auth_test
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"regexp"
 	"strings"
 	"testing"
@@ -160,6 +162,76 @@ func (r *ticketConnexionRepoFake) Update(_ context.Context, t *authdomain.Ticket
 	return nil
 }
 
+type cleAppareilRepoFake struct {
+	parID map[string]*authdomain.CleAppareil
+}
+
+func nouveauCleAppareilRepoFake() *cleAppareilRepoFake {
+	return &cleAppareilRepoFake{parID: make(map[string]*authdomain.CleAppareil)}
+}
+
+func (r *cleAppareilRepoFake) Create(_ context.Context, c *authdomain.CleAppareil) error {
+	r.parID[c.ID] = c
+	return nil
+}
+
+func (r *cleAppareilRepoFake) FindByID(_ context.Context, id string) (*authdomain.CleAppareil, error) {
+	c, ok := r.parID[id]
+	if !ok {
+		return nil, authdomain.ErrCleAppareilIntrouvable
+	}
+	// Copie défensive, comme les autres fakes de ce fichier.
+	copie := *c
+	return &copie, nil
+}
+
+func (r *cleAppareilRepoFake) Update(_ context.Context, c *authdomain.CleAppareil) error {
+	if _, ok := r.parID[c.ID]; !ok {
+		return authdomain.ErrCleAppareilIntrouvable
+	}
+	r.parID[c.ID] = c
+	return nil
+}
+
+func (r *cleAppareilRepoFake) RevokeAllForUtilisateur(_ context.Context, utilisateurID string) error {
+	for _, c := range r.parID {
+		if c.UtilisateurID == utilisateurID && c.RevokedAt == nil {
+			c.Revoquer()
+		}
+	}
+	return nil
+}
+
+type challengeEmpreinteRepoFake struct {
+	parID map[string]*authdomain.ChallengeEmpreinte
+}
+
+func nouveauChallengeEmpreinteRepoFake() *challengeEmpreinteRepoFake {
+	return &challengeEmpreinteRepoFake{parID: make(map[string]*authdomain.ChallengeEmpreinte)}
+}
+
+func (r *challengeEmpreinteRepoFake) Create(_ context.Context, c *authdomain.ChallengeEmpreinte) error {
+	r.parID[c.ID] = c
+	return nil
+}
+
+func (r *challengeEmpreinteRepoFake) FindByID(_ context.Context, id string) (*authdomain.ChallengeEmpreinte, error) {
+	c, ok := r.parID[id]
+	if !ok {
+		return nil, authdomain.ErrChallengeIntrouvable
+	}
+	copie := *c
+	return &copie, nil
+}
+
+func (r *challengeEmpreinteRepoFake) Update(_ context.Context, c *authdomain.ChallengeEmpreinte) error {
+	if _, ok := r.parID[c.ID]; !ok {
+		return authdomain.ErrChallengeIntrouvable
+	}
+	r.parID[c.ID] = c
+	return nil
+}
+
 type emailEnvoye struct {
 	destinataire, sujet, corps string
 }
@@ -194,6 +266,8 @@ type authServiceFakes struct {
 	refreshTokens          *refreshTokenRepoFake
 	tokensReinitialisation *tokenReinitialisationRepoFake
 	ticketsConnexion       *ticketConnexionRepoFake
+	clesAppareil           *cleAppareilRepoFake
+	challengesEmpreinte    *challengeEmpreinteRepoFake
 	notifieur              *notifieurFake
 	googleAuthProvider     *googleAuthProviderFake
 }
@@ -205,15 +279,36 @@ func setupAuthService() (authinput.AuthUseCase, *authServiceFakes) {
 		refreshTokens:          nouveauRefreshTokenRepoFake(),
 		tokensReinitialisation: nouveauTokenReinitialisationRepoFake(),
 		ticketsConnexion:       nouveauTicketConnexionRepoFake(),
+		clesAppareil:           nouveauCleAppareilRepoFake(),
+		challengesEmpreinte:    nouveauChallengeEmpreinteRepoFake(),
 		notifieur:              &notifieurFake{},
 		googleAuthProvider:     &googleAuthProviderFake{},
 	}
 	service := appauth.NewAuthService(
 		fakes.utilisateurs, fakes.wallets, testcommun.NewReglesKycRepoFake(),
 		fakes.refreshTokens, fakes.tokensReinitialisation, fakes.ticketsConnexion,
+		fakes.clesAppareil, fakes.challengesEmpreinte,
 		tokenGeneratorFake{}, fakes.notifieur, fakes.googleAuthProvider, testcommun.TxManagerFake{},
 	)
 	return service, fakes
+}
+
+// enregistrerAppareilTest génère une paire de clés Ed25519 pour un
+// appareil de test, l'enregistre pour l'utilisateur donné, et renvoie
+// l'ID de l'appareil ainsi que sa clé privée (pour signer les
+// challenges dans les tests).
+func enregistrerAppareilTest(t *testing.T, service authinput.AuthUseCase, utilisateurID string) (appareilID string, clePrivee ed25519.PrivateKey) {
+	t.Helper()
+
+	clePublique, clePrivee, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+
+	resultat, err := service.EnregistrerAppareil(context.Background(), utilisateurID, authinput.EnregistrerAppareilRequest{
+		ClePublique: base64.StdEncoding.EncodeToString(clePublique),
+		NomAppareil: "iPhone de test",
+	})
+	require.NoError(t, err)
+	return resultat.ID, clePrivee
 }
 
 func creerUtilisateurTest(t *testing.T, repo *testcommun.UtilisateurRepoFake, email, motDePasse string) *commun.Utilisateur {
@@ -599,4 +694,151 @@ func TestAuthService_Reinitialiser_TokenInvalide(t *testing.T) {
 
 	err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456")
 	assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
+}
+
+func TestAuthService_Reinitialiser_RevoqueAussiLesAppareilsEmpreinte(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "ancienmotdepasse123")
+	appareilID, _ := enregistrerAppareilTest(t, service, u.ID)
+
+	require.NoError(t, service.DemanderReinitialisation(context.Background(), "awa@example.com"))
+	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
+	code := extraireCodeOTP(t, dernierEmail.corps)
+	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456"))
+
+	cleMaj, err := fakes.clesAppareil.FindByID(context.Background(), appareilID)
+	require.NoError(t, err)
+	assert.False(t, cleMaj.EstValide(), "un mot de passe compromis a pu servir à enregistrer un appareil frauduleux")
+}
+
+func TestAuthService_EnregistrerAppareil_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	clePublique, _, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+
+	resultat, err := service.EnregistrerAppareil(context.Background(), u.ID, authinput.EnregistrerAppareilRequest{
+		ClePublique: base64.StdEncoding.EncodeToString(clePublique),
+		NomAppareil: "iPhone d'Awa",
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, resultat.ID)
+	assert.Equal(t, "iPhone d'Awa", resultat.NomAppareil)
+}
+
+func TestAuthService_EnregistrerAppareil_ClePubliqueInvalide(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	_, err := service.EnregistrerAppareil(context.Background(), u.ID, authinput.EnregistrerAppareilRequest{
+		ClePublique: "pas-du-base64-valide!!",
+		NomAppareil: "iPhone d'Awa",
+	})
+	assert.ErrorIs(t, err, commun.ErrDonneesInvalides)
+
+	// Une clé de mauvaise taille (pas 32 octets Ed25519) doit aussi être
+	// rejetée, même si c'est du base64 valide.
+	_, err = service.EnregistrerAppareil(context.Background(), u.ID, authinput.EnregistrerAppareilRequest{
+		ClePublique: base64.StdEncoding.EncodeToString([]byte("trop-court")),
+		NomAppareil: "iPhone d'Awa",
+	})
+	assert.ErrorIs(t, err, commun.ErrDonneesInvalides)
+}
+
+func TestAuthService_ConnexionEmpreinte_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+	appareilID, clePrivee := enregistrerAppareilTest(t, service, u.ID)
+
+	challenge, err := service.DemanderChallengeEmpreinte(context.Background(), appareilID)
+	require.NoError(t, err)
+	assert.NotEmpty(t, challenge.Challenge)
+
+	signature := ed25519.Sign(clePrivee, []byte(challenge.Challenge))
+
+	session, err := service.ConnexionEmpreinte(context.Background(), authinput.VerifierEmpreinteRequest{
+		ChallengeID: challenge.ChallengeID,
+		Signature:   base64.StdEncoding.EncodeToString(signature),
+	}, authinput.MetadonneesConnexion{})
+	require.NoError(t, err)
+	assert.Equal(t, "access-"+u.ID, session.AccessToken)
+
+	// Aucun code par email n'est requis : seul l'email de confirmation de
+	// connexion réussie doit avoir été envoyé.
+	require.Len(t, fakes.notifieur.emailsEnvoyes, 1)
+	assert.Equal(t, "awa@example.com", fakes.notifieur.emailsEnvoyes[0].destinataire)
+}
+
+func TestAuthService_ConnexionEmpreinte_MauvaiseSignature(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+	appareilID, _ := enregistrerAppareilTest(t, service, u.ID)
+	_, autreClePrivee, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+
+	challenge, err := service.DemanderChallengeEmpreinte(context.Background(), appareilID)
+	require.NoError(t, err)
+
+	// Signée avec une clé qui n'est pas celle enregistrée pour cet appareil.
+	signature := ed25519.Sign(autreClePrivee, []byte(challenge.Challenge))
+
+	_, err = service.ConnexionEmpreinte(context.Background(), authinput.VerifierEmpreinteRequest{
+		ChallengeID: challenge.ChallengeID,
+		Signature:   base64.StdEncoding.EncodeToString(signature),
+	}, authinput.MetadonneesConnexion{})
+	assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides)
+}
+
+func TestAuthService_ConnexionEmpreinte_ChallengeInconnu(t *testing.T) {
+	service, _ := setupAuthService()
+
+	_, err := service.ConnexionEmpreinte(context.Background(), authinput.VerifierEmpreinteRequest{
+		ChallengeID: "challenge-qui-n-existe-pas",
+		Signature:   base64.StdEncoding.EncodeToString([]byte("peu-importe")),
+	}, authinput.MetadonneesConnexion{})
+	assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides)
+}
+
+func TestAuthService_ConnexionEmpreinte_UsageUnique(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+	appareilID, clePrivee := enregistrerAppareilTest(t, service, u.ID)
+
+	challenge, err := service.DemanderChallengeEmpreinte(context.Background(), appareilID)
+	require.NoError(t, err)
+	signature := ed25519.Sign(clePrivee, []byte(challenge.Challenge))
+	req := authinput.VerifierEmpreinteRequest{ChallengeID: challenge.ChallengeID, Signature: base64.StdEncoding.EncodeToString(signature)}
+
+	_, err = service.ConnexionEmpreinte(context.Background(), req, authinput.MetadonneesConnexion{})
+	require.NoError(t, err)
+
+	// Rejouer le même challenge + signature échoue : usage unique.
+	_, err = service.ConnexionEmpreinte(context.Background(), req, authinput.MetadonneesConnexion{})
+	assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides)
+}
+
+func TestAuthService_ConnexionEmpreinte_AppareilRevoque(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+	appareilID, _ := enregistrerAppareilTest(t, service, u.ID)
+
+	require.NoError(t, service.RevoquerAppareil(context.Background(), u.ID, appareilID))
+
+	_, err := service.DemanderChallengeEmpreinte(context.Background(), appareilID)
+	assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides, "un appareil révoqué ne doit plus pouvoir obtenir de challenge")
+}
+
+func TestAuthService_RevoquerAppareil_DunAutreUtilisateur(t *testing.T) {
+	service, fakes := setupAuthService()
+	proprietaire := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+	attaquant := creerUtilisateurTest(t, fakes.utilisateurs, "attaquant@example.com", "motdepasse123")
+	appareilID, _ := enregistrerAppareilTest(t, service, proprietaire.ID)
+
+	err := service.RevoquerAppareil(context.Background(), attaquant.ID, appareilID)
+	assert.ErrorIs(t, err, authdomain.ErrCleAppareilIntrouvable)
+
+	// L'appareil du propriétaire légitime doit rester valide.
+	_, err = service.DemanderChallengeEmpreinte(context.Background(), appareilID)
+	assert.NoError(t, err)
 }

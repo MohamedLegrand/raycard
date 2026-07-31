@@ -1,5 +1,23 @@
 basePath: /api/v1
 definitions:
+  auth.AppareilResponseDTO:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      nom_appareil:
+        type: string
+    type: object
+  auth.ChallengeEmpreinteResponseDTO:
+    properties:
+      challenge:
+        type: string
+      challenge_id:
+        type: string
+      expire_dans_sec:
+        type: integer
+    type: object
   auth.ConnexionGoogleRequestDTO:
     properties:
       id_token:
@@ -34,6 +52,13 @@ definitions:
       ticket:
         type: string
     type: object
+  auth.DemanderChallengeEmpreinteRequestDTO:
+    properties:
+      appareil_id:
+        type: string
+    required:
+    - appareil_id
+    type: object
   auth.DemanderReinitialisationRequestDTO:
     properties:
       email:
@@ -41,6 +66,20 @@ definitions:
         type: string
     required:
     - email
+    type: object
+  auth.EnregistrerAppareilRequestDTO:
+    properties:
+      cle_publique:
+        example: MCowBQYDK2VwAyEA...
+        type: string
+      nom_appareil:
+        example: iPhone d'Awa
+        maxLength: 100
+        minLength: 1
+        type: string
+    required:
+    - cle_publique
+    - nom_appareil
     type: object
   auth.RafraichirRequestDTO:
     properties:
@@ -83,6 +122,16 @@ definitions:
     required:
     - code
     - ticket
+    type: object
+  auth.VerifierEmpreinteRequestDTO:
+    properties:
+      challenge_id:
+        type: string
+      signature:
+        type: string
+    required:
+    - challenge_id
+    - signature
     type: object
   commun.ErreurDTO:
     properties:
@@ -349,6 +398,148 @@ paths:
           schema:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Déconnexion
+      tags:
+      - auth
+  /auth/empreinte/appareils:
+    post:
+      consumes:
+      - application/json
+      description: Associe la clé publique générée par l'appareil (après déverrouillage
+        biométrique) à l'utilisateur authentifié. L'empreinte elle-même et la clé
+        privée ne quittent jamais l'appareil.
+      parameters:
+      - description: Clé publique de l'appareil
+        in: body
+        name: appareil
+        required: true
+        schema:
+          $ref: '#/definitions/auth.EnregistrerAppareilRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/auth.AppareilResponseDTO'
+        "400":
+          description: corps de requête invalide ou clé publique mal formée
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Enregistrement d'un appareil pour la connexion par empreinte
+      tags:
+      - auth
+  /auth/empreinte/appareils/{id}:
+    delete:
+      description: Invalide définitivement un appareil (perte, vol, ou l'utilisateur
+        ne veut plus l'utiliser).
+      parameters:
+      - description: ID de l'appareil
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: appareil introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Révocation d'un appareil enregistré pour l'empreinte
+      tags:
+      - auth
+  /auth/empreinte/challenge:
+    post:
+      consumes:
+      - application/json
+      description: Émet un nonce à signer avec la clé privée de l'appareil désigné
+        (déverrouillée par empreinte côté client).
+      parameters:
+      - description: Appareil concerné
+        in: body
+        name: demande
+        required: true
+        schema:
+          $ref: '#/definitions/auth.DemanderChallengeEmpreinteRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.ChallengeEmpreinteResponseDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: appareil inconnu ou révoqué
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      summary: Demande d'un challenge pour la connexion par empreinte
+      tags:
+      - auth
+  /auth/empreinte/verifier:
+    post:
+      consumes:
+      - application/json
+      description: 'Échange un challenge signé par la clé privée de l''appareil contre
+        une session complète. Contrairement aux autres méthodes de connexion, aucun
+        code par email n''est requis : l''appareil et l''empreinte qui l''a déverrouillé
+        constituent déjà deux facteurs.'
+      parameters:
+      - description: Challenge signé
+        in: body
+        name: verification
+        required: true
+        schema:
+          $ref: '#/definitions/auth.VerifierEmpreinteRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.SessionResponseDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: challenge invalide, expiré, ou signature incorrecte
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      summary: Connexion par empreinte digitale
       tags:
       - auth
   /auth/mot-de-passe-oublie:

@@ -41,6 +41,11 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	auth.Post("/mot-de-passe-oublie", h.Auth.DemanderReinitialisation)
 	auth.Post("/reinitialiser-mot-de-passe", h.Auth.Reinitialiser)
 
+	auth.Post("/empreinte/appareils", authmw.RequireAuth(tokenGenerator), h.Auth.EnregistrerAppareil)
+	auth.Delete("/empreinte/appareils/:id", authmw.RequireAuth(tokenGenerator), h.Auth.RevoquerAppareil)
+	auth.Post("/empreinte/challenge", h.Auth.DemanderChallengeEmpreinte)
+	auth.Post("/empreinte/verifier", h.Auth.ConnexionEmpreinte)
+
 	backofficeKyc := api.Group("/backoffice/kyc", authmw.RequireAdmin(tokenGenerator))
 	backofficeKyc.Get("/dossiers", h.AdminKyc.ListerDossiersEnAttente)
 	backofficeKyc.Post("/dossiers/:id/approuver", h.AdminKyc.Approuver)

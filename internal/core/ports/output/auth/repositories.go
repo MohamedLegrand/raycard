@@ -40,3 +40,26 @@ type TicketConnexionRepository interface {
 	FindByHash(ctx context.Context, ticketHash string) (*auth.TicketConnexion, error)
 	Update(ctx context.Context, t *auth.TicketConnexion) error
 }
+
+// CleAppareilRepository persiste les clés publiques des appareils
+// enregistrés pour la connexion par empreinte digitale. Une absence de
+// résultat doit être signalée par auth.ErrCleAppareilIntrouvable.
+type CleAppareilRepository interface {
+	Create(ctx context.Context, c *auth.CleAppareil) error
+	FindByID(ctx context.Context, id string) (*auth.CleAppareil, error)
+	Update(ctx context.Context, c *auth.CleAppareil) error
+
+	// RevokeAllForUtilisateur révoque tous les appareils enregistrés d'un
+	// utilisateur (ex : après une réinitialisation de mot de passe). Ne
+	// renvoie pas d'erreur si l'utilisateur n'avait aucun appareil.
+	RevokeAllForUtilisateur(ctx context.Context, utilisateurID string) error
+}
+
+// ChallengeEmpreinteRepository persiste les challenges à signer pour la
+// connexion par empreinte. Une absence de résultat doit être signalée
+// par auth.ErrChallengeIntrouvable.
+type ChallengeEmpreinteRepository interface {
+	Create(ctx context.Context, c *auth.ChallengeEmpreinte) error
+	FindByID(ctx context.Context, id string) (*auth.ChallengeEmpreinte, error)
+	Update(ctx context.Context, c *auth.ChallengeEmpreinte) error
+}

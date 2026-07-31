@@ -210,6 +210,216 @@
                 }
             }
         },
+        "/auth/empreinte/appareils": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Associe la clé publique générée par l'appareil (après déverrouillage biométrique) à l'utilisateur authentifié. L'empreinte elle-même et la clé privée ne quittent jamais l'appareil.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Enregistrement d'un appareil pour la connexion par empreinte",
+                "parameters": [
+                    {
+                        "description": "Clé publique de l'appareil",
+                        "name": "appareil",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.EnregistrerAppareilRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/auth.AppareilResponseDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide ou clé publique mal formée",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/empreinte/appareils/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Invalide définitivement un appareil (perte, vol, ou l'utilisateur ne veut plus l'utiliser).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Révocation d'un appareil enregistré pour l'empreinte",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de l'appareil",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "appareil introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/empreinte/challenge": {
+            "post": {
+                "description": "Émet un nonce à signer avec la clé privée de l'appareil désigné (déverrouillée par empreinte côté client).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Demande d'un challenge pour la connexion par empreinte",
+                "parameters": [
+                    {
+                        "description": "Appareil concerné",
+                        "name": "demande",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.DemanderChallengeEmpreinteRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.ChallengeEmpreinteResponseDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "appareil inconnu ou révoqué",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/empreinte/verifier": {
+            "post": {
+                "description": "Échange un challenge signé par la clé privée de l'appareil contre une session complète. Contrairement aux autres méthodes de connexion, aucun code par email n'est requis : l'appareil et l'empreinte qui l'a déverrouillé constituent déjà deux facteurs.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Connexion par empreinte digitale",
+                "parameters": [
+                    {
+                        "description": "Challenge signé",
+                        "name": "verification",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/auth.VerifierEmpreinteRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.SessionResponseDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "challenge invalide, expiré, ou signature incorrecte",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/mot-de-passe-oublie": {
             "post": {
                 "description": "Envoie un code par email si un compte existe pour cet email. Répond toujours le même succès générique, que le compte existe ou non (évite l'énumération de comptes).",
@@ -648,6 +858,34 @@
         }
     },
     "definitions": {
+        "auth.AppareilResponseDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "nom_appareil": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.ChallengeEmpreinteResponseDTO": {
+            "type": "object",
+            "properties": {
+                "challenge": {
+                    "type": "string"
+                },
+                "challenge_id": {
+                    "type": "string"
+                },
+                "expire_dans_sec": {
+                    "type": "integer"
+                }
+            }
+        },
         "auth.ConnexionGoogleRequestDTO": {
             "type": "object",
             "required": [
@@ -697,6 +935,17 @@
                 }
             }
         },
+        "auth.DemanderChallengeEmpreinteRequestDTO": {
+            "type": "object",
+            "required": [
+                "appareil_id"
+            ],
+            "properties": {
+                "appareil_id": {
+                    "type": "string"
+                }
+            }
+        },
         "auth.DemanderReinitialisationRequestDTO": {
             "type": "object",
             "required": [
@@ -706,6 +955,25 @@
                 "email": {
                     "type": "string",
                     "example": "awa.kone@example.com"
+                }
+            }
+        },
+        "auth.EnregistrerAppareilRequestDTO": {
+            "type": "object",
+            "required": [
+                "cle_publique",
+                "nom_appareil"
+            ],
+            "properties": {
+                "cle_publique": {
+                    "type": "string",
+                    "example": "MCowBQYDK2VwAyEA..."
+                },
+                "nom_appareil": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "example": "iPhone d'Awa"
                 }
             }
         },
@@ -767,6 +1035,21 @@
                     "example": "042951"
                 },
                 "ticket": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.VerifierEmpreinteRequestDTO": {
+            "type": "object",
+            "required": [
+                "challenge_id",
+                "signature"
+            ],
+            "properties": {
+                "challenge_id": {
+                    "type": "string"
+                },
+                "signature": {
                     "type": "string"
                 }
             }
