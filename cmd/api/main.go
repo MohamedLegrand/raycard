@@ -13,19 +13,26 @@ import (
 
 	_ "raycard/docs" // docs générés par `swag init`, nécessaires pour servir la spec Swagger
 	appauth "raycard/internal/application/auth"
+	appcarte "raycard/internal/application/carte"
 	appkyc "raycard/internal/application/kyc"
+	appwallet "raycard/internal/application/wallet"
 	"raycard/internal/infrastructure/auth/google"
 	"raycard/internal/infrastructure/auth/jwt"
 	"raycard/internal/infrastructure/config"
 	pgauth "raycard/internal/infrastructure/database/postgres/auth"
+	pgcarte "raycard/internal/infrastructure/database/postgres/carte"
 	pgcommun "raycard/internal/infrastructure/database/postgres/commun"
 	pgkyc "raycard/internal/infrastructure/database/postgres/kyc"
+	pgwallet "raycard/internal/infrastructure/database/postgres/wallet"
 	"raycard/internal/infrastructure/notification/brevo"
 	"raycard/internal/infrastructure/ocr/tesseract"
+	"raycard/internal/infrastructure/paiement/hrpay"
 	"raycard/internal/infrastructure/storage/local"
 	apihttp "raycard/internal/transport/http"
 	handlersauth "raycard/internal/transport/http/handlers/auth"
+	handlerscarte "raycard/internal/transport/http/handlers/carte"
 	handlerskyc "raycard/internal/transport/http/handlers/kyc"
+	handlerswallet "raycard/internal/transport/http/handlers/wallet"
 	"raycard/internal/transport/http/middleware"
 )
 
@@ -73,6 +80,9 @@ func main() {
 	verrouConnexionRepo := pgauth.NewVerrouConnexionRepository(pool)
 	dossierKycRepo := pgkyc.NewDossierKycRepository(pool)
 	documentKycRepo := pgkyc.NewDocumentKycRepository(pool)
+	transactionWalletRepo := pgwallet.NewTransactionRepository(pool)
+	carteRepo := pgcarte.NewCarteRepository(pool)
+	depenseCarteRepo := pgcarte.NewDepenseCarteRepository(pool)
 	auditLogRepo := pgcommun.NewAuditLogRepository(pool)
 	txManager := pgcommun.NewTxManager(pool)
 
@@ -80,6 +90,14 @@ func main() {
 	tokenGenerator := jwt.NewTokenGenerator(cfg.JWTSecret)
 	notifieur := brevo.NewNotifieur(cfg.BrevoAPIKey, cfg.BrevoEmailExpediteur)
 	googleAuthProvider := google.NewVerificateurToken(cfg.GoogleClientID)
+
+	// Agrégateur de paiement (recharge Mobile Money, plus tard cartes
+	// virtuelles). Sandbox ou production selon le préfixe des clés, jamais
+	// l'URL (voir internal/infrastructure/paiement/hrpay).
+	agregateurPaiement, err := hrpay.NewAdapter(cfg.HrPayPublicKey, cfg.HrPaySecretKey, cfg.HrPayWebhookSecret)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("initialisation agrégateur de paiement")
+	}
 
 	// Stockage disque local des fichiers téléversés (documents KYC,
 	// photos de profil) et extraction du texte des documents via le
@@ -98,12 +116,16 @@ func main() {
 		tokenGenerator, notifieur, googleAuthProvider, txManager,
 	)
 	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, documentKycRepo, stockageFichiers, auditLogRepo, txManager)
+	walletUseCase := appwallet.NewWalletService(walletRepo, transactionWalletRepo, agregateurPaiement, txManager)
+	carteUseCase := appcarte.NewCarteService(utilisateurRepo, walletRepo, transactionWalletRepo, carteRepo, depenseCarteRepo, agregateurPaiement, txManager)
 
 	// Transport HTTP
 	validate := validator.New()
 	kycHandler := handlerskyc.NewKycHandler(kycUseCase, validate)
 	authHandler := handlersauth.NewAuthHandler(authUseCase, validate)
 	adminKycHandler := handlerskyc.NewAdminKycHandler(adminKycUseCase, validate)
+	walletHandler := handlerswallet.NewWalletHandler(walletUseCase, validate)
+	carteHandler := handlerscarte.NewCarteHandler(carteUseCase, validate)
 
 	app := fiber.New(fiber.Config{
 		BodyLimit: tailleMaxCorpsRequete,
@@ -117,7 +139,7 @@ func main() {
 	})
 	app.Use(middleware.Logger(logger))
 
-	apihttp.SetupRoutes(app, apihttp.Handlers{Kyc: kycHandler, Auth: authHandler, AdminKyc: adminKycHandler}, tokenGenerator)
+	apihttp.SetupRoutes(app, apihttp.Handlers{Kyc: kycHandler, Auth: authHandler, AdminKyc: adminKycHandler, Wallet: walletHandler, Carte: carteHandler}, tokenGenerator)
 
 	go func() {
 		if err := app.Listen(":" + cfg.Port); err != nil {
@@ -126,11 +148,64 @@ func main() {
 	}()
 	logger.Info().Str("port", cfg.Port).Msg("serveur démarré")
 
+	// Job planifié : bascule les recharges dont le délai de retenue de
+	// l'agrégateur (48h) est écoulé, d'en-attente vers disponible. Voir
+	// wallet.WalletUseCase.BasculerFondsEcheus.
+	jobCtx, cancelJob := context.WithCancel(context.Background())
+	defer cancelJob()
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-jobCtx.Done():
+				return
+			case <-ticker.C:
+				n, err := walletUseCase.BasculerFondsEcheus(jobCtx)
+				if err != nil {
+					logger.Error().Err(err).Msg("bascule des fonds échus")
+					continue
+				}
+				if n > 0 {
+					logger.Info().Int("nombre", n).Msg("fonds basculés d'en-attente vers disponible")
+				}
+			}
+		}
+	}()
+
+	// Job planifié : détecte les dépenses sur les cartes actives par
+	// rapprochement de solde, faute de webhook de transaction carte côté
+	// agrégateur. Voir carte.CarteUseCase.SynchroniserSoldes. Le ticker
+	// tourne au rythme le plus fin qu'on utilise (20s, la base de
+	// l'escalade côté domaine) : la plupart des passages ne trouvent aucune
+	// carte due (ListAVerifier filtre déjà côté DB), seul un appel externe
+	// réel coûte quelque chose.
+	go func() {
+		ticker := time.NewTicker(20 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-jobCtx.Done():
+				return
+			case <-ticker.C:
+				n, err := carteUseCase.SynchroniserSoldes(jobCtx)
+				if err != nil {
+					logger.Error().Err(err).Msg("synchronisation des soldes de carte")
+					continue
+				}
+				if n > 0 {
+					logger.Info().Int("nombre", n).Msg("dépenses détectées sur des cartes")
+				}
+			}
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	logger.Info().Msg("arrêt du serveur en cours")
+	cancelJob()
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelShutdown()
 	if err := app.ShutdownWithContext(shutdownCtx); err != nil {

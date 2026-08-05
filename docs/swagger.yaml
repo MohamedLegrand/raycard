@@ -207,6 +207,64 @@ definitions:
     - challenge_id
     - signature
     type: object
+  carte.CarteDTO:
+    properties:
+      devise:
+        example: XOF
+        type: string
+      id:
+        example: 3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d
+        type: string
+      label:
+        example: Carte courses
+        type: string
+      montant_charge_centimes:
+        example: 10000
+        type: integer
+      solde_centimes:
+        description: |-
+          SoldeCentimes est le dernier solde connu, mis à jour périodiquement
+          (pas en temps réel — voir carte.Carte.SoldeCentimes).
+        example: 7500
+        type: integer
+      statut:
+        example: active
+        type: string
+    type: object
+  carte.CreerCarteRequestDTO:
+    properties:
+      label:
+        example: Carte courses
+        maxLength: 100
+        minLength: 2
+        type: string
+      montant_centimes:
+        example: 10000
+        type: integer
+    required:
+    - label
+    - montant_centimes
+    type: object
+  carte.DepenseCarteDTO:
+    properties:
+      detected_at:
+        example: "2026-08-05T18:30:00Z"
+        type: string
+      id:
+        example: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+        type: string
+      montant_centimes:
+        example: 2500
+        type: integer
+    type: object
+  carte.RechargerCarteRequestDTO:
+    properties:
+      montant_centimes:
+        example: 5000
+        type: integer
+    required:
+    - montant_centimes
+    type: object
   commun.ErreurDTO:
     properties:
       erreur:
@@ -332,7 +390,81 @@ definitions:
       id:
         example: 7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e
         type: string
-      solde_centimes:
+      solde_disponible_centimes:
+        example: 0
+        type: integer
+      solde_en_attente_centimes:
+        example: 0
+        type: integer
+      statut:
+        example: actif
+        type: string
+    type: object
+  wallet.InitierRechargeRequestDTO:
+    properties:
+      montant_centimes:
+        example: 5000
+        type: integer
+      operateur:
+        example: ORANGE
+        type: string
+      telephone:
+        example: "+2250700000000"
+        type: string
+    required:
+    - montant_centimes
+    - operateur
+    - telephone
+    type: object
+  wallet.InitierRetraitRequestDTO:
+    properties:
+      montant_centimes:
+        example: 5000
+        type: integer
+      operateur:
+        example: ORANGE
+        type: string
+      telephone:
+        example: "+2250700000000"
+        type: string
+    required:
+    - montant_centimes
+    - operateur
+    - telephone
+    type: object
+  wallet.TransactionDTO:
+    properties:
+      devise:
+        example: XOF
+        type: string
+      id:
+        example: 9c1a2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d
+        type: string
+      montant_centimes:
+        example: 5000
+        type: integer
+      operateur:
+        example: ORANGE
+        type: string
+      statut:
+        example: envoyee
+        type: string
+      type:
+        example: recharge
+        type: string
+    type: object
+  wallet.WalletDTO:
+    properties:
+      devise:
+        example: XOF
+        type: string
+      id:
+        example: 7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e
+        type: string
+      solde_disponible_centimes:
+        example: 492500
+        type: integer
+      solde_en_attente_centimes:
         example: 0
         type: integer
       statut:
@@ -1153,6 +1285,322 @@ paths:
       summary: Rejette un dossier KYC
       tags:
       - backoffice-kyc
+  /cartes:
+    get:
+      description: Retourne les cartes virtuelles de l'utilisateur authentifié.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/carte.CarteDTO'
+            type: array
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Liste des cartes virtuelles
+      tags:
+      - carte
+    post:
+      consumes:
+      - application/json
+      description: Débite immédiatement le solde disponible du wallet puis émet la
+        carte auprès de l'agrégateur (Tier 2 KYC requis). Le PAN et le CVV ne sont
+        jamais renvoyés ni stockés.
+      parameters:
+      - description: Nom de la carte et montant à charger
+        in: body
+        name: carte
+        required: true
+        schema:
+          $ref: '#/definitions/carte.CreerCarteRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/carte.CarteDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: une opération wallet est déjà en cours
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: wallet gelé, solde insuffisant, montant invalide ou palier
+            KYC insuffisant
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Émission d'une carte virtuelle
+      tags:
+      - carte
+  /cartes/{id}:
+    get:
+      description: Retourne une carte précise de l'utilisateur authentifié.
+      parameters:
+      - description: ID de la carte
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CarteDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: carte introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Détail d'une carte virtuelle
+      tags:
+      - carte
+  /cartes/{id}/annuler:
+    post:
+      description: Détruit définitivement une carte active ou gelée et rembourse au
+        wallet ce qu'il restait dessus.
+      parameters:
+      - description: ID de la carte
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CarteDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: carte ou wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: une opération wallet est déjà en cours
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: carte déjà annulée, ou wallet gelé
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Annulation d'une carte virtuelle
+      tags:
+      - carte
+  /cartes/{id}/degel:
+    post:
+      description: Réactive une carte gelée.
+      parameters:
+      - description: ID de la carte
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CarteDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: carte introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: la carte n'est pas gelée
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Dégel d'une carte virtuelle
+      tags:
+      - carte
+  /cartes/{id}/depenses:
+    get:
+      description: Retourne les dépenses détectées par rapprochement périodique de
+        solde — jamais en temps réel, faute de webhook de transaction carte côté agrégateur.
+      parameters:
+      - description: ID de la carte
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/carte.DepenseCarteDTO'
+            type: array
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: carte introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Dépenses détectées sur une carte
+      tags:
+      - carte
+  /cartes/{id}/gel:
+    post:
+      description: 'Bloque une carte active : plus aucune dépense possible tant qu''elle
+        n''est pas dégelée.'
+      parameters:
+      - description: ID de la carte
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CarteDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: carte introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: la carte n'est pas active
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Gel d'une carte virtuelle
+      tags:
+      - carte
+  /cartes/{id}/topup:
+    post:
+      consumes:
+      - application/json
+      description: Débite immédiatement le solde disponible du wallet puis ajoute
+        les fonds à une carte active existante.
+      parameters:
+      - description: ID de la carte
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Montant à ajouter
+        in: body
+        name: recharge
+        required: true
+        schema:
+          $ref: '#/definitions/carte.RechargerCarteRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CarteDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: carte ou wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: une opération wallet est déjà en cours
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: carte non active, wallet gelé, solde insuffisant ou montant
+            invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Recharge d'une carte virtuelle existante
+      tags:
+      - carte
   /kyc/demande-tier2:
     post:
       description: Crée un dossier KYC en attente de revue par un administrateur
@@ -1242,6 +1690,168 @@ paths:
       summary: Téléversement d'un document d'identité
       tags:
       - kyc
+  /wallet:
+    get:
+      description: Retourne le wallet de l'utilisateur authentifié, avec le détail
+        disponible/en attente.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/wallet.WalletDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Consultation du wallet
+      tags:
+      - wallet
+  /wallet/cashout:
+    post:
+      consumes:
+      - application/json
+      description: Débite immédiatement le solde disponible puis déclenche le décaissement
+        Mobile Money auprès de l'agrégateur. Contrairement à la recharge, le débit
+        précède la confirmation.
+      parameters:
+      - description: Opérateur, téléphone et montant
+        in: body
+        name: retrait
+        required: true
+        schema:
+          $ref: '#/definitions/wallet.InitierRetraitRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/wallet.TransactionDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: un retrait est déjà en cours
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: wallet gelé, solde insuffisant, montant invalide ou opérateur
+            non supporté
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Retrait du wallet par Mobile Money
+      tags:
+      - wallet
+  /wallet/topup:
+    post:
+      consumes:
+      - application/json
+      description: Initie une collecte Mobile Money auprès de l'agrégateur de paiement.
+        Le wallet n'est crédité (en attente, puis disponible sous 48h) qu'à la confirmation
+        du paiement, jamais à cet appel.
+      parameters:
+      - description: Opérateur, téléphone et montant
+        in: body
+        name: recharge
+        required: true
+        schema:
+          $ref: '#/definitions/wallet.InitierRechargeRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/wallet.TransactionDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: une recharge est déjà en cours
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: wallet gelé, montant invalide, plafond dépassé ou opérateur
+            non supporté
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Recharge du wallet par Mobile Money
+      tags:
+      - wallet
+  /webhooks/hrpay:
+    post:
+      consumes:
+      - application/json
+      description: Reçoit les notifications de confirmation de paiement de l'agrégateur.
+        Vérifie la signature HMAC avant tout traitement.
+      parameters:
+      - description: Signature HMAC-SHA256 du corps brut
+        in: header
+        name: X-Hub-Signature
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: signature invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: transaction introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      summary: Webhook HR-Skills Pay
+      tags:
+      - wallet
 securityDefinitions:
   BearerAuth:
     in: header

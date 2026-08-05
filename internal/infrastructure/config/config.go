@@ -21,6 +21,9 @@ type Config struct {
 	Env                  string
 	UploadsDir           string
 	TesseractLang        string
+	HrPayPublicKey       string
+	HrPaySecretKey       string
+	HrPayWebhookSecret   string
 }
 
 func Load() (*Config, error) {
@@ -36,6 +39,9 @@ func Load() (*Config, error) {
 		Env:                  getEnv("APP_ENV", "development"),
 		UploadsDir:           getEnv("UPLOADS_DIR", "./uploads"),
 		TesseractLang:        getEnv("TESSERACT_LANG", "fra"),
+		HrPayPublicKey:       os.Getenv("HRPAY_PUBLIC_KEY"),
+		HrPaySecretKey:       os.Getenv("HRPAY_SECRET_KEY"),
+		HrPayWebhookSecret:   os.Getenv("HRPAY_WEBHOOK_SECRET"),
 	}
 
 	if cfg.DatabaseURL == "" {
@@ -52,6 +58,15 @@ func Load() (*Config, error) {
 	}
 	if cfg.GoogleClientID == "" {
 		return nil, fmt.Errorf("GOOGLE_CLIENT_ID est requis")
+	}
+	if cfg.HrPayPublicKey == "" {
+		return nil, fmt.Errorf("HRPAY_PUBLIC_KEY est requis")
+	}
+	if cfg.HrPaySecretKey == "" {
+		return nil, fmt.Errorf("HRPAY_SECRET_KEY est requis")
+	}
+	if cfg.HrPayWebhookSecret == "" {
+		return nil, fmt.Errorf("HRPAY_WEBHOOK_SECRET est requis")
 	}
 
 	return cfg, nil

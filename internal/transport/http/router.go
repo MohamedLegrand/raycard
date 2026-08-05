@@ -12,7 +12,9 @@ import (
 
 	authoutput "raycard/internal/core/ports/output/auth"
 	handlersauth "raycard/internal/transport/http/handlers/auth"
+	handlerscarte "raycard/internal/transport/http/handlers/carte"
 	handlerskyc "raycard/internal/transport/http/handlers/kyc"
+	handlerswallet "raycard/internal/transport/http/handlers/wallet"
 	authmw "raycard/internal/transport/http/middleware/auth"
 )
 
@@ -32,6 +34,8 @@ type Handlers struct {
 	Kyc      *handlerskyc.KycHandler
 	Auth     *handlersauth.AuthHandler
 	AdminKyc *handlerskyc.AdminKycHandler
+	Wallet   *handlerswallet.WalletHandler
+	Carte    *handlerscarte.CarteHandler
 }
 
 func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGenerator) {
@@ -69,6 +73,22 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	auth.Post("/profil/mot-de-passe", authmw.RequireAuth(tokenGenerator), h.Auth.ChangerMotDePasse)
 	auth.Post("/profil/email", authmw.RequireAuth(tokenGenerator), h.Auth.DemanderChangementEmail)
 	auth.Post("/profil/email/confirmer", h.Auth.ConfirmerChangementEmail)
+
+	api.Get("/wallet", authmw.RequireAuth(tokenGenerator), h.Wallet.ObtenirWallet)
+	api.Post("/wallet/topup", authmw.RequireAuth(tokenGenerator), h.Wallet.InitierRecharge)
+	api.Post("/wallet/cashout", authmw.RequireAuth(tokenGenerator), h.Wallet.InitierRetrait)
+	// Non authentifiée par JWT : l'authenticité vient exclusivement de la
+	// signature HMAC vérifiée par le use case (voir wallet.AgregateurPaiement).
+	api.Post("/webhooks/hrpay", h.Wallet.WebhookHrPay)
+
+	api.Post("/cartes", authmw.RequireAuth(tokenGenerator), h.Carte.CreerCarte)
+	api.Get("/cartes", authmw.RequireAuth(tokenGenerator), h.Carte.ListerCartes)
+	api.Get("/cartes/:id", authmw.RequireAuth(tokenGenerator), h.Carte.ObtenirCarte)
+	api.Get("/cartes/:id/depenses", authmw.RequireAuth(tokenGenerator), h.Carte.ListerDepenses)
+	api.Post("/cartes/:id/gel", authmw.RequireAuth(tokenGenerator), h.Carte.GelerCarte)
+	api.Post("/cartes/:id/degel", authmw.RequireAuth(tokenGenerator), h.Carte.DegelerCarte)
+	api.Post("/cartes/:id/topup", authmw.RequireAuth(tokenGenerator), h.Carte.RechargerCarte)
+	api.Post("/cartes/:id/annuler", authmw.RequireAuth(tokenGenerator), h.Carte.AnnulerCarte)
 
 	backofficeKyc := api.Group("/backoffice/kyc", authmw.RequireAdmin(tokenGenerator))
 	backofficeKyc.Get("/dossiers", h.AdminKyc.ListerDossiersEnAttente)

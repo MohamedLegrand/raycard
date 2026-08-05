@@ -1211,6 +1211,488 @@
                 }
             }
         },
+        "/cartes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne les cartes virtuelles de l'utilisateur authentifié.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "carte"
+                ],
+                "summary": "Liste des cartes virtuelles",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/carte.CarteDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Débite immédiatement le solde disponible du wallet puis émet la carte auprès de l'agrégateur (Tier 2 KYC requis). Le PAN et le CVV ne sont jamais renvoyés ni stockés.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "carte"
+                ],
+                "summary": "Émission d'une carte virtuelle",
+                "parameters": [
+                    {
+                        "description": "Nom de la carte et montant à charger",
+                        "name": "carte",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/carte.CreerCarteRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CarteDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "une opération wallet est déjà en cours",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "wallet gelé, solde insuffisant, montant invalide ou palier KYC insuffisant",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/cartes/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne une carte précise de l'utilisateur authentifié.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "carte"
+                ],
+                "summary": "Détail d'une carte virtuelle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la carte",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CarteDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "carte introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/cartes/{id}/annuler": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Détruit définitivement une carte active ou gelée et rembourse au wallet ce qu'il restait dessus.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "carte"
+                ],
+                "summary": "Annulation d'une carte virtuelle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la carte",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CarteDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "carte ou wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "une opération wallet est déjà en cours",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "carte déjà annulée, ou wallet gelé",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/cartes/{id}/degel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Réactive une carte gelée.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "carte"
+                ],
+                "summary": "Dégel d'une carte virtuelle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la carte",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CarteDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "carte introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "la carte n'est pas gelée",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/cartes/{id}/depenses": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne les dépenses détectées par rapprochement périodique de solde — jamais en temps réel, faute de webhook de transaction carte côté agrégateur.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "carte"
+                ],
+                "summary": "Dépenses détectées sur une carte",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la carte",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/carte.DepenseCarteDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "carte introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/cartes/{id}/gel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Bloque une carte active : plus aucune dépense possible tant qu'elle n'est pas dégelée.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "carte"
+                ],
+                "summary": "Gel d'une carte virtuelle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la carte",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CarteDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "carte introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "la carte n'est pas active",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/cartes/{id}/topup": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Débite immédiatement le solde disponible du wallet puis ajoute les fonds à une carte active existante.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "carte"
+                ],
+                "summary": "Recharge d'une carte virtuelle existante",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la carte",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Montant à ajouter",
+                        "name": "recharge",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/carte.RechargerCarteRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CarteDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "carte ou wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "une opération wallet est déjà en cours",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "carte non active, wallet gelé, solde insuffisant ou montant invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/kyc/demande-tier2": {
             "post": {
                 "security": [
@@ -1328,6 +1810,246 @@
                     },
                     "422": {
                         "description": "format de document ou type de document non supporté, ou dossier déjà traité",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne le wallet de l'utilisateur authentifié, avec le détail disponible/en attente.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Consultation du wallet",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/wallet.WalletDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet/cashout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Débite immédiatement le solde disponible puis déclenche le décaissement Mobile Money auprès de l'agrégateur. Contrairement à la recharge, le débit précède la confirmation.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Retrait du wallet par Mobile Money",
+                "parameters": [
+                    {
+                        "description": "Opérateur, téléphone et montant",
+                        "name": "retrait",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wallet.InitierRetraitRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/wallet.TransactionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "un retrait est déjà en cours",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "wallet gelé, solde insuffisant, montant invalide ou opérateur non supporté",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet/topup": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Initie une collecte Mobile Money auprès de l'agrégateur de paiement. Le wallet n'est crédité (en attente, puis disponible sous 48h) qu'à la confirmation du paiement, jamais à cet appel.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Recharge du wallet par Mobile Money",
+                "parameters": [
+                    {
+                        "description": "Opérateur, téléphone et montant",
+                        "name": "recharge",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wallet.InitierRechargeRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/wallet.TransactionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "une recharge est déjà en cours",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "wallet gelé, montant invalide, plafond dépassé ou opérateur non supporté",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/webhooks/hrpay": {
+            "post": {
+                "description": "Reçoit les notifications de confirmation de paiement de l'agrégateur. Vérifie la signature HMAC avant tout traitement.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Webhook HR-Skills Pay",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Signature HMAC-SHA256 du corps brut",
+                        "name": "X-Hub-Signature",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "401": {
+                        "description": "signature invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "transaction introuvable",
                         "schema": {
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
@@ -1642,6 +2364,84 @@
                 }
             }
         },
+        "carte.CarteDTO": {
+            "type": "object",
+            "properties": {
+                "devise": {
+                    "type": "string",
+                    "example": "XOF"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d"
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Carte courses"
+                },
+                "montant_charge_centimes": {
+                    "type": "integer",
+                    "example": 10000
+                },
+                "solde_centimes": {
+                    "description": "SoldeCentimes est le dernier solde connu, mis à jour périodiquement\n(pas en temps réel — voir carte.Carte.SoldeCentimes).",
+                    "type": "integer",
+                    "example": 7500
+                },
+                "statut": {
+                    "type": "string",
+                    "example": "active"
+                }
+            }
+        },
+        "carte.CreerCarteRequestDTO": {
+            "type": "object",
+            "required": [
+                "label",
+                "montant_centimes"
+            ],
+            "properties": {
+                "label": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Carte courses"
+                },
+                "montant_centimes": {
+                    "type": "integer",
+                    "example": 10000
+                }
+            }
+        },
+        "carte.DepenseCarteDTO": {
+            "type": "object",
+            "properties": {
+                "detected_at": {
+                    "type": "string",
+                    "example": "2026-08-05T18:30:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d"
+                },
+                "montant_centimes": {
+                    "type": "integer",
+                    "example": 2500
+                }
+            }
+        },
+        "carte.RechargerCarteRequestDTO": {
+            "type": "object",
+            "required": [
+                "montant_centimes"
+            ],
+            "properties": {
+                "montant_centimes": {
+                    "type": "integer",
+                    "example": 5000
+                }
+            }
+        },
         "commun.ErreurDTO": {
             "type": "object",
             "properties": {
@@ -1818,7 +2618,109 @@
                     "type": "string",
                     "example": "7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"
                 },
-                "solde_centimes": {
+                "solde_disponible_centimes": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "solde_en_attente_centimes": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "statut": {
+                    "type": "string",
+                    "example": "actif"
+                }
+            }
+        },
+        "wallet.InitierRechargeRequestDTO": {
+            "type": "object",
+            "required": [
+                "montant_centimes",
+                "operateur",
+                "telephone"
+            ],
+            "properties": {
+                "montant_centimes": {
+                    "type": "integer",
+                    "example": 5000
+                },
+                "operateur": {
+                    "type": "string",
+                    "example": "ORANGE"
+                },
+                "telephone": {
+                    "type": "string",
+                    "example": "+2250700000000"
+                }
+            }
+        },
+        "wallet.InitierRetraitRequestDTO": {
+            "type": "object",
+            "required": [
+                "montant_centimes",
+                "operateur",
+                "telephone"
+            ],
+            "properties": {
+                "montant_centimes": {
+                    "type": "integer",
+                    "example": 5000
+                },
+                "operateur": {
+                    "type": "string",
+                    "example": "ORANGE"
+                },
+                "telephone": {
+                    "type": "string",
+                    "example": "+2250700000000"
+                }
+            }
+        },
+        "wallet.TransactionDTO": {
+            "type": "object",
+            "properties": {
+                "devise": {
+                    "type": "string",
+                    "example": "XOF"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "9c1a2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d"
+                },
+                "montant_centimes": {
+                    "type": "integer",
+                    "example": 5000
+                },
+                "operateur": {
+                    "type": "string",
+                    "example": "ORANGE"
+                },
+                "statut": {
+                    "type": "string",
+                    "example": "envoyee"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "recharge"
+                }
+            }
+        },
+        "wallet.WalletDTO": {
+            "type": "object",
+            "properties": {
+                "devise": {
+                    "type": "string",
+                    "example": "XOF"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"
+                },
+                "solde_disponible_centimes": {
+                    "type": "integer",
+                    "example": 492500
+                },
+                "solde_en_attente_centimes": {
                     "type": "integer",
                     "example": 0
                 },

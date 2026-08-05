@@ -38,10 +38,11 @@ type UtilisateurDTO struct {
 }
 
 type WalletDTO struct {
-	ID            string `json:"id" example:"7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"`
-	Devise        string `json:"devise" example:"XOF"`
-	SoldeCentimes int64  `json:"solde_centimes" example:"0"`
-	Statut        string `json:"statut" example:"actif"`
+	ID                      string `json:"id" example:"7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"`
+	Devise                  string `json:"devise" example:"XOF"`
+	SoldeDisponibleCentimes int64  `json:"solde_disponible_centimes" example:"0"`
+	SoldeEnAttenteCentimes  int64  `json:"solde_en_attente_centimes" example:"0"`
+	Statut                  string `json:"statut" example:"actif"`
 }
 
 type InscriptionResponseDTO struct {
@@ -62,10 +63,11 @@ func FromInscriptionResultat(res *kyc.InscriptionResultat) InscriptionResponseDT
 			KycStatut: string(res.Utilisateur.KycStatut),
 		},
 		Wallet: WalletDTO{
-			ID:            res.Wallet.ID,
-			Devise:        res.Wallet.Devise,
-			SoldeCentimes: res.Wallet.SoldeCentimes,
-			Statut:        string(res.Wallet.Statut),
+			ID:                      res.Wallet.ID,
+			Devise:                  res.Wallet.Devise,
+			SoldeDisponibleCentimes: res.Wallet.SoldeDisponibleCentimes,
+			SoldeEnAttenteCentimes:  res.Wallet.SoldeEnAttenteCentimes,
+			Statut:                  string(res.Wallet.Statut),
 		},
 	}
 }
