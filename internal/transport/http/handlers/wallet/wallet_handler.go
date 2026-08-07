@@ -46,6 +46,29 @@ func (h *WalletHandler) ObtenirWallet(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(walletdto.FromWallet(w))
 }
 
+// ListerTransactions gère GET /api/v1/wallet/transactions (route protégée).
+//
+//	@Summary		Historique des transactions du wallet
+//	@Description	Retourne toutes les transactions (recharge, retrait, financement de carte...) du wallet de l'utilisateur authentifié, les plus récentes d'abord.
+//	@Tags			wallet
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{array}		wallet.TransactionDTO
+//	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		404	{object}	commun.ErreurDTO	"wallet introuvable"
+//	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/wallet/transactions [get]
+func (h *WalletHandler) ListerTransactions(c *fiber.Ctx) error {
+	utilisateurID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+
+	transactions, err := h.walletUseCase.ListerTransactions(c.Context(), utilisateurID)
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(walletdto.FromTransactions(transactions))
+}
+
 // InitierRecharge gère POST /api/v1/wallet/topup (route protégée).
 //
 //	@Summary		Recharge du wallet par Mobile Money

@@ -2016,6 +2016,52 @@
                 }
             }
         },
+        "/wallet/transactions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne toutes les transactions (recharge, retrait, financement de carte...) du wallet de l'utilisateur authentifié, les plus récentes d'abord.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Historique des transactions du wallet",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/wallet.TransactionDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/webhooks/hrpay": {
             "post": {
                 "description": "Reçoit les notifications de confirmation de paiement de l'agrégateur. Vérifie la signature HMAC avant tout traitement.",
@@ -2679,9 +2725,17 @@
         "wallet.TransactionDTO": {
             "type": "object",
             "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-08-05T18:30:00Z"
+                },
                 "devise": {
                     "type": "string",
                     "example": "XOF"
+                },
+                "frais_centimes": {
+                    "type": "integer",
+                    "example": 75
                 },
                 "id": {
                     "type": "string",

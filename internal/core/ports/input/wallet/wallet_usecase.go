@@ -29,6 +29,10 @@ type InitierRetraitRequest struct {
 type WalletUseCase interface {
 	ObtenirWallet(ctx context.Context, utilisateurID string) (*commun.Wallet, error)
 
+	// ListerTransactions retourne l'historique complet des transactions
+	// du wallet de l'utilisateur authentifié, les plus récentes d'abord.
+	ListerTransactions(ctx context.Context, utilisateurID string) ([]*wallet.Transaction, error)
+
 	// InitierRecharge crée une transaction en attente et déclenche la
 	// collecte Mobile Money auprès de l'agrégateur de paiement. Le wallet
 	// n'est crédité qu'à la confirmation du paiement (voir TraiterWebhook),

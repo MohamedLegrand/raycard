@@ -104,6 +104,33 @@ func (r *TransactionRepository) ListDisponiblesEcheance(ctx context.Context, ava
 	return transactions, nil
 }
 
+func (r *TransactionRepository) ListByWalletID(ctx context.Context, walletID string) ([]*wallet.Transaction, error) {
+	const query = `
+		SELECT id, wallet_id, utilisateur_id, type, statut, montant_centimes, frais_centimes, devise, operateur, telephone, reference_externe, disponible_le, created_at, updated_at
+		FROM transactions_wallet
+		WHERE wallet_id = $1
+		ORDER BY created_at DESC`
+
+	rows, err := commun.DbFromContext(ctx, r.pool).Query(ctx, query, walletID)
+	if err != nil {
+		return nil, fmt.Errorf("liste transactions wallet: %w", err)
+	}
+	defer rows.Close()
+
+	var transactions []*wallet.Transaction
+	for rows.Next() {
+		t, err := scanTransaction(rows)
+		if err != nil {
+			return nil, fmt.Errorf("lecture transaction wallet: %w", err)
+		}
+		transactions = append(transactions, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("liste transactions wallet: %w", err)
+	}
+	return transactions, nil
+}
+
 func (r *TransactionRepository) Update(ctx context.Context, t *wallet.Transaction) error {
 	const query = `
 		UPDATE transactions_wallet

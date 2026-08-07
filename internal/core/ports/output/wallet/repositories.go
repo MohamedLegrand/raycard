@@ -30,6 +30,11 @@ type TransactionRepository interface {
 	// attente côté wallet — utilisé par le job qui bascule les fonds
 	// d'en-attente vers disponible après le délai de retenue.
 	ListDisponiblesEcheance(ctx context.Context, avant time.Time) ([]*wallet.Transaction, error)
+
+	// ListByWalletID liste l'historique complet des transactions d'un
+	// wallet (recharge, retrait, financement de carte...), les plus
+	// récentes d'abord.
+	ListByWalletID(ctx context.Context, walletID string) ([]*wallet.Transaction, error)
 }
 
 // InitierCashInParams décrit une demande de collecte Mobile Money.

@@ -372,3 +372,45 @@ func TestWalletService_TraiterWebhook_RetraitEchoue_Rembourse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(10000), walletMisAJour.SoldeDisponibleCentimes)
 }
+
+func TestWalletService_ListerTransactions(t *testing.T) {
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	agregateur := &testwallet.AgregateurPaiementFake{}
+	service := nouveauService(wallets, transactions, agregateur)
+	nouveauWalletTest(t, wallets)
+
+	agregateur.ReferenceGeneree = "ref-histo-1"
+	_, err := service.InitierRecharge(context.Background(), utilisateurID, inputwallet.InitierRechargeRequest{
+		Operateur: "ORANGE", Telephone: "+2250700000000", MontantCentimes: 5000,
+	})
+	require.NoError(t, err)
+
+	agregateur.EvenementARenvoyer = &outputwallet.EvenementWebhook{
+		Type: outputwallet.EvenementPaiementEchoue, ReferenceExterne: "ref-histo-1",
+	}
+	require.NoError(t, service.TraiterWebhook(context.Background(), []byte(`{}`), "signature"))
+
+	agregateur.ReferenceGeneree = "ref-histo-2"
+	agregateur.EvenementARenvoyer = nil
+	_, err = service.InitierRecharge(context.Background(), utilisateurID, inputwallet.InitierRechargeRequest{
+		Operateur: "MTN", Telephone: "+2250700000001", MontantCentimes: 3000,
+	})
+	require.NoError(t, err)
+
+	liste, err := service.ListerTransactions(context.Background(), utilisateurID)
+	require.NoError(t, err)
+	require.Len(t, liste, 2)
+	// Les deux transactions appartiennent bien au même wallet.
+	references := []string{liste[0].ReferenceExterne, liste[1].ReferenceExterne}
+	assert.ElementsMatch(t, []string{"ref-histo-1", "ref-histo-2"}, references)
+}
+
+func TestWalletService_ListerTransactions_WalletIntrouvable(t *testing.T) {
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	service := nouveauService(wallets, transactions, &testwallet.AgregateurPaiementFake{})
+
+	_, err := service.ListerTransactions(context.Background(), utilisateurID)
+	assert.ErrorIs(t, err, domaincommun.ErrWalletIntrouvable)
+}

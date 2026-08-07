@@ -48,6 +48,14 @@ func (s *walletService) ObtenirWallet(ctx context.Context, utilisateurID string)
 	return s.wallets.FindByUtilisateurID(ctx, utilisateurID)
 }
 
+func (s *walletService) ListerTransactions(ctx context.Context, utilisateurID string) ([]*domainwallet.Transaction, error) {
+	w, err := s.wallets.FindByUtilisateurID(ctx, utilisateurID)
+	if err != nil {
+		return nil, err
+	}
+	return s.transactions.ListByWalletID(ctx, w.ID)
+}
+
 func (s *walletService) InitierRecharge(ctx context.Context, utilisateurID string, req inputwallet.InitierRechargeRequest) (*domainwallet.Transaction, error) {
 	w, err := s.wallets.FindByUtilisateurID(ctx, utilisateurID)
 	if err != nil {

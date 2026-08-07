@@ -75,6 +75,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	auth.Post("/profil/email/confirmer", h.Auth.ConfirmerChangementEmail)
 
 	api.Get("/wallet", authmw.RequireAuth(tokenGenerator), h.Wallet.ObtenirWallet)
+	api.Get("/wallet/transactions", authmw.RequireAuth(tokenGenerator), h.Wallet.ListerTransactions)
 	api.Post("/wallet/topup", authmw.RequireAuth(tokenGenerator), h.Wallet.InitierRecharge)
 	api.Post("/wallet/cashout", authmw.RequireAuth(tokenGenerator), h.Wallet.InitierRetrait)
 	// Non authentifiée par JWT : l'authenticité vient exclusivement de la

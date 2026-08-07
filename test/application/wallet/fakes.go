@@ -7,6 +7,7 @@ package wallet
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
 	domainwallet "raycard/internal/core/domain/wallet"
@@ -61,6 +62,19 @@ func (r *TransactionRepoFake) ListDisponiblesEcheance(_ context.Context, avant t
 			resultat = append(resultat, t)
 		}
 	}
+	return resultat, nil
+}
+
+func (r *TransactionRepoFake) ListByWalletID(_ context.Context, walletID string) ([]*domainwallet.Transaction, error) {
+	var resultat []*domainwallet.Transaction
+	for _, t := range r.parID {
+		if t.WalletID == walletID {
+			resultat = append(resultat, t)
+		}
+	}
+	sort.Slice(resultat, func(i, j int) bool {
+		return resultat[i].CreatedAt.After(resultat[j].CreatedAt)
+	})
 	return resultat, nil
 }
 

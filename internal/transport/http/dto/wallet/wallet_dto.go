@@ -4,6 +4,8 @@
 package wallet
 
 import (
+	"time"
+
 	"raycard/internal/core/domain/commun"
 	"raycard/internal/core/domain/wallet"
 	inputwallet "raycard/internal/core/ports/input/wallet"
@@ -62,12 +64,14 @@ func (d InitierRetraitRequestDTO) ToUseCaseRequest() inputwallet.InitierRetraitR
 }
 
 type TransactionDTO struct {
-	ID              string `json:"id" example:"9c1a2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d"`
-	Type            string `json:"type" example:"recharge"`
-	Statut          string `json:"statut" example:"envoyee"`
-	MontantCentimes int64  `json:"montant_centimes" example:"5000"`
-	Devise          string `json:"devise" example:"XOF"`
-	Operateur       string `json:"operateur" example:"ORANGE"`
+	ID              string    `json:"id" example:"9c1a2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d"`
+	Type            string    `json:"type" example:"recharge"`
+	Statut          string    `json:"statut" example:"envoyee"`
+	MontantCentimes int64     `json:"montant_centimes" example:"5000"`
+	FraisCentimes   int64     `json:"frais_centimes" example:"75"`
+	Devise          string    `json:"devise" example:"XOF"`
+	Operateur       string    `json:"operateur,omitempty" example:"ORANGE"`
+	CreatedAt       time.Time `json:"created_at" example:"2026-08-05T18:30:00Z"`
 }
 
 func FromTransaction(t *wallet.Transaction) TransactionDTO {
@@ -76,7 +80,17 @@ func FromTransaction(t *wallet.Transaction) TransactionDTO {
 		Type:            string(t.Type),
 		Statut:          string(t.Statut),
 		MontantCentimes: t.MontantCentimes,
+		FraisCentimes:   t.FraisCentimes,
 		Devise:          t.Devise,
 		Operateur:       t.Operateur,
+		CreatedAt:       t.CreatedAt,
 	}
+}
+
+func FromTransactions(transactions []*wallet.Transaction) []TransactionDTO {
+	dtos := make([]TransactionDTO, 0, len(transactions))
+	for _, t := range transactions {
+		dtos = append(dtos, FromTransaction(t))
+	}
+	return dtos
 }

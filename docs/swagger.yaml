@@ -434,9 +434,15 @@ definitions:
     type: object
   wallet.TransactionDTO:
     properties:
+      created_at:
+        example: "2026-08-05T18:30:00Z"
+        type: string
       devise:
         example: XOF
         type: string
+      frais_centimes:
+        example: 75
+        type: integer
       id:
         example: 9c1a2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d
         type: string
@@ -1818,6 +1824,36 @@ paths:
       security:
       - BearerAuth: []
       summary: Recharge du wallet par Mobile Money
+      tags:
+      - wallet
+  /wallet/transactions:
+    get:
+      description: Retourne toutes les transactions (recharge, retrait, financement
+        de carte...) du wallet de l'utilisateur authentifié, les plus récentes d'abord.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/wallet.TransactionDTO'
+            type: array
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Historique des transactions du wallet
       tags:
       - wallet
   /webhooks/hrpay:
