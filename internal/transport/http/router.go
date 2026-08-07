@@ -29,6 +29,16 @@ var limiteurConnexion = limiter.New(limiter.Config{
 	Expiration: time.Minute,
 })
 
+// limiteurInscription : freine le bourrage sur /auth/inscription, dont la
+// réponse (409 si l'email existe déjà) permet sinon d'énumérer les
+// comptes existants sans aucune limite. Plus strict que limiteurConnexion
+// (un utilisateur légitime ne s'inscrit qu'une fois, contrairement à une
+// connexion répétée).
+var limiteurInscription = limiter.New(limiter.Config{
+	Max:        5,
+	Expiration: time.Minute,
+})
+
 // Handlers regroupe tous les handlers HTTP câblés par main.go. Un
 // champ est ajouté ici à chaque nouveau module (wallet, cartes...).
 type Handlers struct {
@@ -58,7 +68,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	// compte est une action d'authentification (on s'en sert ensuite pour
 	// se connecter) — le fait qu'elle valide aussi le palier KYC 1 en
 	// interne est un détail d'implémentation, pas ce que l'utilisateur vit.
-	auth.Post("/inscription", h.Kyc.Inscrire)
+	auth.Post("/inscription", limiteurInscription, h.Kyc.Inscrire)
 	auth.Post("/connexion", limiteurConnexion, h.Auth.Connexion)
 	auth.Post("/connexion/verifier-code", h.Auth.VerifierCode2FA)
 	auth.Post("/connexion-google", limiteurConnexion, h.Auth.ConnexionGoogle)

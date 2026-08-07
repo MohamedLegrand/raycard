@@ -24,6 +24,15 @@ type Config struct {
 	HrPayPublicKey       string
 	HrPaySecretKey       string
 	HrPayWebhookSecret   string
+
+	// CorsAllowedOrigins : liste d'origines autorisées séparées par des
+	// virgules (ex: "https://backoffice.raycard.io"). Vide par défaut —
+	// aucune origine n'est autorisée tant que ce n'est pas configuré
+	// explicitement (voir cmd/api/main.go, qui n'active le middleware CORS
+	// que si cette valeur est non vide). L'app mobile n'appelle jamais
+	// l'API depuis un navigateur, donc n'a besoin d'aucune origine ; ce
+	// réglage ne sert qu'à un futur front web (ex: back-office).
+	CorsAllowedOrigins string
 }
 
 func Load() (*Config, error) {
@@ -42,6 +51,7 @@ func Load() (*Config, error) {
 		HrPayPublicKey:       os.Getenv("HRPAY_PUBLIC_KEY"),
 		HrPaySecretKey:       os.Getenv("HRPAY_SECRET_KEY"),
 		HrPayWebhookSecret:   os.Getenv("HRPAY_WEBHOOK_SECRET"),
+		CorsAllowedOrigins:   os.Getenv("CORS_ALLOWED_ORIGINS"),
 	}
 
 	if cfg.DatabaseURL == "" {

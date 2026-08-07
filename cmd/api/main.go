@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/rs/zerolog"
 
 	_ "raycard/docs" // docs générés par `swag init`, nécessaires pour servir la spec Swagger
@@ -153,6 +154,19 @@ func main() {
 		},
 	})
 	app.Use(middleware.Logger(logger))
+
+	// Désactivé par défaut (voir config.Config.CorsAllowedOrigins) : l'app
+	// mobile n'appelle jamais l'API depuis un navigateur, donc n'a besoin
+	// d'aucune origine autorisée. Sans ce middleware, un navigateur bloque
+	// déjà toute requête cross-origin — c'est le comportement sécurisé par
+	// défaut, pas une lacune à combler tant qu'aucun front web n'existe.
+	if cfg.CorsAllowedOrigins != "" {
+		app.Use(cors.New(cors.Config{
+			AllowOrigins: cfg.CorsAllowedOrigins,
+			AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+			AllowMethods: "GET, POST, PUT, DELETE",
+		}))
+	}
 
 	apihttp.SetupRoutes(app, apihttp.Handlers{
 		Kyc: kycHandler, Auth: authHandler, AdminKyc: adminKycHandler, Wallet: walletHandler, Carte: carteHandler,
