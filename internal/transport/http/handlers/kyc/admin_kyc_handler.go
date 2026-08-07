@@ -24,7 +24,7 @@ func NewAdminKycHandler(adminKycUseCase inputkyc.AdminKycUseCase, validate *vali
 // ListerDossiersEnAttente gère GET /api/v1/backoffice/kyc/dossiers.
 //
 //	@Summary		Liste des dossiers KYC en attente
-//	@Tags			backoffice-kyc
+//	@Tags			"2. Admin - KYC"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Success		200	{array}		kyc.DossierKycDTO
@@ -44,7 +44,7 @@ func (h *AdminKycHandler) ListerDossiersEnAttente(c *fiber.Ctx) error {
 //
 //	@Summary		Approuve un dossier KYC
 //	@Description	Fait passer l'utilisateur au Tier 2 et écrit une entrée d'audit
-//	@Tags			backoffice-kyc
+//	@Tags			"2. Admin - KYC"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path	string	true	"ID du dossier"
@@ -69,7 +69,7 @@ func (h *AdminKycHandler) Approuver(c *fiber.Ctx) error {
 //
 //	@Summary		Rejette un dossier KYC
 //	@Description	L'utilisateur reste au Tier 1 ; le motif lui est communiqué, il pourra resoumettre
-//	@Tags			backoffice-kyc
+//	@Tags			"2. Admin - KYC"
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
@@ -105,7 +105,7 @@ func (h *AdminKycHandler) Rejeter(c *fiber.Ctx) error {
 //
 //	@Summary		Liste des documents d'une demande de passage de palier
 //	@Description	Renvoie les documents téléversés pour cette demande précise (jamais ceux d'une éventuelle tentative précédente rejetée) et le texte que l'OCR local en a extrait.
-//	@Tags			backoffice-kyc
+//	@Tags			"2. Admin - KYC"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID du dossier"
@@ -128,7 +128,7 @@ func (h *AdminKycHandler) ListerDocuments(c *fiber.Ctx) error {
 //
 //	@Summary		Récupération d'un document d'identité
 //	@Description	Renvoie le contenu brut de l'image (jamais seulement le texte OCR) : c'est sur cette image que l'administrateur doit fonder sa décision d'approbation ou de rejet.
-//	@Tags			backoffice-kyc
+//	@Tags			"2. Admin - KYC"
 //	@Produce		image/jpeg,image/png
 //	@Security		BearerAuth
 //	@Param			id	path	string	true	"ID du document"

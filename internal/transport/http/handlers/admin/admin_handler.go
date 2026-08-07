@@ -23,7 +23,7 @@ func NewAdminHandler(adminUseCase inputadmin.AdminUseCase) *AdminHandler {
 //
 //	@Summary		Liste des utilisateurs (back-office)
 //	@Description	Retourne les utilisateurs, filtrables par recherche partielle sur l'email ou le téléphone.
-//	@Tags			backoffice-utilisateurs
+//	@Tags			"2. Admin - Utilisateurs"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			q	query		string	false	"Recherche (email ou téléphone)"
@@ -47,7 +47,7 @@ func (h *AdminHandler) ListerUtilisateurs(c *fiber.Ctx) error {
 //
 //	@Summary		Fiche complète d'un utilisateur (back-office)
 //	@Description	Retourne le profil, le wallet et les cartes d'un utilisateur.
-//	@Tags			backoffice-utilisateurs
+//	@Tags			"2. Admin - Utilisateurs"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID de l'utilisateur"
@@ -72,7 +72,7 @@ func (h *AdminHandler) ObtenirUtilisateur(c *fiber.Ctx) error {
 //
 //	@Summary		Historique d'audit (back-office)
 //	@Description	Retourne les actions administrateur sensibles, filtrables par administrateur, type de cible et cible.
-//	@Tags			backoffice-utilisateurs
+//	@Tags			"2. Admin - Utilisateurs"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			admin_id	query		string	false	"Filtre par administrateur"

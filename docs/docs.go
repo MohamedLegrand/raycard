@@ -27,7 +27,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Connexion (étape 1/2)",
                 "parameters": [
@@ -79,7 +79,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Connexion via Google (étape 1/2)",
                 "parameters": [
@@ -131,7 +131,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Connexion (étape 2/2) — vérification du code",
                 "parameters": [
@@ -183,7 +183,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Déconnexion",
                 "parameters": [
@@ -231,7 +231,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Enregistrement d'un appareil pour la connexion par empreinte",
                 "parameters": [
@@ -285,7 +285,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Révocation d'un appareil enregistré pour l'empreinte",
                 "parameters": [
@@ -332,7 +332,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Demande d'un challenge pour la connexion par empreinte",
                 "parameters": [
@@ -384,7 +384,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Connexion par empreinte digitale",
                 "parameters": [
@@ -436,7 +436,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Inscription d'un nouvel utilisateur",
                 "parameters": [
@@ -494,7 +494,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Demande de réinitialisation de mot de passe",
                 "parameters": [
@@ -542,7 +542,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Modification du profil",
                 "parameters": [
@@ -599,7 +599,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Demande de changement d'email",
                 "parameters": [
@@ -654,7 +654,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Confirmation du changement d'email",
                 "parameters": [
@@ -717,7 +717,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Changement de mot de passe",
                 "parameters": [
@@ -771,7 +771,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Modification de la photo de profil",
                 "parameters": [
@@ -827,7 +827,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Rafraîchissement de session",
                 "parameters": [
@@ -879,7 +879,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "auth"
+                    "\"1. Client - Auth\""
                 ],
                 "summary": "Réinitialisation du mot de passe",
                 "parameters": [
@@ -930,7 +930,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-utilisateurs"
+                    "\"2. Admin - Utilisateurs\""
                 ],
                 "summary": "Historique d'audit (back-office)",
                 "parameters": [
@@ -996,7 +996,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-carte"
+                    "\"2. Admin - Carte\""
                 ],
                 "summary": "Liste des cartes (back-office)",
                 "parameters": [
@@ -1056,7 +1056,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-carte"
+                    "\"2. Admin - Carte\""
                 ],
                 "summary": "Annulation d'une carte (back-office)",
                 "parameters": [
@@ -1126,7 +1126,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-carte"
+                    "\"2. Admin - Carte\""
                 ],
                 "summary": "Dégel d'une carte (back-office)",
                 "parameters": [
@@ -1190,7 +1190,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-carte"
+                    "\"2. Admin - Carte\""
                 ],
                 "summary": "Gel d'une carte (back-office)",
                 "parameters": [
@@ -1255,7 +1255,7 @@ const docTemplate = `{
                     "image/png"
                 ],
                 "tags": [
-                    "backoffice-kyc"
+                    "\"2. Admin - KYC\""
                 ],
                 "summary": "Récupération d'un document d'identité",
                 "parameters": [
@@ -1312,7 +1312,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-kyc"
+                    "\"2. Admin - KYC\""
                 ],
                 "summary": "Liste des dossiers KYC en attente",
                 "responses": {
@@ -1358,7 +1358,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-kyc"
+                    "\"2. Admin - KYC\""
                 ],
                 "summary": "Approuve un dossier KYC",
                 "parameters": [
@@ -1419,7 +1419,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-kyc"
+                    "\"2. Admin - KYC\""
                 ],
                 "summary": "Liste des documents d'une demande de passage de palier",
                 "parameters": [
@@ -1477,7 +1477,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-kyc"
+                    "\"2. Admin - KYC\""
                 ],
                 "summary": "Rejette un dossier KYC",
                 "parameters": [
@@ -1553,7 +1553,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-wallet"
+                    "\"2. Admin - Wallet\""
                 ],
                 "summary": "Liste des transactions (back-office)",
                 "parameters": [
@@ -1619,7 +1619,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-utilisateurs"
+                    "\"2. Admin - Utilisateurs\""
                 ],
                 "summary": "Liste des utilisateurs (back-office)",
                 "parameters": [
@@ -1673,7 +1673,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-utilisateurs"
+                    "\"2. Admin - Utilisateurs\""
                 ],
                 "summary": "Fiche complète d'un utilisateur (back-office)",
                 "parameters": [
@@ -1731,7 +1731,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-wallet"
+                    "\"2. Admin - Wallet\""
                 ],
                 "summary": "Dégel d'un wallet (back-office)",
                 "parameters": [
@@ -1795,7 +1795,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "backoffice-wallet"
+                    "\"2. Admin - Wallet\""
                 ],
                 "summary": "Gel d'un wallet (back-office)",
                 "parameters": [
@@ -1859,7 +1859,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "carte"
+                    "\"1. Client - Carte\""
                 ],
                 "summary": "Liste des cartes virtuelles",
                 "responses": {
@@ -1900,7 +1900,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "carte"
+                    "\"1. Client - Carte\""
                 ],
                 "summary": "Émission d'une carte virtuelle",
                 "parameters": [
@@ -1972,7 +1972,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "carte"
+                    "\"1. Client - Carte\""
                 ],
                 "summary": "Détail d'une carte virtuelle",
                 "parameters": [
@@ -2024,7 +2024,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "carte"
+                    "\"1. Client - Carte\""
                 ],
                 "summary": "Annulation d'une carte virtuelle",
                 "parameters": [
@@ -2088,7 +2088,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "carte"
+                    "\"1. Client - Carte\""
                 ],
                 "summary": "Dégel d'une carte virtuelle",
                 "parameters": [
@@ -2146,7 +2146,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "carte"
+                    "\"1. Client - Carte\""
                 ],
                 "summary": "Dépenses détectées sur une carte",
                 "parameters": [
@@ -2201,7 +2201,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "carte"
+                    "\"1. Client - Carte\""
                 ],
                 "summary": "Gel d'une carte virtuelle",
                 "parameters": [
@@ -2262,7 +2262,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "carte"
+                    "\"1. Client - Carte\""
                 ],
                 "summary": "Recharge d'une carte virtuelle existante",
                 "parameters": [
@@ -2341,7 +2341,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "kyc"
+                    "\"1. Client - KYC\""
                 ],
                 "summary": "Demande de passage au Tier 2",
                 "responses": {
@@ -2393,7 +2393,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "kyc"
+                    "\"1. Client - KYC\""
                 ],
                 "summary": "Téléversement d'un document d'identité",
                 "parameters": [
@@ -2471,7 +2471,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "wallet"
+                    "\"1. Client - Wallet\""
                 ],
                 "summary": "Consultation du wallet",
                 "responses": {
@@ -2517,7 +2517,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "wallet"
+                    "\"1. Client - Wallet\""
                 ],
                 "summary": "Retrait du wallet par Mobile Money",
                 "parameters": [
@@ -2592,7 +2592,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "wallet"
+                    "\"1. Client - Wallet\""
                 ],
                 "summary": "Recharge du wallet par Mobile Money",
                 "parameters": [
@@ -2664,7 +2664,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "wallet"
+                    "\"1. Client - Wallet\""
                 ],
                 "summary": "Historique des transactions du wallet",
                 "responses": {
@@ -2708,7 +2708,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "wallet"
+                    "\"3. Système - Webhooks\""
                 ],
                 "summary": "Webhook HR-Skills Pay",
                 "parameters": [

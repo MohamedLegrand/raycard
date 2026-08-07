@@ -27,7 +27,7 @@ func NewWalletHandler(walletUseCase inputwallet.WalletUseCase, validate *validat
 //
 //	@Summary		Consultation du wallet
 //	@Description	Retourne le wallet de l'utilisateur authentifié, avec le détail disponible/en attente.
-//	@Tags			wallet
+//	@Tags			"1. Client - Wallet"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Success		200	{object}	wallet.WalletDTO
@@ -50,7 +50,7 @@ func (h *WalletHandler) ObtenirWallet(c *fiber.Ctx) error {
 //
 //	@Summary		Historique des transactions du wallet
 //	@Description	Retourne toutes les transactions (recharge, retrait, financement de carte...) du wallet de l'utilisateur authentifié, les plus récentes d'abord.
-//	@Tags			wallet
+//	@Tags			"1. Client - Wallet"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Success		200	{array}		wallet.TransactionDTO
@@ -73,7 +73,7 @@ func (h *WalletHandler) ListerTransactions(c *fiber.Ctx) error {
 //
 //	@Summary		Recharge du wallet par Mobile Money
 //	@Description	Initie une collecte Mobile Money auprès de l'agrégateur de paiement. Le wallet n'est crédité (en attente, puis disponible sous 48h) qu'à la confirmation du paiement, jamais à cet appel.
-//	@Tags			wallet
+//	@Tags			"1. Client - Wallet"
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
@@ -109,7 +109,7 @@ func (h *WalletHandler) InitierRecharge(c *fiber.Ctx) error {
 //
 //	@Summary		Retrait du wallet par Mobile Money
 //	@Description	Débite immédiatement le solde disponible puis déclenche le décaissement Mobile Money auprès de l'agrégateur. Contrairement à la recharge, le débit précède la confirmation.
-//	@Tags			wallet
+//	@Tags			"1. Client - Wallet"
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
@@ -147,7 +147,7 @@ func (h *WalletHandler) InitierRetrait(c *fiber.Ctx) error {
 //
 //	@Summary		Webhook HR-Skills Pay
 //	@Description	Reçoit les notifications de confirmation de paiement de l'agrégateur. Vérifie la signature HMAC avant tout traitement.
-//	@Tags			wallet
+//	@Tags			"3. Système - Webhooks"
 //	@Accept			json
 //	@Produce		json
 //	@Param			X-Hub-Signature	header	string	true	"Signature HMAC-SHA256 du corps brut"

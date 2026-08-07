@@ -22,7 +22,7 @@ func NewAdminWalletHandler(adminWalletUseCase inputwallet.AdminWalletUseCase) *A
 //
 //	@Summary		Gel d'un wallet (back-office)
 //	@Description	Bloque n'importe quel wallet actif : plus aucun débit ni crédit possible. Tracé dans l'audit log.
-//	@Tags			backoffice-wallet
+//	@Tags			"2. Admin - Wallet"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID du wallet"
@@ -49,7 +49,7 @@ func (h *AdminWalletHandler) GelerWallet(c *fiber.Ctx) error {
 //
 //	@Summary		Dégel d'un wallet (back-office)
 //	@Description	Réactive n'importe quel wallet gelé. Tracé dans l'audit log.
-//	@Tags			backoffice-wallet
+//	@Tags			"2. Admin - Wallet"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID du wallet"
@@ -76,7 +76,7 @@ func (h *AdminWalletHandler) DegelerWallet(c *fiber.Ctx) error {
 //
 //	@Summary		Liste des transactions (back-office)
 //	@Description	Retourne les transactions tous wallets confondus, filtrables par utilisateur, statut et type.
-//	@Tags			backoffice-wallet
+//	@Tags			"2. Admin - Wallet"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			utilisateur_id	query		string	false	"Filtre par utilisateur"

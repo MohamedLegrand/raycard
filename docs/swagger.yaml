@@ -589,7 +589,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Connexion (étape 1/2)
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/connexion-google:
     post:
       consumes:
@@ -629,7 +629,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Connexion via Google (étape 1/2)
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/connexion/verifier-code:
     post:
       consumes:
@@ -666,7 +666,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Connexion (étape 2/2) — vérification du code
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/deconnexion:
     post:
       consumes:
@@ -695,7 +695,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Déconnexion
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/empreinte/appareils:
     post:
       consumes:
@@ -733,7 +733,7 @@ paths:
       - BearerAuth: []
       summary: Enregistrement d'un appareil pour la connexion par empreinte
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/empreinte/appareils/{id}:
     delete:
       description: Invalide définitivement un appareil (perte, vol, ou l'utilisateur
@@ -765,7 +765,7 @@ paths:
       - BearerAuth: []
       summary: Révocation d'un appareil enregistré pour l'empreinte
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/empreinte/challenge:
     post:
       consumes:
@@ -800,7 +800,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Demande d'un challenge pour la connexion par empreinte
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/empreinte/verifier:
     post:
       consumes:
@@ -837,7 +837,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Connexion par empreinte digitale
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/inscription:
     post:
       consumes:
@@ -876,7 +876,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Inscription d'un nouvel utilisateur
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/mot-de-passe-oublie:
     post:
       consumes:
@@ -906,7 +906,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Demande de réinitialisation de mot de passe
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/profil:
     put:
       consumes:
@@ -942,7 +942,7 @@ paths:
       - BearerAuth: []
       summary: Modification du profil
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/profil/email:
     post:
       consumes:
@@ -981,7 +981,7 @@ paths:
       - BearerAuth: []
       summary: Demande de changement d'email
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/profil/email/confirmer:
     post:
       consumes:
@@ -1020,7 +1020,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Confirmation du changement d'email
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/profil/mot-de-passe:
     post:
       consumes:
@@ -1055,7 +1055,7 @@ paths:
       - BearerAuth: []
       summary: Changement de mot de passe
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/profil/photo:
     post:
       consumes:
@@ -1094,7 +1094,7 @@ paths:
       - BearerAuth: []
       summary: Modification de la photo de profil
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/rafraichir:
     post:
       consumes:
@@ -1129,7 +1129,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Rafraîchissement de session
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /auth/reinitialiser-mot-de-passe:
     post:
       consumes:
@@ -1162,7 +1162,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Réinitialisation du mot de passe
       tags:
-      - auth
+      - '"1. Client - Auth"'
   /backoffice/audit-logs:
     get:
       description: Retourne les actions administrateur sensibles, filtrables par administrateur,
@@ -1205,7 +1205,7 @@ paths:
       - BearerAuth: []
       summary: Historique d'audit (back-office)
       tags:
-      - backoffice-utilisateurs
+      - '"2. Admin - Utilisateurs"'
   /backoffice/cartes:
     get:
       description: Retourne les cartes tous utilisateurs confondus, filtrables par
@@ -1244,7 +1244,7 @@ paths:
       - BearerAuth: []
       summary: Liste des cartes (back-office)
       tags:
-      - backoffice-carte
+      - '"2. Admin - Carte"'
   /backoffice/cartes/{id}/annuler:
     post:
       description: Détruit définitivement n'importe quelle carte active ou gelée et
@@ -1290,7 +1290,7 @@ paths:
       - BearerAuth: []
       summary: Annulation d'une carte (back-office)
       tags:
-      - backoffice-carte
+      - '"2. Admin - Carte"'
   /backoffice/cartes/{id}/degel:
     post:
       description: Réactive n'importe quelle carte gelée, sans vérification de propriétaire.
@@ -1332,7 +1332,7 @@ paths:
       - BearerAuth: []
       summary: Dégel d'une carte (back-office)
       tags:
-      - backoffice-carte
+      - '"2. Admin - Carte"'
   /backoffice/cartes/{id}/gel:
     post:
       description: Bloque n'importe quelle carte active, sans vérification de propriétaire.
@@ -1374,7 +1374,7 @@ paths:
       - BearerAuth: []
       summary: Gel d'une carte (back-office)
       tags:
-      - backoffice-carte
+      - '"2. Admin - Carte"'
   /backoffice/kyc/documents/{id}:
     get:
       description: 'Renvoie le contenu brut de l''image (jamais seulement le texte
@@ -1414,7 +1414,7 @@ paths:
       - BearerAuth: []
       summary: Récupération d'un document d'identité
       tags:
-      - backoffice-kyc
+      - '"2. Admin - KYC"'
   /backoffice/kyc/dossiers:
     get:
       produces:
@@ -1442,7 +1442,7 @@ paths:
       - BearerAuth: []
       summary: Liste des dossiers KYC en attente
       tags:
-      - backoffice-kyc
+      - '"2. Admin - KYC"'
   /backoffice/kyc/dossiers/{id}/approuver:
     post:
       description: Fait passer l'utilisateur au Tier 2 et écrit une entrée d'audit
@@ -1481,7 +1481,7 @@ paths:
       - BearerAuth: []
       summary: Approuve un dossier KYC
       tags:
-      - backoffice-kyc
+      - '"2. Admin - KYC"'
   /backoffice/kyc/dossiers/{id}/documents:
     get:
       description: Renvoie les documents téléversés pour cette demande précise (jamais
@@ -1518,7 +1518,7 @@ paths:
       - BearerAuth: []
       summary: Liste des documents d'une demande de passage de palier
       tags:
-      - backoffice-kyc
+      - '"2. Admin - KYC"'
   /backoffice/kyc/dossiers/{id}/rejeter:
     post:
       consumes:
@@ -1570,7 +1570,7 @@ paths:
       - BearerAuth: []
       summary: Rejette un dossier KYC
       tags:
-      - backoffice-kyc
+      - '"2. Admin - KYC"'
   /backoffice/transactions:
     get:
       description: Retourne les transactions tous wallets confondus, filtrables par
@@ -1613,7 +1613,7 @@ paths:
       - BearerAuth: []
       summary: Liste des transactions (back-office)
       tags:
-      - backoffice-wallet
+      - '"2. Admin - Wallet"'
   /backoffice/utilisateurs:
     get:
       description: Retourne les utilisateurs, filtrables par recherche partielle sur
@@ -1648,7 +1648,7 @@ paths:
       - BearerAuth: []
       summary: Liste des utilisateurs (back-office)
       tags:
-      - backoffice-utilisateurs
+      - '"2. Admin - Utilisateurs"'
   /backoffice/utilisateurs/{id}:
     get:
       description: Retourne le profil, le wallet et les cartes d'un utilisateur.
@@ -1685,7 +1685,7 @@ paths:
       - BearerAuth: []
       summary: Fiche complète d'un utilisateur (back-office)
       tags:
-      - backoffice-utilisateurs
+      - '"2. Admin - Utilisateurs"'
   /backoffice/wallets/{id}/degel:
     post:
       description: Réactive n'importe quel wallet gelé. Tracé dans l'audit log.
@@ -1726,7 +1726,7 @@ paths:
       - BearerAuth: []
       summary: Dégel d'un wallet (back-office)
       tags:
-      - backoffice-wallet
+      - '"2. Admin - Wallet"'
   /backoffice/wallets/{id}/gel:
     post:
       description: 'Bloque n''importe quel wallet actif : plus aucun débit ni crédit
@@ -1768,7 +1768,7 @@ paths:
       - BearerAuth: []
       summary: Gel d'un wallet (back-office)
       tags:
-      - backoffice-wallet
+      - '"2. Admin - Wallet"'
   /cartes:
     get:
       description: Retourne les cartes virtuelles de l'utilisateur authentifié.
@@ -1793,7 +1793,7 @@ paths:
       - BearerAuth: []
       summary: Liste des cartes virtuelles
       tags:
-      - carte
+      - '"1. Client - Carte"'
     post:
       consumes:
       - application/json
@@ -1843,7 +1843,7 @@ paths:
       - BearerAuth: []
       summary: Émission d'une carte virtuelle
       tags:
-      - carte
+      - '"1. Client - Carte"'
   /cartes/{id}:
     get:
       description: Retourne une carte précise de l'utilisateur authentifié.
@@ -1876,7 +1876,7 @@ paths:
       - BearerAuth: []
       summary: Détail d'une carte virtuelle
       tags:
-      - carte
+      - '"1. Client - Carte"'
   /cartes/{id}/annuler:
     post:
       description: Détruit définitivement une carte active ou gelée et rembourse au
@@ -1918,7 +1918,7 @@ paths:
       - BearerAuth: []
       summary: Annulation d'une carte virtuelle
       tags:
-      - carte
+      - '"1. Client - Carte"'
   /cartes/{id}/degel:
     post:
       description: Réactive une carte gelée.
@@ -1955,7 +1955,7 @@ paths:
       - BearerAuth: []
       summary: Dégel d'une carte virtuelle
       tags:
-      - carte
+      - '"1. Client - Carte"'
   /cartes/{id}/depenses:
     get:
       description: Retourne les dépenses détectées par rapprochement périodique de
@@ -1991,7 +1991,7 @@ paths:
       - BearerAuth: []
       summary: Dépenses détectées sur une carte
       tags:
-      - carte
+      - '"1. Client - Carte"'
   /cartes/{id}/gel:
     post:
       description: 'Bloque une carte active : plus aucune dépense possible tant qu''elle
@@ -2029,7 +2029,7 @@ paths:
       - BearerAuth: []
       summary: Gel d'une carte virtuelle
       tags:
-      - carte
+      - '"1. Client - Carte"'
   /cartes/{id}/topup:
     post:
       consumes:
@@ -2084,7 +2084,7 @@ paths:
       - BearerAuth: []
       summary: Recharge d'une carte virtuelle existante
       tags:
-      - carte
+      - '"1. Client - Carte"'
   /kyc/demande-tier2:
     post:
       description: Crée un dossier KYC en attente de revue par un administrateur
@@ -2115,7 +2115,7 @@ paths:
       - BearerAuth: []
       summary: Demande de passage au Tier 2
       tags:
-      - kyc
+      - '"1. Client - KYC"'
   /kyc/documents:
     post:
       consumes:
@@ -2173,7 +2173,7 @@ paths:
       - BearerAuth: []
       summary: Téléversement d'un document d'identité
       tags:
-      - kyc
+      - '"1. Client - KYC"'
   /wallet:
     get:
       description: Retourne le wallet de l'utilisateur authentifié, avec le détail
@@ -2201,7 +2201,7 @@ paths:
       - BearerAuth: []
       summary: Consultation du wallet
       tags:
-      - wallet
+      - '"1. Client - Wallet"'
   /wallet/cashout:
     post:
       consumes:
@@ -2252,7 +2252,7 @@ paths:
       - BearerAuth: []
       summary: Retrait du wallet par Mobile Money
       tags:
-      - wallet
+      - '"1. Client - Wallet"'
   /wallet/topup:
     post:
       consumes:
@@ -2303,7 +2303,7 @@ paths:
       - BearerAuth: []
       summary: Recharge du wallet par Mobile Money
       tags:
-      - wallet
+      - '"1. Client - Wallet"'
   /wallet/transactions:
     get:
       description: Retourne toutes les transactions (recharge, retrait, financement
@@ -2333,7 +2333,7 @@ paths:
       - BearerAuth: []
       summary: Historique des transactions du wallet
       tags:
-      - wallet
+      - '"1. Client - Wallet"'
   /webhooks/hrpay:
     post:
       consumes:
@@ -2365,7 +2365,7 @@ paths:
             $ref: '#/definitions/commun.ErreurDTO'
       summary: Webhook HR-Skills Pay
       tags:
-      - wallet
+      - '"3. Système - Webhooks"'
 securityDefinitions:
   BearerAuth:
     in: header

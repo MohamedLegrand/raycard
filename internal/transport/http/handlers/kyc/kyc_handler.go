@@ -31,7 +31,7 @@ func NewKycHandler(kycUseCase inputkyc.KycUseCase, validate *validator.Validate)
 //
 //	@Summary		Inscription d'un nouvel utilisateur
 //	@Description	Crée un utilisateur et son wallet associé (KYC Tier 1 auto-validé selon les règles du pays)
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			inscription	body		kyc.InscriptionRequestDTO	true	"Données d'inscription"
@@ -63,7 +63,7 @@ func (h *KycHandler) Inscrire(c *fiber.Ctx) error {
 //
 //	@Summary		Demande de passage au Tier 2
 //	@Description	Crée un dossier KYC en attente de revue par un administrateur
-//	@Tags			kyc
+//	@Tags			"1. Client - KYC"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Success		201	{object}	kyc.DossierKycDTO
@@ -87,7 +87,7 @@ func (h *KycHandler) DemanderTier2(c *fiber.Ctx) error {
 //
 //	@Summary		Téléversement d'un document d'identité
 //	@Description	Stocke le document et en extrait le texte par OCR local (Tesseract) — une aide à la saisie pour l'administrateur qui traitera le dossier, jamais une décision automatique. Le dossier ciblé doit appartenir à l'utilisateur et être encore en attente. Formats acceptés : JPEG, PNG.
-//	@Tags			kyc
+//	@Tags			"1. Client - KYC"
 //	@Accept			multipart/form-data
 //	@Produce		json
 //	@Security		BearerAuth

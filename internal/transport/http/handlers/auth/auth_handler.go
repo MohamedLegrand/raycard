@@ -24,7 +24,7 @@ func NewAuthHandler(authUseCase authinput.AuthUseCase, validate *validator.Valid
 //
 //	@Summary		Connexion (étape 1/2)
 //	@Description	Vérifie email + mot de passe et déclenche la 2FA obligatoire : envoie un code par email et renvoie un ticket à présenter avec ce code sur /auth/connexion/verifier-code. Aucun token de session n'est émis ici.
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			connexion	body		auth.ConnexionRequestDTO	true	"Identifiants"
@@ -54,7 +54,7 @@ func (h *AuthHandler) Connexion(c *fiber.Ctx) error {
 //
 //	@Summary		Connexion (étape 2/2) — vérification du code
 //	@Description	Échange le ticket obtenu à l'étape 1 et le code reçu par email contre une session complète (access + refresh token). 5 tentatives maximum ; au-delà, le ticket est définitivement invalidé et une alerte de sécurité est envoyée. Une connexion réussie déclenche aussi une notification par email.
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			verification	body		auth.VerifierCode2FARequestDTO	true	"Ticket et code reçu par email"
@@ -86,7 +86,7 @@ func (h *AuthHandler) VerifierCode2FA(c *fiber.Ctx) error {
 //
 //	@Summary		Connexion via Google (étape 1/2)
 //	@Description	Vérifie l'ID token Google (crée le compte automatiquement s'il n'existe pas encore, ou lie ce compte Google à un compte existant de même email si Google confirme l'email vérifié), puis déclenche la 2FA obligatoire comme pour /auth/connexion : envoie un code par email et renvoie un ticket à présenter sur /auth/connexion/verifier-code.
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			connexion	body		auth.ConnexionGoogleRequestDTO	true	"ID token Google, téléphone et pays (utilisés seulement à la création)"
@@ -116,7 +116,7 @@ func (h *AuthHandler) ConnexionGoogle(c *fiber.Ctx) error {
 //
 //	@Summary		Rafraîchissement de session
 //	@Description	Échange un refresh token valide contre une nouvelle paire access/refresh token (rotation)
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			rafraichir	body		auth.RafraichirRequestDTO	true	"Refresh token"
@@ -146,7 +146,7 @@ func (h *AuthHandler) Rafraichir(c *fiber.Ctx) error {
 //
 //	@Summary		Déconnexion
 //	@Description	Révoque le refresh token fourni (déconnexion idempotente : ne renvoie pas d'erreur si déjà invalide)
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			deconnexion	body	auth.RafraichirRequestDTO	true	"Refresh token à révoquer"
@@ -174,7 +174,7 @@ func (h *AuthHandler) Deconnexion(c *fiber.Ctx) error {
 //
 //	@Summary		Demande de réinitialisation de mot de passe
 //	@Description	Envoie un code par email si un compte existe pour cet email. Répond toujours le même succès générique, que le compte existe ou non (évite l'énumération de comptes).
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			demande	body	auth.DemanderReinitialisationRequestDTO	true	"Email du compte"
@@ -202,7 +202,7 @@ func (h *AuthHandler) DemanderReinitialisation(c *fiber.Ctx) error {
 //
 //	@Summary		Réinitialisation du mot de passe
 //	@Description	Change le mot de passe si le code est valide et révoque toutes les sessions actives de l'utilisateur
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			reinitialisation	body	auth.ReinitialiserRequestDTO	true	"Code reçu par email et nouveau mot de passe"
@@ -232,7 +232,7 @@ func (h *AuthHandler) Reinitialiser(c *fiber.Ctx) error {
 //
 //	@Summary		Enregistrement d'un appareil pour la connexion par empreinte
 //	@Description	Associe la clé publique générée par l'appareil (après déverrouillage biométrique) à l'utilisateur authentifié. L'empreinte elle-même et la clé privée ne quittent jamais l'appareil.
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
@@ -266,7 +266,7 @@ func (h *AuthHandler) EnregistrerAppareil(c *fiber.Ctx) error {
 //
 //	@Summary		Révocation d'un appareil enregistré pour l'empreinte
 //	@Description	Invalide définitivement un appareil (perte, vol, ou l'utilisateur ne veut plus l'utiliser).
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path	string	true	"ID de l'appareil"
@@ -290,7 +290,7 @@ func (h *AuthHandler) RevoquerAppareil(c *fiber.Ctx) error {
 //
 //	@Summary		Demande d'un challenge pour la connexion par empreinte
 //	@Description	Émet un nonce à signer avec la clé privée de l'appareil désigné (déverrouillée par empreinte côté client).
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			demande	body		auth.DemanderChallengeEmpreinteRequestDTO	true	"Appareil concerné"
@@ -320,7 +320,7 @@ func (h *AuthHandler) DemanderChallengeEmpreinte(c *fiber.Ctx) error {
 //
 //	@Summary		Connexion par empreinte digitale
 //	@Description	Échange un challenge signé par la clé privée de l'appareil contre une session complète. Contrairement aux autres méthodes de connexion, aucun code par email n'est requis : l'appareil et l'empreinte qui l'a déverrouillé constituent déjà deux facteurs.
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			verification	body		auth.VerifierEmpreinteRequestDTO	true	"Challenge signé"

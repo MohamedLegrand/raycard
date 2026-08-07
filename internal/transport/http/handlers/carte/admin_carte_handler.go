@@ -22,7 +22,7 @@ func NewAdminCarteHandler(adminCarteUseCase inputcarte.AdminCarteUseCase) *Admin
 //
 //	@Summary		Liste des cartes (back-office)
 //	@Description	Retourne les cartes tous utilisateurs confondus, filtrables par utilisateur et par statut.
-//	@Tags			backoffice-carte
+//	@Tags			"2. Admin - Carte"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			utilisateur_id	query		string	false	"Filtre par utilisateur"
@@ -50,7 +50,7 @@ func (h *AdminCarteHandler) ListerCartes(c *fiber.Ctx) error {
 //
 //	@Summary		Gel d'une carte (back-office)
 //	@Description	Bloque n'importe quelle carte active, sans vérification de propriétaire. Tracé dans l'audit log.
-//	@Tags			backoffice-carte
+//	@Tags			"2. Admin - Carte"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID de la carte"
@@ -77,7 +77,7 @@ func (h *AdminCarteHandler) GelerCarte(c *fiber.Ctx) error {
 //
 //	@Summary		Dégel d'une carte (back-office)
 //	@Description	Réactive n'importe quelle carte gelée, sans vérification de propriétaire. Tracé dans l'audit log.
-//	@Tags			backoffice-carte
+//	@Tags			"2. Admin - Carte"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID de la carte"
@@ -104,7 +104,7 @@ func (h *AdminCarteHandler) DegelerCarte(c *fiber.Ctx) error {
 //
 //	@Summary		Annulation d'une carte (back-office)
 //	@Description	Détruit définitivement n'importe quelle carte active ou gelée et rembourse au wallet ce qu'il restait dessus. Tracé dans l'audit log.
-//	@Tags			backoffice-carte
+//	@Tags			"2. Admin - Carte"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID de la carte"

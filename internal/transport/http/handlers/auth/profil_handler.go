@@ -14,7 +14,7 @@ import (
 //
 //	@Summary		Modification du profil
 //	@Description	Met à jour le nom et le prénom de l'utilisateur authentifié.
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
@@ -48,7 +48,7 @@ func (h *AuthHandler) ModifierProfil(c *fiber.Ctx) error {
 //
 //	@Summary		Modification de la photo de profil
 //	@Description	Stocke la nouvelle photo de profil. Formats acceptés : JPEG, PNG.
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			multipart/form-data
 //	@Produce		json
 //	@Security		BearerAuth
@@ -91,7 +91,7 @@ func (h *AuthHandler) ModifierPhotoProfil(c *fiber.Ctx) error {
 //
 //	@Summary		Changement de mot de passe
 //	@Description	Change le mot de passe de l'utilisateur authentifié, après vérification du mot de passe actuel, et révoque toutes les autres sessions actives.
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
@@ -124,7 +124,7 @@ func (h *AuthHandler) ChangerMotDePasse(c *fiber.Ctx) error {
 //
 //	@Summary		Demande de changement d'email
 //	@Description	Envoie un code de confirmation au NOUVEL email. Le changement ne prend effet qu'après confirmation (voir /auth/profil/email/confirmer).
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
@@ -157,7 +157,7 @@ func (h *AuthHandler) DemanderChangementEmail(c *fiber.Ctx) error {
 //
 //	@Summary		Confirmation du changement d'email
 //	@Description	Applique le changement d'email si le code reçu au nouvel email est valide. Notifie l'ancienne adresse du changement.
-//	@Tags			auth
+//	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			confirmation	body		auth.ConfirmerChangementEmailRequestDTO	true	"Code reçu au nouvel email"

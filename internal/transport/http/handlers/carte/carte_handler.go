@@ -25,7 +25,7 @@ func NewCarteHandler(carteUseCase inputcarte.CarteUseCase, validate *validator.V
 //
 //	@Summary		Émission d'une carte virtuelle
 //	@Description	Débite immédiatement le solde disponible du wallet puis émet la carte auprès de l'agrégateur (Tier 2 KYC requis). Le PAN et le CVV ne sont jamais renvoyés ni stockés.
-//	@Tags			carte
+//	@Tags			"1. Client - Carte"
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
@@ -61,7 +61,7 @@ func (h *CarteHandler) CreerCarte(c *fiber.Ctx) error {
 //
 //	@Summary		Liste des cartes virtuelles
 //	@Description	Retourne les cartes virtuelles de l'utilisateur authentifié.
-//	@Tags			carte
+//	@Tags			"1. Client - Carte"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Success		200	{array}		carte.CarteDTO
@@ -83,7 +83,7 @@ func (h *CarteHandler) ListerCartes(c *fiber.Ctx) error {
 //
 //	@Summary		Détail d'une carte virtuelle
 //	@Description	Retourne une carte précise de l'utilisateur authentifié.
-//	@Tags			carte
+//	@Tags			"1. Client - Carte"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID de la carte"
@@ -108,7 +108,7 @@ func (h *CarteHandler) ObtenirCarte(c *fiber.Ctx) error {
 //
 //	@Summary		Gel d'une carte virtuelle
 //	@Description	Bloque une carte active : plus aucune dépense possible tant qu'elle n'est pas dégelée.
-//	@Tags			carte
+//	@Tags			"1. Client - Carte"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID de la carte"
@@ -134,7 +134,7 @@ func (h *CarteHandler) GelerCarte(c *fiber.Ctx) error {
 //
 //	@Summary		Annulation d'une carte virtuelle
 //	@Description	Détruit définitivement une carte active ou gelée et rembourse au wallet ce qu'il restait dessus.
-//	@Tags			carte
+//	@Tags			"1. Client - Carte"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID de la carte"
@@ -161,7 +161,7 @@ func (h *CarteHandler) AnnulerCarte(c *fiber.Ctx) error {
 //
 //	@Summary		Dégel d'une carte virtuelle
 //	@Description	Réactive une carte gelée.
-//	@Tags			carte
+//	@Tags			"1. Client - Carte"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID de la carte"
@@ -187,7 +187,7 @@ func (h *CarteHandler) DegelerCarte(c *fiber.Ctx) error {
 //
 //	@Summary		Recharge d'une carte virtuelle existante
 //	@Description	Débite immédiatement le solde disponible du wallet puis ajoute les fonds à une carte active existante.
-//	@Tags			carte
+//	@Tags			"1. Client - Carte"
 //	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
@@ -225,7 +225,7 @@ func (h *CarteHandler) RechargerCarte(c *fiber.Ctx) error {
 //
 //	@Summary		Dépenses détectées sur une carte
 //	@Description	Retourne les dépenses détectées par rapprochement périodique de solde — jamais en temps réel, faute de webhook de transaction carte côté agrégateur.
-//	@Tags			carte
+//	@Tags			"1. Client - Carte"
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			id	path		string	true	"ID de la carte"
