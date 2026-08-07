@@ -1,5 +1,73 @@
 basePath: /api/v1
 definitions:
+  admin.AuditLogDTO:
+    properties:
+      action:
+        example: carte_gelee_admin
+        type: string
+      admin_id:
+        example: 3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d
+        type: string
+      cible_id:
+        example: 7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e
+        type: string
+      cible_type:
+        example: carte
+        type: string
+      created_at:
+        example: "2026-08-05T18:30:00Z"
+        type: string
+      details_json:
+        example: '{"motif":"document illisible"}'
+        type: string
+      id:
+        example: 9c1a2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d
+        type: string
+    type: object
+  admin.UtilisateurDTO:
+    properties:
+      created_at:
+        example: "2026-08-05T18:30:00Z"
+        type: string
+      email:
+        example: awa.kone@example.com
+        type: string
+      id:
+        example: 3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d
+        type: string
+      kyc_statut:
+        example: verifie
+        type: string
+      kyc_tier:
+        example: 1
+        type: integer
+      nom:
+        example: Koné
+        type: string
+      pays_code:
+        example: CI
+        type: string
+      prenom:
+        example: Awa
+        type: string
+      role:
+        example: utilisateur
+        type: string
+      telephone:
+        example: "+2250700000000"
+        type: string
+    type: object
+  admin.UtilisateurDetailDTO:
+    properties:
+      cartes:
+        items:
+          $ref: '#/definitions/carte.CarteDTO'
+        type: array
+      utilisateur:
+        $ref: '#/definitions/admin.UtilisateurDTO'
+      wallet:
+        $ref: '#/definitions/wallet.WalletDTO'
+    type: object
   auth.AppareilResponseDTO:
     properties:
       created_at:
@@ -1095,6 +1163,218 @@ paths:
       summary: Réinitialisation du mot de passe
       tags:
       - auth
+  /backoffice/audit-logs:
+    get:
+      description: Retourne les actions administrateur sensibles, filtrables par administrateur,
+        type de cible et cible.
+      parameters:
+      - description: Filtre par administrateur
+        in: query
+        name: admin_id
+        type: string
+      - description: Filtre par type de cible (utilisateur, wallet, carte)
+        in: query
+        name: cible_type
+        type: string
+      - description: Filtre par cible
+        in: query
+        name: cible_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/admin.AuditLogDTO'
+            type: array
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Historique d'audit (back-office)
+      tags:
+      - backoffice-utilisateurs
+  /backoffice/cartes:
+    get:
+      description: Retourne les cartes tous utilisateurs confondus, filtrables par
+        utilisateur et par statut.
+      parameters:
+      - description: Filtre par utilisateur
+        in: query
+        name: utilisateur_id
+        type: string
+      - description: Filtre par statut (active, gelee, annulee)
+        in: query
+        name: statut
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/carte.CarteDTO'
+            type: array
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Liste des cartes (back-office)
+      tags:
+      - backoffice-carte
+  /backoffice/cartes/{id}/annuler:
+    post:
+      description: Détruit définitivement n'importe quelle carte active ou gelée et
+        rembourse au wallet ce qu'il restait dessus. Tracé dans l'audit log.
+      parameters:
+      - description: ID de la carte
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CarteDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: carte ou wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: une opération wallet est déjà en cours
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: carte déjà annulée, ou wallet gelé
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Annulation d'une carte (back-office)
+      tags:
+      - backoffice-carte
+  /backoffice/cartes/{id}/degel:
+    post:
+      description: Réactive n'importe quelle carte gelée, sans vérification de propriétaire.
+        Tracé dans l'audit log.
+      parameters:
+      - description: ID de la carte
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CarteDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: carte introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: la carte n'est pas gelée
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Dégel d'une carte (back-office)
+      tags:
+      - backoffice-carte
+  /backoffice/cartes/{id}/gel:
+    post:
+      description: Bloque n'importe quelle carte active, sans vérification de propriétaire.
+        Tracé dans l'audit log.
+      parameters:
+      - description: ID de la carte
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CarteDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: carte introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: la carte n'est pas active
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Gel d'une carte (back-office)
+      tags:
+      - backoffice-carte
   /backoffice/kyc/documents/{id}:
     get:
       description: 'Renvoie le contenu brut de l''image (jamais seulement le texte
@@ -1291,6 +1571,204 @@ paths:
       summary: Rejette un dossier KYC
       tags:
       - backoffice-kyc
+  /backoffice/transactions:
+    get:
+      description: Retourne les transactions tous wallets confondus, filtrables par
+        utilisateur, statut et type.
+      parameters:
+      - description: Filtre par utilisateur
+        in: query
+        name: utilisateur_id
+        type: string
+      - description: Filtre par statut (en_attente, envoyee, succes, echouee)
+        in: query
+        name: statut
+        type: string
+      - description: Filtre par type (recharge, retrait, financement_carte, annulation_carte)
+        in: query
+        name: type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/wallet.TransactionDTO'
+            type: array
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Liste des transactions (back-office)
+      tags:
+      - backoffice-wallet
+  /backoffice/utilisateurs:
+    get:
+      description: Retourne les utilisateurs, filtrables par recherche partielle sur
+        l'email ou le téléphone.
+      parameters:
+      - description: Recherche (email ou téléphone)
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/admin.UtilisateurDTO'
+            type: array
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Liste des utilisateurs (back-office)
+      tags:
+      - backoffice-utilisateurs
+  /backoffice/utilisateurs/{id}:
+    get:
+      description: Retourne le profil, le wallet et les cartes d'un utilisateur.
+      parameters:
+      - description: ID de l'utilisateur
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/admin.UtilisateurDetailDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: utilisateur introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Fiche complète d'un utilisateur (back-office)
+      tags:
+      - backoffice-utilisateurs
+  /backoffice/wallets/{id}/degel:
+    post:
+      description: Réactive n'importe quel wallet gelé. Tracé dans l'audit log.
+      parameters:
+      - description: ID du wallet
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/wallet.WalletDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: le wallet n'est pas gelé
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Dégel d'un wallet (back-office)
+      tags:
+      - backoffice-wallet
+  /backoffice/wallets/{id}/gel:
+    post:
+      description: 'Bloque n''importe quel wallet actif : plus aucun débit ni crédit
+        possible. Tracé dans l''audit log.'
+      parameters:
+      - description: ID du wallet
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/wallet.WalletDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: le wallet n'est pas actif
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Gel d'un wallet (back-office)
+      tags:
+      - backoffice-wallet
   /cartes:
     get:
       description: Retourne les cartes virtuelles de l'utilisateur authentifié.

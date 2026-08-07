@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"raycard/internal/core/domain/carte"
+	outputcarte "raycard/internal/core/ports/output/carte"
 	"raycard/internal/infrastructure/database/postgres/commun"
 )
 
@@ -66,6 +68,29 @@ func (r *CarteRepository) ListAVerifier(ctx context.Context, avant time.Time) ([
 		FROM cartes WHERE statut = 'active' AND prochaine_verification_at <= $1`
 
 	return r.listBy(ctx, query, avant)
+}
+
+func (r *CarteRepository) ListToutes(ctx context.Context, filtre outputcarte.FiltreCartes) ([]*carte.Carte, error) {
+	query := `
+		SELECT id, utilisateur_id, wallet_id, id_externe, label, devise, montant_charge_centimes, solde_centimes, prochaine_verification_at, niveau_verification, statut, created_at, updated_at
+		FROM cartes`
+
+	var conditions []string
+	var args []any
+	if filtre.UtilisateurID != "" {
+		args = append(args, filtre.UtilisateurID)
+		conditions = append(conditions, fmt.Sprintf("utilisateur_id = $%d", len(args)))
+	}
+	if filtre.Statut != "" {
+		args = append(args, filtre.Statut)
+		conditions = append(conditions, fmt.Sprintf("statut = $%d", len(args)))
+	}
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY created_at DESC"
+
+	return r.listBy(ctx, query, args...)
 }
 
 func (r *CarteRepository) listBy(ctx context.Context, query string, args ...any) ([]*carte.Carte, error) {

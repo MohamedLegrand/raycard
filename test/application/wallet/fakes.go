@@ -78,6 +78,26 @@ func (r *TransactionRepoFake) ListByWalletID(_ context.Context, walletID string)
 	return resultat, nil
 }
 
+func (r *TransactionRepoFake) ListToutes(_ context.Context, filtre outputwallet.FiltreTransactions) ([]*domainwallet.Transaction, error) {
+	var resultat []*domainwallet.Transaction
+	for _, t := range r.parID {
+		if filtre.UtilisateurID != "" && t.UtilisateurID != filtre.UtilisateurID {
+			continue
+		}
+		if filtre.Statut != "" && string(t.Statut) != filtre.Statut {
+			continue
+		}
+		if filtre.Type != "" && string(t.Type) != filtre.Type {
+			continue
+		}
+		resultat = append(resultat, t)
+	}
+	sort.Slice(resultat, func(i, j int) bool {
+		return resultat[i].CreatedAt.After(resultat[j].CreatedAt)
+	})
+	return resultat, nil
+}
+
 func (r *TransactionRepoFake) Update(_ context.Context, t *domainwallet.Transaction) error {
 	if _, ok := r.parID[t.ID]; !ok {
 		return domainwallet.ErrTransactionIntrouvable

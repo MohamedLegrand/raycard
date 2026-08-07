@@ -53,6 +53,20 @@ func (r *CarteRepoFake) ListAVerifier(_ context.Context, avant time.Time) ([]*do
 	return cartes, nil
 }
 
+func (r *CarteRepoFake) ListToutes(_ context.Context, filtre outputcarte.FiltreCartes) ([]*domaincarte.Carte, error) {
+	var cartes []*domaincarte.Carte
+	for _, c := range r.parID {
+		if filtre.UtilisateurID != "" && c.UtilisateurID != filtre.UtilisateurID {
+			continue
+		}
+		if filtre.Statut != "" && string(c.Statut) != filtre.Statut {
+			continue
+		}
+		cartes = append(cartes, c)
+	}
+	return cartes, nil
+}
+
 func (r *CarteRepoFake) Update(_ context.Context, c *domaincarte.Carte) error {
 	if _, ok := r.parID[c.ID]; !ok {
 		return domaincarte.ErrCarteIntrouvable

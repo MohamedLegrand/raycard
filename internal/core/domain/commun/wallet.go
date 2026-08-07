@@ -115,6 +115,28 @@ func (w *Wallet) BasculerEnAttenteVersDisponible(montantCentimes int64) error {
 	return nil
 }
 
+// Geler bloque le wallet à la demande d'un administrateur (voir
+// middleware.RequireAdmin) : plus aucun débit ni crédit possible tant
+// qu'il n'est pas dégelé. Ne s'applique qu'à un wallet actif.
+func (w *Wallet) Geler(maintenant time.Time) error {
+	if w.Statut != StatutWalletActif {
+		return ErrTransitionWalletInvalide
+	}
+	w.Statut = StatutWalletGele
+	w.UpdatedAt = maintenant
+	return nil
+}
+
+// Degeler réactive un wallet gelé.
+func (w *Wallet) Degeler(maintenant time.Time) error {
+	if w.Statut != StatutWalletGele {
+		return ErrTransitionWalletInvalide
+	}
+	w.Statut = StatutWalletActif
+	w.UpdatedAt = maintenant
+	return nil
+}
+
 // Debiter diminue le solde disponible du wallet. Le solde en attente
 // n'est jamais utilisable pour un débit.
 func (w *Wallet) Debiter(montantCentimes int64) error {

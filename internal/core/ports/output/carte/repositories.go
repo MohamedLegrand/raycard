@@ -26,6 +26,17 @@ type CarteRepository interface {
 	// dont l'intervalle de vérification n'est pas encore écoulé : c'est ce
 	// qui rend le sondage adaptatif plutôt que systématique.
 	ListAVerifier(ctx context.Context, avant time.Time) ([]*carte.Carte, error)
+
+	// ListToutes liste les cartes tous utilisateurs confondus, pour le
+	// back-office (voir ListByUtilisateurID pour l'équivalent client).
+	ListToutes(ctx context.Context, filtre FiltreCartes) ([]*carte.Carte, error)
+}
+
+// FiltreCartes restreint le listing back-office des cartes ; un champ
+// vide ne filtre pas dessus.
+type FiltreCartes struct {
+	UtilisateurID string
+	Statut        string
 }
 
 // DepenseCarteRepository persiste les dépenses détectées par

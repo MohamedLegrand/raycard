@@ -73,7 +73,7 @@ type authService struct {
 	verrousConnexion       authoutput.VerrouConnexionRepository
 	stockage               commonoutput.StockageFichier
 	tokenGenerator         authoutput.TokenGenerator
-	notifieur              authoutput.Notifieur
+	notifieur              commonoutput.Notifieur
 	googleAuthProvider     authoutput.GoogleAuthProvider
 	txManager              commonoutput.TxManager
 }
@@ -92,7 +92,7 @@ func NewAuthService(
 	verrousConnexion authoutput.VerrouConnexionRepository,
 	stockage commonoutput.StockageFichier,
 	tokenGenerator authoutput.TokenGenerator,
-	notifieur authoutput.Notifieur,
+	notifieur commonoutput.Notifieur,
 	googleAuthProvider authoutput.GoogleAuthProvider,
 	txManager commonoutput.TxManager,
 ) authinput.AuthUseCase {

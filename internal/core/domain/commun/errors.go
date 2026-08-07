@@ -20,9 +20,10 @@ var (
 	ErrDonneesInvalides       = errors.New("données invalides")
 
 	// Wallet
-	ErrWalletIntrouvable = errors.New("wallet introuvable")
-	ErrSoldeInsuffisant  = errors.New("solde insuffisant")
-	ErrWalletGele        = errors.New("wallet gelé")
-	ErrMontantInvalide   = errors.New("montant invalide")
-	ErrPlafondDepasse    = errors.New("plafond du wallet dépassé")
+	ErrWalletIntrouvable        = errors.New("wallet introuvable")
+	ErrSoldeInsuffisant         = errors.New("solde insuffisant")
+	ErrWalletGele               = errors.New("wallet gelé")
+	ErrMontantInvalide          = errors.New("montant invalide")
+	ErrPlafondDepasse           = errors.New("plafond du wallet dépassé")
+	ErrTransitionWalletInvalide = errors.New("transition de statut de wallet invalide")
 )

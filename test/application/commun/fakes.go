@@ -8,8 +8,11 @@ package commun
 
 import (
 	"context"
+	"sort"
+	"strings"
 
 	domaincommun "raycard/internal/core/domain/commun"
+	outputcommun "raycard/internal/core/ports/output/commun"
 )
 
 type UtilisateurRepoFake struct {
@@ -102,6 +105,20 @@ func (r *UtilisateurRepoFake) UpdateEmail(_ context.Context, u *domaincommun.Uti
 	return nil
 }
 
+func (r *UtilisateurRepoFake) ListAll(_ context.Context, filtre outputcommun.FiltreUtilisateurs) ([]*domaincommun.Utilisateur, error) {
+	var resultat []*domaincommun.Utilisateur
+	for _, u := range r.parEmail {
+		if filtre.Recherche != "" &&
+			!strings.Contains(strings.ToLower(u.Email), strings.ToLower(filtre.Recherche)) &&
+			!strings.Contains(u.Telephone, filtre.Recherche) {
+			continue
+		}
+		resultat = append(resultat, u)
+	}
+	sort.Slice(resultat, func(i, j int) bool { return resultat[i].CreatedAt.After(resultat[j].CreatedAt) })
+	return resultat, nil
+}
+
 type WalletRepoFake struct {
 	parUtilisateurID map[string]*domaincommun.Wallet
 }
@@ -175,4 +192,50 @@ type TxManagerFake struct{}
 
 func (TxManagerFake) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	return fn(ctx)
+}
+
+// EmailEnvoye trace un appel à NotifieurFake.EnvoyerEmail, pour que les
+// tests puissent vérifier qu'une notification a bien (ou n'a pas) été
+// déclenchée, sans jamais toucher un vrai fournisseur d'email.
+type EmailEnvoye struct {
+	Destinataire, Sujet, Corps string
+}
+
+type NotifieurFake struct {
+	EmailsEnvoyes []EmailEnvoye
+}
+
+func (n *NotifieurFake) EnvoyerEmail(_ context.Context, destinataire, sujet, corpsHTML string) error {
+	n.EmailsEnvoyes = append(n.EmailsEnvoyes, EmailEnvoye{destinataire, sujet, corpsHTML})
+	return nil
+}
+
+// AuditLogRepoFake trace les entrées d'audit écrites par les services
+// back-office (KYC, wallet, carte, admin), pour que les tests puissent
+// vérifier qu'une action sensible a bien été tracée.
+type AuditLogRepoFake struct {
+	Entrees []*domaincommun.AuditLog
+}
+
+func (r *AuditLogRepoFake) Create(_ context.Context, entry *domaincommun.AuditLog) error {
+	r.Entrees = append(r.Entrees, entry)
+	return nil
+}
+
+func (r *AuditLogRepoFake) List(_ context.Context, filtre outputcommun.FiltreAuditLog) ([]*domaincommun.AuditLog, error) {
+	var resultat []*domaincommun.AuditLog
+	for _, e := range r.Entrees {
+		if filtre.AdminID != "" && e.AdminID != filtre.AdminID {
+			continue
+		}
+		if filtre.CibleType != "" && e.CibleType != filtre.CibleType {
+			continue
+		}
+		if filtre.CibleID != "" && e.CibleID != filtre.CibleID {
+			continue
+		}
+		resultat = append(resultat, e)
+	}
+	sort.Slice(resultat, func(i, j int) bool { return resultat[i].CreatedAt.After(resultat[j].CreatedAt) })
+	return resultat, nil
 }

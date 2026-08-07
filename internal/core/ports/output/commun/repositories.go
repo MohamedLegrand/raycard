@@ -30,6 +30,17 @@ type UtilisateurRepository interface {
 
 	// UpdateEmail change l'adresse email, une fois sa propriété vérifiée.
 	UpdateEmail(ctx context.Context, u *commun.Utilisateur) error
+
+	// ListAll liste les utilisateurs, pour le back-office — jamais utilisé
+	// par un flux client. Les plus récents d'abord.
+	ListAll(ctx context.Context, filtre FiltreUtilisateurs) ([]*commun.Utilisateur, error)
+}
+
+// FiltreUtilisateurs restreint le listing back-office des utilisateurs ;
+// un champ vide ne filtre pas dessus. Recherche s'applique par
+// correspondance partielle sur l'email ou le téléphone.
+type FiltreUtilisateurs struct {
+	Recherche string
 }
 
 // WalletRepository persiste les wallets. V1 : un wallet par utilisateur.
@@ -50,6 +61,18 @@ type ReglesKycRepository interface {
 // sensibles, séparément des logs applicatifs.
 type AuditLogRepository interface {
 	Create(ctx context.Context, entry *commun.AuditLog) error
+
+	// List consulte l'historique d'audit, pour le back-office. Les plus
+	// récentes d'abord.
+	List(ctx context.Context, filtre FiltreAuditLog) ([]*commun.AuditLog, error)
+}
+
+// FiltreAuditLog restreint le listing des entrées d'audit ; un champ
+// vide ne filtre pas dessus.
+type FiltreAuditLog struct {
+	AdminID   string
+	CibleType string
+	CibleID   string
 }
 
 // StockageFichier persiste le contenu brut d'un fichier téléversé (ex:

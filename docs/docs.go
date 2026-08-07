@@ -918,6 +918,330 @@ const docTemplate = `{
                 }
             }
         },
+        "/backoffice/audit-logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne les actions administrateur sensibles, filtrables par administrateur, type de cible et cible.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-utilisateurs"
+                ],
+                "summary": "Historique d'audit (back-office)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filtre par administrateur",
+                        "name": "admin_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtre par type de cible (utilisateur, wallet, carte)",
+                        "name": "cible_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtre par cible",
+                        "name": "cible_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/admin.AuditLogDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/cartes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne les cartes tous utilisateurs confondus, filtrables par utilisateur et par statut.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-carte"
+                ],
+                "summary": "Liste des cartes (back-office)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filtre par utilisateur",
+                        "name": "utilisateur_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtre par statut (active, gelee, annulee)",
+                        "name": "statut",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/carte.CarteDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/cartes/{id}/annuler": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Détruit définitivement n'importe quelle carte active ou gelée et rembourse au wallet ce qu'il restait dessus. Tracé dans l'audit log.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-carte"
+                ],
+                "summary": "Annulation d'une carte (back-office)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la carte",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CarteDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "carte ou wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "une opération wallet est déjà en cours",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "carte déjà annulée, ou wallet gelé",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/cartes/{id}/degel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Réactive n'importe quelle carte gelée, sans vérification de propriétaire. Tracé dans l'audit log.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-carte"
+                ],
+                "summary": "Dégel d'une carte (back-office)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la carte",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CarteDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "carte introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "la carte n'est pas gelée",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/cartes/{id}/gel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Bloque n'importe quelle carte active, sans vérification de propriétaire. Tracé dans l'audit log.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-carte"
+                ],
+                "summary": "Gel d'une carte (back-office)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la carte",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CarteDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "carte introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "la carte n'est pas active",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/backoffice/kyc/documents/{id}": {
             "get": {
                 "security": [
@@ -1204,6 +1528,312 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "dossier déjà traité",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/transactions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne les transactions tous wallets confondus, filtrables par utilisateur, statut et type.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-wallet"
+                ],
+                "summary": "Liste des transactions (back-office)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filtre par utilisateur",
+                        "name": "utilisateur_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtre par statut (en_attente, envoyee, succes, echouee)",
+                        "name": "statut",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtre par type (recharge, retrait, financement_carte, annulation_carte)",
+                        "name": "type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/wallet.TransactionDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/utilisateurs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne les utilisateurs, filtrables par recherche partielle sur l'email ou le téléphone.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-utilisateurs"
+                ],
+                "summary": "Liste des utilisateurs (back-office)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Recherche (email ou téléphone)",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/admin.UtilisateurDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/utilisateurs/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne le profil, le wallet et les cartes d'un utilisateur.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-utilisateurs"
+                ],
+                "summary": "Fiche complète d'un utilisateur (back-office)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de l'utilisateur",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/admin.UtilisateurDetailDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "utilisateur introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/wallets/{id}/degel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Réactive n'importe quel wallet gelé. Tracé dans l'audit log.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-wallet"
+                ],
+                "summary": "Dégel d'un wallet (back-office)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID du wallet",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/wallet.WalletDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "le wallet n'est pas gelé",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/wallets/{id}/gel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Bloque n'importe quel wallet actif : plus aucun débit ni crédit possible. Tracé dans l'audit log.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "backoffice-wallet"
+                ],
+                "summary": "Gel d'un wallet (back-office)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID du wallet",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/wallet.WalletDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "le wallet n'est pas actif",
                         "schema": {
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
@@ -2117,6 +2747,101 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "admin.AuditLogDTO": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "example": "carte_gelee_admin"
+                },
+                "admin_id": {
+                    "type": "string",
+                    "example": "3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d"
+                },
+                "cible_id": {
+                    "type": "string",
+                    "example": "7b8c9d0e-1f2a-4b3c-9d4e-5f6a7b8c9d0e"
+                },
+                "cible_type": {
+                    "type": "string",
+                    "example": "carte"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-08-05T18:30:00Z"
+                },
+                "details_json": {
+                    "type": "string",
+                    "example": "{\"motif\":\"document illisible\"}"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "9c1a2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d"
+                }
+            }
+        },
+        "admin.UtilisateurDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-08-05T18:30:00Z"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "awa.kone@example.com"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "3fa2c1e4-9b5d-4a2e-8c1a-0e2f6a7b8c9d"
+                },
+                "kyc_statut": {
+                    "type": "string",
+                    "example": "verifie"
+                },
+                "kyc_tier": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "nom": {
+                    "type": "string",
+                    "example": "Koné"
+                },
+                "pays_code": {
+                    "type": "string",
+                    "example": "CI"
+                },
+                "prenom": {
+                    "type": "string",
+                    "example": "Awa"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "utilisateur"
+                },
+                "telephone": {
+                    "type": "string",
+                    "example": "+2250700000000"
+                }
+            }
+        },
+        "admin.UtilisateurDetailDTO": {
+            "type": "object",
+            "properties": {
+                "cartes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/carte.CarteDTO"
+                    }
+                },
+                "utilisateur": {
+                    "$ref": "#/definitions/admin.UtilisateurDTO"
+                },
+                "wallet": {
+                    "$ref": "#/definitions/wallet.WalletDTO"
+                }
+            }
+        },
         "auth.AppareilResponseDTO": {
             "type": "object",
             "properties": {

@@ -35,6 +35,18 @@ type TransactionRepository interface {
 	// wallet (recharge, retrait, financement de carte...), les plus
 	// récentes d'abord.
 	ListByWalletID(ctx context.Context, walletID string) ([]*wallet.Transaction, error)
+
+	// ListToutes liste les transactions tous wallets confondus, pour le
+	// back-office (voir ListByWalletID pour l'équivalent client).
+	ListToutes(ctx context.Context, filtre FiltreTransactions) ([]*wallet.Transaction, error)
+}
+
+// FiltreTransactions restreint le listing back-office des transactions ;
+// un champ vide ne filtre pas dessus.
+type FiltreTransactions struct {
+	UtilisateurID string
+	Statut        string
+	Type          string
 }
 
 // InitierCashInParams décrit une demande de collecte Mobile Money.

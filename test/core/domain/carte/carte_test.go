@@ -213,6 +213,8 @@ func TestNouvelleDepenseCarte(t *testing.T) {
 	assert.NotEmpty(t, d.ID)
 	assert.Equal(t, "carte-1", d.CarteID)
 	assert.Equal(t, int64(3000), d.MontantCentimes)
+	// 3000 * 0,02% = 0,6, arrondi à 1 centime.
+	assert.Equal(t, int64(1), d.CashbackCentimes)
 
 	t.Run("carte id manquant", func(t *testing.T) {
 		_, err := carte.NouvelleDepenseCarte("", 3000, 10000, 7000)
@@ -222,5 +224,11 @@ func TestNouvelleDepenseCarte(t *testing.T) {
 	t.Run("montant invalide", func(t *testing.T) {
 		_, err := carte.NouvelleDepenseCarte("carte-1", 0, 10000, 10000)
 		assert.ErrorIs(t, err, commun.ErrMontantInvalide)
+	})
+
+	t.Run("cashback arrondi à zéro sur un très petit montant", func(t *testing.T) {
+		d, err := carte.NouvelleDepenseCarte("carte-1", 1, 10000, 9999)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), d.CashbackCentimes)
 	})
 }

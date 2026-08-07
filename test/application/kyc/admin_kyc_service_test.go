@@ -14,20 +14,11 @@ import (
 	testcommun "raycard/test/application/commun"
 )
 
-type auditLogRepoFake struct {
-	entrees []*commun.AuditLog
-}
-
-func (r *auditLogRepoFake) Create(_ context.Context, entry *commun.AuditLog) error {
-	r.entrees = append(r.entrees, entry)
-	return nil
-}
-
-func setupAdminKycService() (inputkyc.AdminKycUseCase, *testcommun.UtilisateurRepoFake, *dossierKycRepoFake, *documentKycRepoFake, *auditLogRepoFake) {
+func setupAdminKycService() (inputkyc.AdminKycUseCase, *testcommun.UtilisateurRepoFake, *dossierKycRepoFake, *documentKycRepoFake, *testcommun.AuditLogRepoFake) {
 	utilisateurs := testcommun.NewUtilisateurRepoFake()
 	dossiers := nouveauDossierKycRepoFake()
 	documents := nouveauDocumentKycRepoFake()
-	auditLog := &auditLogRepoFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	service := appkyc.NewAdminKycService(utilisateurs, dossiers, documents, testcommun.StockageFichierFake{}, auditLog, testcommun.TxManagerFake{})
 	return service, utilisateurs, dossiers, documents, auditLog
 }
@@ -72,9 +63,9 @@ func TestAdminKycService_ApprouverDossier(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, kyc.StatutDossierApprouve, dossierMaj.Statut)
 
-	require.Len(t, auditLog.entrees, 1)
-	assert.Equal(t, "admin-1", auditLog.entrees[0].AdminID)
-	assert.Equal(t, "kyc_tier2_approuve", auditLog.entrees[0].Action)
+	require.Len(t, auditLog.Entrees, 1)
+	assert.Equal(t, "admin-1", auditLog.Entrees[0].AdminID)
+	assert.Equal(t, "kyc_tier2_approuve", auditLog.Entrees[0].Action)
 }
 
 func TestAdminKycService_RejeterDossier(t *testing.T) {
@@ -92,8 +83,8 @@ func TestAdminKycService_RejeterDossier(t *testing.T) {
 	assert.Equal(t, kyc.StatutDossierRejete, dossierMaj.Statut)
 	assert.Equal(t, "pièce illisible", dossierMaj.MotifRejet)
 
-	require.Len(t, auditLog.entrees, 1)
-	assert.Equal(t, "kyc_tier2_rejete", auditLog.entrees[0].Action)
+	require.Len(t, auditLog.Entrees, 1)
+	assert.Equal(t, "kyc_tier2_rejete", auditLog.Entrees[0].Action)
 }
 
 func TestAdminKycService_ApprouverDossier_Introuvable(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"raycard/internal/core/domain/commun"
+	outputcommun "raycard/internal/core/ports/output/commun"
 )
 
 type UtilisateurRepository struct {
@@ -142,6 +143,45 @@ func (r *UtilisateurRepository) LierGoogleID(ctx context.Context, u *commun.Util
 		return commun.ErrUtilisateurIntrouvable
 	}
 	return nil
+}
+
+func (r *UtilisateurRepository) ListAll(ctx context.Context, filtre outputcommun.FiltreUtilisateurs) ([]*commun.Utilisateur, error) {
+	query := `
+		SELECT id, nom, prenom, email, telephone, pays_code, mot_de_passe_hash, google_id, photo_profil, role, kyc_tier, kyc_statut, created_at, updated_at
+		FROM utilisateurs`
+
+	var args []any
+	if filtre.Recherche != "" {
+		args = append(args, "%"+filtre.Recherche+"%")
+		query += " WHERE email ILIKE $1 OR telephone ILIKE $1"
+	}
+	query += " ORDER BY created_at DESC"
+
+	rows, err := DbFromContext(ctx, r.pool).Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("liste utilisateurs: %w", err)
+	}
+	defer rows.Close()
+
+	var utilisateurs []*commun.Utilisateur
+	for rows.Next() {
+		var u commun.Utilisateur
+		var motDePasseHash, googleID, photoProfil *string
+		if err := rows.Scan(
+			&u.ID, &u.Nom, &u.Prenom, &u.Email, &u.Telephone, &u.PaysCode, &motDePasseHash, &googleID, &photoProfil, &u.Role,
+			&u.KycTier, &u.KycStatut, &u.CreatedAt, &u.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("lecture utilisateur: %w", err)
+		}
+		u.MotDePasseHash = videSiNil(motDePasseHash)
+		u.GoogleID = videSiNil(googleID)
+		u.PhotoProfil = videSiNil(photoProfil)
+		utilisateurs = append(utilisateurs, &u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("liste utilisateurs: %w", err)
+	}
+	return utilisateurs, nil
 }
 
 // aNilSiVide/videSiNil font le pont entre le domaine (chaîne vide =

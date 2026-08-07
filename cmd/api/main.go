@@ -12,10 +12,13 @@ import (
 	"github.com/rs/zerolog"
 
 	_ "raycard/docs" // docs générés par `swag init`, nécessaires pour servir la spec Swagger
+	appadmin "raycard/internal/application/admin"
 	appauth "raycard/internal/application/auth"
 	appcarte "raycard/internal/application/carte"
 	appkyc "raycard/internal/application/kyc"
 	appwallet "raycard/internal/application/wallet"
+	inputcarte "raycard/internal/core/ports/input/carte"
+	inputwallet "raycard/internal/core/ports/input/wallet"
 	"raycard/internal/infrastructure/auth/google"
 	"raycard/internal/infrastructure/auth/jwt"
 	"raycard/internal/infrastructure/config"
@@ -29,6 +32,7 @@ import (
 	"raycard/internal/infrastructure/paiement/hrpay"
 	"raycard/internal/infrastructure/storage/local"
 	apihttp "raycard/internal/transport/http"
+	handlersadmin "raycard/internal/transport/http/handlers/admin"
 	handlersauth "raycard/internal/transport/http/handlers/auth"
 	handlerscarte "raycard/internal/transport/http/handlers/carte"
 	handlerskyc "raycard/internal/transport/http/handlers/kyc"
@@ -116,8 +120,16 @@ func main() {
 		tokenGenerator, notifieur, googleAuthProvider, txManager,
 	)
 	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, documentKycRepo, stockageFichiers, auditLogRepo, txManager)
-	walletUseCase := appwallet.NewWalletService(walletRepo, transactionWalletRepo, agregateurPaiement, txManager)
-	carteUseCase := appcarte.NewCarteService(utilisateurRepo, walletRepo, transactionWalletRepo, carteRepo, depenseCarteRepo, agregateurPaiement, txManager)
+	walletUseCase := appwallet.NewWalletService(utilisateurRepo, walletRepo, transactionWalletRepo, agregateurPaiement, notifieur, auditLogRepo, txManager)
+	carteUseCase := appcarte.NewCarteService(utilisateurRepo, walletRepo, transactionWalletRepo, carteRepo, depenseCarteRepo, agregateurPaiement, notifieur, auditLogRepo, txManager)
+	adminUseCase := appadmin.NewAdminService(utilisateurRepo, walletRepo, carteRepo, auditLogRepo)
+
+	// walletUseCase et carteUseCase implémentent chacun deux interfaces
+	// (client et back-office, voir walletService/carteService) : leur type
+	// statique ne porte que l'interface client, d'où cette assertion pour
+	// récupérer le second visage back-office du même service.
+	adminWalletUseCase := walletUseCase.(inputwallet.AdminWalletUseCase)
+	adminCarteUseCase := carteUseCase.(inputcarte.AdminCarteUseCase)
 
 	// Transport HTTP
 	validate := validator.New()
@@ -126,6 +138,9 @@ func main() {
 	adminKycHandler := handlerskyc.NewAdminKycHandler(adminKycUseCase, validate)
 	walletHandler := handlerswallet.NewWalletHandler(walletUseCase, validate)
 	carteHandler := handlerscarte.NewCarteHandler(carteUseCase, validate)
+	adminHandler := handlersadmin.NewAdminHandler(adminUseCase)
+	adminWalletHandler := handlerswallet.NewAdminWalletHandler(adminWalletUseCase)
+	adminCarteHandler := handlerscarte.NewAdminCarteHandler(adminCarteUseCase)
 
 	app := fiber.New(fiber.Config{
 		BodyLimit: tailleMaxCorpsRequete,
@@ -139,7 +154,10 @@ func main() {
 	})
 	app.Use(middleware.Logger(logger))
 
-	apihttp.SetupRoutes(app, apihttp.Handlers{Kyc: kycHandler, Auth: authHandler, AdminKyc: adminKycHandler, Wallet: walletHandler, Carte: carteHandler}, tokenGenerator)
+	apihttp.SetupRoutes(app, apihttp.Handlers{
+		Kyc: kycHandler, Auth: authHandler, AdminKyc: adminKycHandler, Wallet: walletHandler, Carte: carteHandler,
+		Admin: adminHandler, AdminWallet: adminWalletHandler, AdminCarte: adminCarteHandler,
+	}, tokenGenerator)
 
 	go func() {
 		if err := app.Listen(":" + cfg.Port); err != nil {

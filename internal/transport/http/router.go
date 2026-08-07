@@ -11,6 +11,7 @@ import (
 	"github.com/gofiber/swagger"
 
 	authoutput "raycard/internal/core/ports/output/auth"
+	handlersadmin "raycard/internal/transport/http/handlers/admin"
 	handlersauth "raycard/internal/transport/http/handlers/auth"
 	handlerscarte "raycard/internal/transport/http/handlers/carte"
 	handlerskyc "raycard/internal/transport/http/handlers/kyc"
@@ -31,11 +32,14 @@ var limiteurConnexion = limiter.New(limiter.Config{
 // Handlers regroupe tous les handlers HTTP câblés par main.go. Un
 // champ est ajouté ici à chaque nouveau module (wallet, cartes...).
 type Handlers struct {
-	Kyc      *handlerskyc.KycHandler
-	Auth     *handlersauth.AuthHandler
-	AdminKyc *handlerskyc.AdminKycHandler
-	Wallet   *handlerswallet.WalletHandler
-	Carte    *handlerscarte.CarteHandler
+	Kyc         *handlerskyc.KycHandler
+	Auth        *handlersauth.AuthHandler
+	AdminKyc    *handlerskyc.AdminKycHandler
+	Wallet      *handlerswallet.WalletHandler
+	Carte       *handlerscarte.CarteHandler
+	Admin       *handlersadmin.AdminHandler
+	AdminWallet *handlerswallet.AdminWalletHandler
+	AdminCarte  *handlerscarte.AdminCarteHandler
 }
 
 func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGenerator) {
@@ -97,4 +101,24 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	backofficeKyc.Post("/dossiers/:id/rejeter", h.AdminKyc.Rejeter)
 	backofficeKyc.Get("/dossiers/:id/documents", h.AdminKyc.ListerDocuments)
 	backofficeKyc.Get("/documents/:id", h.AdminKyc.RecupererDocument)
+
+	backofficeUtilisateurs := api.Group("/backoffice/utilisateurs", authmw.RequireAdmin(tokenGenerator))
+	backofficeUtilisateurs.Get("/", h.Admin.ListerUtilisateurs)
+	backofficeUtilisateurs.Get("/:id", h.Admin.ObtenirUtilisateur)
+
+	backofficeWallets := api.Group("/backoffice/wallets", authmw.RequireAdmin(tokenGenerator))
+	backofficeWallets.Post("/:id/gel", h.AdminWallet.GelerWallet)
+	backofficeWallets.Post("/:id/degel", h.AdminWallet.DegelerWallet)
+
+	backofficeCartes := api.Group("/backoffice/cartes", authmw.RequireAdmin(tokenGenerator))
+	backofficeCartes.Get("/", h.AdminCarte.ListerCartes)
+	backofficeCartes.Post("/:id/gel", h.AdminCarte.GelerCarte)
+	backofficeCartes.Post("/:id/degel", h.AdminCarte.DegelerCarte)
+	backofficeCartes.Post("/:id/annuler", h.AdminCarte.AnnulerCarte)
+
+	backofficeTransactions := api.Group("/backoffice/transactions", authmw.RequireAdmin(tokenGenerator))
+	backofficeTransactions.Get("/", h.AdminWallet.ListerTransactions)
+
+	backofficeAuditLogs := api.Group("/backoffice/audit-logs", authmw.RequireAdmin(tokenGenerator))
+	backofficeAuditLogs.Get("/", h.Admin.ListerAuditLogs)
 }

@@ -22,24 +22,46 @@ import (
 // paiement (HR-Skills Pay : 48h).
 const dureeRetenueCashIn = 48 * time.Hour
 
+// Sujets des emails transactionnels du wallet. Envoyés en best-effort :
+// un échec d'envoi ne doit jamais faire échouer l'opération financière
+// elle-même (voir les appels `_ = s.notifierXxx(...)`).
+const (
+	sujetEmailRechargeConfirmee = "Votre recharge RAYCARD est confirmée"
+	sujetEmailRechargeEchouee   = "Votre recharge RAYCARD a échoué"
+	sujetEmailFondsDisponibles  = "Vos fonds RAYCARD sont maintenant disponibles"
+	sujetEmailRetraitConfirme   = "Votre retrait RAYCARD est confirmé"
+	sujetEmailRetraitEchoue     = "Votre retrait RAYCARD a échoué"
+)
+
 type walletService struct {
+	utilisateurs outputcommun.UtilisateurRepository
 	wallets      outputcommun.WalletRepository
 	transactions outputwallet.TransactionRepository
 	agregateur   outputwallet.AgregateurPaiement
+	notifieur    outputcommun.Notifieur
+	auditLog     outputcommun.AuditLogRepository
 	txManager    outputcommun.TxManager
 }
 
-// NewWalletService construit l'implémentation de inputwallet.WalletUseCase.
+// NewWalletService construit l'implémentation de inputwallet.WalletUseCase
+// et inputwallet.AdminWalletUseCase (voir walletService, qui implémente
+// les deux).
 func NewWalletService(
+	utilisateurs outputcommun.UtilisateurRepository,
 	wallets outputcommun.WalletRepository,
 	transactions outputwallet.TransactionRepository,
 	agregateur outputwallet.AgregateurPaiement,
+	notifieur outputcommun.Notifieur,
+	auditLog outputcommun.AuditLogRepository,
 	txManager outputcommun.TxManager,
 ) inputwallet.WalletUseCase {
 	return &walletService{
+		utilisateurs: utilisateurs,
 		wallets:      wallets,
 		transactions: transactions,
 		agregateur:   agregateur,
+		notifieur:    notifieur,
+		auditLog:     auditLog,
 		txManager:    txManager,
 	}
 }
@@ -54,6 +76,57 @@ func (s *walletService) ListerTransactions(ctx context.Context, utilisateurID st
 		return nil, err
 	}
 	return s.transactions.ListByWalletID(ctx, w.ID)
+}
+
+// ListerTransactionsAdmin liste les transactions tous wallets confondus —
+// action back-office (voir middleware.RequireAdmin).
+func (s *walletService) ListerTransactionsAdmin(ctx context.Context, filtre outputwallet.FiltreTransactions) ([]*domainwallet.Transaction, error) {
+	return s.transactions.ListToutes(ctx, filtre)
+}
+
+// GelerWalletAdmin gèle n'importe quel wallet — action back-office,
+// tracée dans l'audit log.
+func (s *walletService) GelerWalletAdmin(ctx context.Context, adminID, walletID string) (*commun.Wallet, error) {
+	w, err := s.wallets.FindByID(ctx, walletID)
+	if err != nil {
+		return nil, err
+	}
+	if err := w.Geler(time.Now().UTC()); err != nil {
+		return nil, err
+	}
+	if err := s.wallets.UpdateSolde(ctx, w); err != nil {
+		return nil, fmt.Errorf("mise à jour wallet: %w", err)
+	}
+	_ = s.ecrireAuditLog(ctx, adminID, "wallet_gele_admin", "wallet", w.ID)
+	return w, nil
+}
+
+// DegelerWalletAdmin dégèle n'importe quel wallet — action back-office,
+// tracée dans l'audit log.
+func (s *walletService) DegelerWalletAdmin(ctx context.Context, adminID, walletID string) (*commun.Wallet, error) {
+	w, err := s.wallets.FindByID(ctx, walletID)
+	if err != nil {
+		return nil, err
+	}
+	if err := w.Degeler(time.Now().UTC()); err != nil {
+		return nil, err
+	}
+	if err := s.wallets.UpdateSolde(ctx, w); err != nil {
+		return nil, fmt.Errorf("mise à jour wallet: %w", err)
+	}
+	_ = s.ecrireAuditLog(ctx, adminID, "wallet_degele_admin", "wallet", w.ID)
+	return w, nil
+}
+
+// ecrireAuditLog trace une action administrateur sensible. Best-effort :
+// un échec d'écriture ne doit jamais faire échouer l'action elle-même,
+// déjà actée à ce stade (même principe que les notifications email).
+func (s *walletService) ecrireAuditLog(ctx context.Context, adminID, action, cibleType, cibleID string) error {
+	entree, err := commun.NouvelleEntreeAuditLog(adminID, action, cibleType, cibleID, "")
+	if err != nil {
+		return err
+	}
+	return s.auditLog.Create(ctx, entree)
 }
 
 func (s *walletService) InitierRecharge(ctx context.Context, utilisateurID string, req inputwallet.InitierRechargeRequest) (*domainwallet.Transaction, error) {
@@ -214,7 +287,11 @@ func (s *walletService) TraiterWebhook(ctx context.Context, corps []byte, signat
 		if err := transaction.MarquerEchouee(); err != nil {
 			return err
 		}
-		return s.transactions.Update(ctx, transaction)
+		if err := s.transactions.Update(ctx, transaction); err != nil {
+			return err
+		}
+		_ = s.notifierRechargeEchouee(ctx, transaction)
+		return nil
 	default:
 		return nil
 	}
@@ -229,7 +306,7 @@ func (s *walletService) traiterRechargeReussie(ctx context.Context, transaction 
 		return err
 	}
 
-	return s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+	err := s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
 		w, err := s.wallets.FindByID(ctx, transaction.WalletID)
 		if err != nil {
 			return err
@@ -245,6 +322,11 @@ func (s *walletService) traiterRechargeReussie(ctx context.Context, transaction 
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	_ = s.notifierRechargeConfirmee(ctx, transaction)
+	return nil
 }
 
 // traiterRetraitReussi ne touche jamais le wallet : le débit a déjà été
@@ -254,7 +336,11 @@ func (s *walletService) traiterRetraitReussi(ctx context.Context, transaction *d
 	if err := transaction.MarquerSucces(evt.FraisCentimes, nil); err != nil {
 		return err
 	}
-	return s.transactions.Update(ctx, transaction)
+	if err := s.transactions.Update(ctx, transaction); err != nil {
+		return err
+	}
+	_ = s.notifierRetraitConfirme(ctx, transaction)
+	return nil
 }
 
 // traiterRetraitEchoue rembourse le montant débité à l'initiation : c'est
@@ -266,7 +352,7 @@ func (s *walletService) traiterRetraitEchoue(ctx context.Context, transaction *d
 		return err
 	}
 
-	return s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+	err := s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
 		w, err := s.wallets.FindByID(ctx, transaction.WalletID)
 		if err != nil {
 			return err
@@ -282,6 +368,11 @@ func (s *walletService) traiterRetraitEchoue(ctx context.Context, transaction *d
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	_ = s.notifierRetraitEchoue(ctx, transaction)
+	return nil
 }
 
 // BasculerFondsEcheus fait passer d'en-attente à disponible les montants
@@ -316,7 +407,79 @@ func (s *walletService) BasculerFondsEcheus(ctx context.Context) (int, error) {
 		if err != nil {
 			return basculees, fmt.Errorf("transaction %s: %w", transaction.ID, err)
 		}
+		_ = s.notifierFondsDisponibles(ctx, transaction)
 		basculees++
 	}
 	return basculees, nil
+}
+
+// notifierRechargeConfirmee, notifierRechargeEchouee, notifierFondsDisponibles,
+// notifierRetraitConfirme et notifierRetraitEchoue envoient chacune un
+// email best-effort : un échec d'envoi ne doit jamais remonter à
+// l'appelant, l'opération financière est déjà actée à ce stade.
+
+func (s *walletService) notifierRechargeConfirmee(ctx context.Context, transaction *domainwallet.Transaction) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, transaction.UtilisateurID)
+	if err != nil {
+		return err
+	}
+	corps := fmt.Sprintf(
+		"<p>Votre recharge de %d %s a été confirmée.</p>"+
+			"<p>Montant net crédité (après %d %s de frais) : %d %s, disponible sous 48h.</p>",
+		transaction.MontantCentimes, transaction.Devise,
+		transaction.FraisCentimes, transaction.Devise,
+		transaction.MontantNetCentimes(), transaction.Devise,
+	)
+	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailRechargeConfirmee, corps)
+}
+
+func (s *walletService) notifierRechargeEchouee(ctx context.Context, transaction *domainwallet.Transaction) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, transaction.UtilisateurID)
+	if err != nil {
+		return err
+	}
+	corps := fmt.Sprintf(
+		"<p>Votre recharge de %d %s n'a pas abouti.</p>"+
+			"<p>Aucun montant n'a été débité de votre compte Mobile Money. Vous pouvez réessayer.</p>",
+		transaction.MontantCentimes, transaction.Devise,
+	)
+	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailRechargeEchouee, corps)
+}
+
+func (s *walletService) notifierFondsDisponibles(ctx context.Context, transaction *domainwallet.Transaction) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, transaction.UtilisateurID)
+	if err != nil {
+		return err
+	}
+	corps := fmt.Sprintf(
+		"<p>%d %s sont maintenant disponibles sur votre wallet RAYCARD (recharge du %s).</p>",
+		transaction.MontantNetCentimes(), transaction.Devise,
+		transaction.CreatedAt.Format("02/01/2006"),
+	)
+	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailFondsDisponibles, corps)
+}
+
+func (s *walletService) notifierRetraitConfirme(ctx context.Context, transaction *domainwallet.Transaction) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, transaction.UtilisateurID)
+	if err != nil {
+		return err
+	}
+	corps := fmt.Sprintf(
+		"<p>Votre retrait de %d %s a été confirmé et envoyé vers votre compte Mobile Money.</p>",
+		transaction.MontantCentimes, transaction.Devise,
+	)
+	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailRetraitConfirme, corps)
+}
+
+func (s *walletService) notifierRetraitEchoue(ctx context.Context, transaction *domainwallet.Transaction) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, transaction.UtilisateurID)
+	if err != nil {
+		return err
+	}
+	corps := fmt.Sprintf(
+		"<p>Votre retrait de %d %s n'a pas abouti.</p>"+
+			"<p>Le montant a été intégralement recrédité sur votre wallet RAYCARD.</p>",
+		transaction.MontantCentimes, transaction.Devise,
+	)
+	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailRetraitEchoue, corps)
 }

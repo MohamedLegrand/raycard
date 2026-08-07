@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"raycard/internal/core/domain/wallet"
+	outputwallet "raycard/internal/core/ports/output/wallet"
 	"raycard/internal/infrastructure/database/postgres/commun"
 )
 
@@ -127,6 +129,50 @@ func (r *TransactionRepository) ListByWalletID(ctx context.Context, walletID str
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("liste transactions wallet: %w", err)
+	}
+	return transactions, nil
+}
+
+func (r *TransactionRepository) ListToutes(ctx context.Context, filtre outputwallet.FiltreTransactions) ([]*wallet.Transaction, error) {
+	query := `
+		SELECT id, wallet_id, utilisateur_id, type, statut, montant_centimes, frais_centimes, devise, operateur, telephone, reference_externe, disponible_le, created_at, updated_at
+		FROM transactions_wallet`
+
+	var conditions []string
+	var args []any
+	if filtre.UtilisateurID != "" {
+		args = append(args, filtre.UtilisateurID)
+		conditions = append(conditions, fmt.Sprintf("utilisateur_id = $%d", len(args)))
+	}
+	if filtre.Statut != "" {
+		args = append(args, filtre.Statut)
+		conditions = append(conditions, fmt.Sprintf("statut = $%d", len(args)))
+	}
+	if filtre.Type != "" {
+		args = append(args, filtre.Type)
+		conditions = append(conditions, fmt.Sprintf("type = $%d", len(args)))
+	}
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	query += " ORDER BY created_at DESC"
+
+	rows, err := commun.DbFromContext(ctx, r.pool).Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("liste transactions: %w", err)
+	}
+	defer rows.Close()
+
+	var transactions []*wallet.Transaction
+	for rows.Next() {
+		t, err := scanTransaction(rows)
+		if err != nil {
+			return nil, fmt.Errorf("lecture transaction: %w", err)
+		}
+		transactions = append(transactions, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("liste transactions: %w", err)
 	}
 	return transactions, nil
 }

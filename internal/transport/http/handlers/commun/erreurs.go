@@ -23,7 +23,7 @@ func MapErreurDomaine(err error) error {
 	case errors.Is(err, commun.ErrEmailDejaUtilise), errors.Is(err, commun.ErrTelephoneDejaUtilise), errors.Is(err, kyc.ErrDossierKycDejaEnAttente), errors.Is(err, wallet.ErrTransactionDejaEnCours):
 		return fiber.NewError(fiber.StatusConflict, err.Error())
 	case errors.Is(err, commun.ErrPaysNonSupporte), errors.Is(err, commun.ErrDonneesInvalides), errors.Is(err, commun.ErrTransitionKycInvalide), errors.Is(err, kyc.ErrFormatDocumentInvalide), errors.Is(err, kyc.ErrDossierKycNonModifiable),
-		errors.Is(err, commun.ErrMontantInvalide), errors.Is(err, commun.ErrPlafondDepasse), errors.Is(err, commun.ErrSoldeInsuffisant), errors.Is(err, commun.ErrWalletGele), errors.Is(err, wallet.ErrOperateurNonSupporte),
+		errors.Is(err, commun.ErrMontantInvalide), errors.Is(err, commun.ErrPlafondDepasse), errors.Is(err, commun.ErrSoldeInsuffisant), errors.Is(err, commun.ErrWalletGele), errors.Is(err, commun.ErrTransitionWalletInvalide), errors.Is(err, wallet.ErrOperateurNonSupporte),
 		errors.Is(err, carte.ErrKycTierInsuffisant), errors.Is(err, carte.ErrEmissionEchouee), errors.Is(err, carte.ErrTransitionCarteInvalide), errors.Is(err, carte.ErrRechargeEchouee), errors.Is(err, carte.ErrAnnulationEchouee):
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, authdomain.ErrIdentifiantsInvalides), errors.Is(err, authdomain.ErrTokenInvalide), errors.Is(err, wallet.ErrWebhookSignatureInvalide):

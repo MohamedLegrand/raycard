@@ -13,6 +13,7 @@ import (
 	domaincommun "raycard/internal/core/domain/commun"
 	domainwallet "raycard/internal/core/domain/wallet"
 	inputcarte "raycard/internal/core/ports/input/carte"
+	outputcarte "raycard/internal/core/ports/output/carte"
 	testcarte "raycard/test/application/carte"
 	testcommun "raycard/test/application/commun"
 	testwallet "raycard/test/application/wallet"
@@ -57,8 +58,23 @@ func nouveauService(
 	cartes *testcarte.CarteRepoFake,
 	depenses *testcarte.DepenseCarteRepoFake,
 	agregateur *testcarte.AgregateurCarteFake,
-) inputcarte.CarteUseCase {
-	return appcarte.NewCarteService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, testcommun.TxManagerFake{})
+	notifieur *testcommun.NotifieurFake,
+	auditLog *testcommun.AuditLogRepoFake,
+) *carteServiceComplet {
+	service := appcarte.NewCarteService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog, testcommun.TxManagerFake{})
+	return &carteServiceComplet{
+		CarteUseCase:      service,
+		AdminCarteUseCase: service.(inputcarte.AdminCarteUseCase),
+	}
+}
+
+// carteServiceComplet expose les deux visages de carteService (client et
+// back-office) : NewCarteService ne renvoie que inputcarte.CarteUseCase,
+// il faut une assertion de type pour accéder à AdminCarteUseCase (voir
+// cmd/api/main.go, même principe).
+type carteServiceComplet struct {
+	inputcarte.CarteUseCase
+	inputcarte.AdminCarteUseCase
 }
 
 func TestCarteService_CreerCarte_Succes(t *testing.T) {
@@ -67,8 +83,10 @@ func TestCarteService_CreerCarte_Succes(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-123"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -95,8 +113,10 @@ func TestCarteService_CreerCarte_KycTierInsuffisant(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, false) // Tier 1 seulement
 	w := nouveauWalletTest(t, wallets)
@@ -115,7 +135,9 @@ func TestCarteService_CreerCarte_WalletGele(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, &testcarte.AgregateurCarteFake{})
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, &testcarte.AgregateurCarteFake{}, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -134,7 +156,9 @@ func TestCarteService_CreerCarte_SoldeInsuffisant(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, &testcarte.AgregateurCarteFake{})
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, &testcarte.AgregateurCarteFake{}, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -156,7 +180,9 @@ func TestCarteService_CreerCarte_TransactionDejaEnCours(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, &testcarte.AgregateurCarteFake{})
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, &testcarte.AgregateurCarteFake{}, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -181,8 +207,10 @@ func TestCarteService_CreerCarte_ErreurAgregateur_DebitResteApplique(t *testing.
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{ErreurEmission: errors.New("panne réseau")}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -211,8 +239,10 @@ func TestCarteService_ListerCartes(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-list-1"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -235,8 +265,10 @@ func TestCarteService_ObtenirCarte(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-obtenir-1"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -269,8 +301,10 @@ func TestCarteService_SynchroniserSoldes_DetecteUneDepense(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-sync-1"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -300,6 +334,14 @@ func TestCarteService_SynchroniserSoldes_DetecteUneDepense(t *testing.T) {
 	assert.Equal(t, int64(3000), liste[0].MontantCentimes)
 	assert.Equal(t, int64(10000), liste[0].SoldeAvantCentimes)
 	assert.Equal(t, int64(7000), liste[0].SoldeApresCentimes)
+
+	// Cashback : 3000 * 0,02% = 0,6, arrondi à 1 centime, crédité
+	// immédiatement sur le wallet (20000 crédités - 10000 débités pour la
+	// carte + 1 de cashback).
+	assert.Equal(t, int64(1), liste[0].CashbackCentimes)
+	walletMisAJour, err := wallets.FindByUtilisateurID(context.Background(), utilisateurID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(10001), walletMisAJour.SoldeDisponibleCentimes)
 }
 
 func TestCarteService_SynchroniserSoldes_SoldeStable_AucuneDepense(t *testing.T) {
@@ -308,8 +350,10 @@ func TestCarteService_SynchroniserSoldes_SoldeStable_AucuneDepense(t *testing.T)
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-sync-2"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -337,8 +381,10 @@ func TestCarteService_ListerDepenses_AutreUtilisateur_Introuvable(t *testing.T) 
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-sync-3"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -359,8 +405,10 @@ func TestCarteService_SynchroniserSoldes_DetecteGelDecideParAgregateur(t *testin
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-sync-gel"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -400,8 +448,10 @@ func TestCarteService_GelerCarte_Succes(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-gel-1"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -429,8 +479,10 @@ func TestCarteService_GelerCarte_DejaGelee(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-gel-2"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -455,8 +507,10 @@ func TestCarteService_GelerCarte_AutreUtilisateur(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-gel-3"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -478,8 +532,10 @@ func TestCarteService_DegelerCarte_Succes(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-degel-1"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -512,8 +568,10 @@ func TestCarteService_DegelerCarte_PasGelee(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-degel-2"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -534,8 +592,10 @@ func TestCarteService_RechargerCarte_Succes(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-topup-1"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -576,8 +636,10 @@ func TestCarteService_RechargerCarte_CarteGelee(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-topup-2"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -604,8 +666,10 @@ func TestCarteService_RechargerCarte_SoldeInsuffisant(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-topup-3"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -629,8 +693,10 @@ func TestCarteService_RechargerCarte_ErreurAgregateur_DebitResteApplique(t *test
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-topup-4"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -662,8 +728,10 @@ func TestCarteService_RechargerCarte_AutreUtilisateur(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-topup-5"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -687,8 +755,10 @@ func TestCarteService_AnnulerCarte_AvecSoldeRestant_Rembourse(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-annuler-1"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -718,8 +788,10 @@ func TestCarteService_AnnulerCarte_SansSoldeRestant_AucunRemboursement(t *testin
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-annuler-2"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -746,8 +818,10 @@ func TestCarteService_AnnulerCarte_DepuisGelee(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-annuler-3"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -773,8 +847,10 @@ func TestCarteService_AnnulerCarte_DejaAnnulee(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-annuler-4"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -800,8 +876,10 @@ func TestCarteService_AnnulerCarte_ErreurAgregateur_RienNeChange(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-annuler-5"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -833,8 +911,10 @@ func TestCarteService_AnnulerCarte_AutreUtilisateur(t *testing.T) {
 	transactions := testwallet.NewTransactionRepoFake()
 	cartes := testcarte.NewCarteRepoFake()
 	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
 	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-annuler-6"}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur)
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
 
 	nouvelUtilisateurTest(t, utilisateurs, true)
 	w := nouveauWalletTest(t, wallets)
@@ -848,4 +928,131 @@ func TestCarteService_AnnulerCarte_AutreUtilisateur(t *testing.T) {
 	_, err = service.AnnulerCarte(context.Background(), "un-autre-utilisateur", carteCreee.ID)
 	assert.ErrorIs(t, err, domaincarte.ErrCarteIntrouvable)
 	assert.Equal(t, 0, agregateur.AppelsAnnuler)
+}
+
+func TestCarteService_GelerCarteAdmin_Succes(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-admin-gel-1"}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouvelUtilisateurTest(t, utilisateurs, true)
+	w := nouveauWalletTest(t, wallets)
+	crediterDisponible(t, wallets, w, 20000)
+
+	carteCreee, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
+		Label: "Carte courses", MontantCentimes: 10000,
+	})
+	require.NoError(t, err)
+
+	// Contrairement à GelerCarte, aucune vérification de propriétaire :
+	// "un-autre-utilisateur" n'est jamais le propriétaire, l'action réussit
+	// quand même.
+	carteGelee, err := service.GelerCarteAdmin(context.Background(), "admin-1", carteCreee.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domaincarte.StatutCarteGelee, carteGelee.Statut)
+	assert.Equal(t, 1, agregateur.AppelsGeler)
+
+	require.Len(t, auditLog.Entrees, 1)
+	assert.Equal(t, "admin-1", auditLog.Entrees[0].AdminID)
+	assert.Equal(t, "carte_gelee_admin", auditLog.Entrees[0].Action)
+	assert.Equal(t, carteCreee.ID, auditLog.Entrees[0].CibleID)
+}
+
+func TestCarteService_DegelerCarteAdmin_Succes(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-admin-degel-1"}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouvelUtilisateurTest(t, utilisateurs, true)
+	w := nouveauWalletTest(t, wallets)
+	crediterDisponible(t, wallets, w, 20000)
+
+	carteCreee, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
+		Label: "Carte courses", MontantCentimes: 10000,
+	})
+	require.NoError(t, err)
+	_, err = service.GelerCarteAdmin(context.Background(), "admin-1", carteCreee.ID)
+	require.NoError(t, err)
+
+	carteDegelee, err := service.DegelerCarteAdmin(context.Background(), "admin-1", carteCreee.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domaincarte.StatutCarteActive, carteDegelee.Statut)
+
+	require.Len(t, auditLog.Entrees, 2)
+	assert.Equal(t, "carte_degelee_admin", auditLog.Entrees[1].Action)
+}
+
+func TestCarteService_AnnulerCarteAdmin_Succes(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-admin-annuler-1", SoldeRestantAnnule: 4000}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouvelUtilisateurTest(t, utilisateurs, true)
+	w := nouveauWalletTest(t, wallets)
+	crediterDisponible(t, wallets, w, 20000)
+
+	carteCreee, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
+		Label: "Carte courses", MontantCentimes: 10000,
+	})
+	require.NoError(t, err)
+
+	carteAnnulee, err := service.AnnulerCarteAdmin(context.Background(), "admin-1", carteCreee.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domaincarte.StatutCarteAnnulee, carteAnnulee.Statut)
+
+	// Remboursement appliqué comme pour l'annulation client (même logique
+	// partagée, voir carteService.annulerCarte).
+	walletMisAJour, err := wallets.FindByID(context.Background(), w.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(14000), walletMisAJour.SoldeDisponibleCentimes)
+
+	require.Len(t, auditLog.Entrees, 1)
+	assert.Equal(t, "carte_annulee_admin", auditLog.Entrees[0].Action)
+}
+
+func TestCarteService_ListerCartesAdmin_FiltreParUtilisateur(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-admin-liste-1"}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouvelUtilisateurTest(t, utilisateurs, true)
+	w := nouveauWalletTest(t, wallets)
+	crediterDisponible(t, wallets, w, 20000)
+
+	_, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
+		Label: "Carte courses", MontantCentimes: 10000,
+	})
+	require.NoError(t, err)
+
+	toutes, err := service.ListerCartesAdmin(context.Background(), outputcarte.FiltreCartes{})
+	require.NoError(t, err)
+	assert.Len(t, toutes, 1)
+
+	filtrees, err := service.ListerCartesAdmin(context.Background(), outputcarte.FiltreCartes{UtilisateurID: "un-autre-utilisateur"})
+	require.NoError(t, err)
+	assert.Empty(t, filtrees)
 }

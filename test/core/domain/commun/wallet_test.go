@@ -83,6 +83,31 @@ func TestWallet_CrediterEnAttente(t *testing.T) {
 	})
 }
 
+func TestWallet_Geler(t *testing.T) {
+	w, err := commun.NouveauWallet("user-1", "CI", "XOF", 200000)
+	require.NoError(t, err)
+
+	require.NoError(t, w.Geler(w.UpdatedAt))
+	assert.Equal(t, commun.StatutWalletGele, w.Statut)
+
+	t.Run("déjà gelé", func(t *testing.T) {
+		assert.ErrorIs(t, w.Geler(w.UpdatedAt), commun.ErrTransitionWalletInvalide)
+	})
+}
+
+func TestWallet_Degeler(t *testing.T) {
+	w, err := commun.NouveauWallet("user-1", "CI", "XOF", 200000)
+	require.NoError(t, err)
+
+	t.Run("pas encore gelé", func(t *testing.T) {
+		assert.ErrorIs(t, w.Degeler(w.UpdatedAt), commun.ErrTransitionWalletInvalide)
+	})
+
+	require.NoError(t, w.Geler(w.UpdatedAt))
+	require.NoError(t, w.Degeler(w.UpdatedAt))
+	assert.Equal(t, commun.StatutWalletActif, w.Statut)
+}
+
 func TestWallet_BasculerEnAttenteVersDisponible(t *testing.T) {
 	w, err := commun.NouveauWallet("user-1", "CI", "XOF", 200000)
 	require.NoError(t, err)

@@ -1,4 +1,4 @@
-// Package brevo implémente output.Notifieur via l'API transactionnelle
+// Package brevo implémente commun.Notifieur via l'API transactionnelle
 // email de Brevo (https://developers.brevo.com/reference/sendtransacemail).
 package brevo
 

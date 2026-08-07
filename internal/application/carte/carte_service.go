@@ -29,6 +29,14 @@ const (
 	intervalleVerificationCarteMax  = 30 * time.Minute
 )
 
+// Sujets des emails transactionnels de la carte. Envoyés en best-effort,
+// même principe que le module wallet (voir wallet_service.go).
+const (
+	sujetEmailCarteCreee      = "Votre carte virtuelle RAYCARD est prête"
+	sujetEmailCarteAnnulee    = "Votre carte virtuelle RAYCARD a été annulée"
+	sujetEmailDepenseDetectee = "Nouvelle dépense sur votre carte RAYCARD"
+)
+
 type carteService struct {
 	utilisateurs outputcommun.UtilisateurRepository
 	wallets      outputcommun.WalletRepository
@@ -36,10 +44,14 @@ type carteService struct {
 	cartes       outputcarte.CarteRepository
 	depenses     outputcarte.DepenseCarteRepository
 	agregateur   outputcarte.AgregateurCarte
+	notifieur    outputcommun.Notifieur
+	auditLog     outputcommun.AuditLogRepository
 	txManager    outputcommun.TxManager
 }
 
-// NewCarteService construit l'implémentation de inputcarte.CarteUseCase.
+// NewCarteService construit l'implémentation de inputcarte.CarteUseCase et
+// inputcarte.AdminCarteUseCase (voir carteService, qui implémente les
+// deux).
 func NewCarteService(
 	utilisateurs outputcommun.UtilisateurRepository,
 	wallets outputcommun.WalletRepository,
@@ -47,6 +59,8 @@ func NewCarteService(
 	cartes outputcarte.CarteRepository,
 	depenses outputcarte.DepenseCarteRepository,
 	agregateur outputcarte.AgregateurCarte,
+	notifieur outputcommun.Notifieur,
+	auditLog outputcommun.AuditLogRepository,
 	txManager outputcommun.TxManager,
 ) inputcarte.CarteUseCase {
 	return &carteService{
@@ -56,6 +70,8 @@ func NewCarteService(
 		cartes:       cartes,
 		depenses:     depenses,
 		agregateur:   agregateur,
+		notifieur:    notifieur,
+		auditLog:     auditLog,
 		txManager:    txManager,
 	}
 }
@@ -151,11 +167,35 @@ func (s *carteService) CreerCarte(ctx context.Context, utilisateurID string, req
 		return nil, err
 	}
 
+	// utilisateur déjà chargé plus haut pour la vérification du palier KYC.
+	corps := fmt.Sprintf(
+		"<p>Votre carte « %s » est prête, chargée avec %d %s.</p>",
+		carteCreee.Label, carteCreee.MontantChargeCentimes, carteCreee.Devise,
+	)
+	_ = s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailCarteCreee, corps)
+
 	return carteCreee, nil
 }
 
 func (s *carteService) ListerCartes(ctx context.Context, utilisateurID string) ([]*domaincarte.Carte, error) {
 	return s.cartes.ListByUtilisateurID(ctx, utilisateurID)
+}
+
+// ListerCartesAdmin liste les cartes tous utilisateurs confondus — action
+// back-office (voir middleware.RequireAdmin).
+func (s *carteService) ListerCartesAdmin(ctx context.Context, filtre outputcarte.FiltreCartes) ([]*domaincarte.Carte, error) {
+	return s.cartes.ListToutes(ctx, filtre)
+}
+
+// ecrireAuditLog trace une action administrateur sensible. Best-effort :
+// un échec d'écriture ne doit jamais faire échouer l'action elle-même,
+// déjà actée à ce stade (même principe que les notifications email).
+func (s *carteService) ecrireAuditLog(ctx context.Context, adminID, action, cibleType, cibleID string) error {
+	entree, err := commun.NouvelleEntreeAuditLog(adminID, action, cibleType, cibleID, "")
+	if err != nil {
+		return err
+	}
+	return s.auditLog.Create(ctx, entree)
 }
 
 func (s *carteService) ObtenirCarte(ctx context.Context, utilisateurID, carteID string) (*domaincarte.Carte, error) {
@@ -182,21 +222,37 @@ func (s *carteService) GelerCarte(ctx context.Context, utilisateurID, carteID st
 	if err != nil {
 		return nil, err
 	}
+	return s.gelerCarte(ctx, c)
+}
 
-	// Valide la transition avant tout appel réseau : inutile de solliciter
-	// l'agrégateur pour une carte déjà gelée ou annulée.
+// GelerCarteAdmin gèle n'importe quelle carte, sans vérification de
+// propriétaire — action back-office (voir middleware.RequireAdmin),
+// tracée dans l'audit log.
+func (s *carteService) GelerCarteAdmin(ctx context.Context, adminID, carteID string) (*domaincarte.Carte, error) {
+	c, err := s.cartes.FindByID(ctx, carteID)
+	if err != nil {
+		return nil, err
+	}
+	c, err = s.gelerCarte(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.ecrireAuditLog(ctx, adminID, "carte_gelee_admin", "carte", c.ID)
+	return c, nil
+}
+
+// gelerCarte valide la transition avant tout appel réseau : inutile de
+// solliciter l'agrégateur pour une carte déjà gelée ou annulée.
+func (s *carteService) gelerCarte(ctx context.Context, c *domaincarte.Carte) (*domaincarte.Carte, error) {
 	if err := c.Geler(time.Now().UTC()); err != nil {
 		return nil, err
 	}
-
 	if err := s.agregateur.GelerCarte(ctx, c.IDExterne); err != nil {
 		return nil, fmt.Errorf("gel carte: %w", err)
 	}
-
 	if err := s.cartes.Update(ctx, c); err != nil {
 		return nil, fmt.Errorf("mise à jour carte: %w", err)
 	}
-
 	return c, nil
 }
 
@@ -205,19 +261,34 @@ func (s *carteService) DegelerCarte(ctx context.Context, utilisateurID, carteID 
 	if err != nil {
 		return nil, err
 	}
+	return s.degelerCarte(ctx, c)
+}
 
+// DegelerCarteAdmin dégèle n'importe quelle carte, sans vérification de
+// propriétaire — action back-office, tracée dans l'audit log.
+func (s *carteService) DegelerCarteAdmin(ctx context.Context, adminID, carteID string) (*domaincarte.Carte, error) {
+	c, err := s.cartes.FindByID(ctx, carteID)
+	if err != nil {
+		return nil, err
+	}
+	c, err = s.degelerCarte(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.ecrireAuditLog(ctx, adminID, "carte_degelee_admin", "carte", c.ID)
+	return c, nil
+}
+
+func (s *carteService) degelerCarte(ctx context.Context, c *domaincarte.Carte) (*domaincarte.Carte, error) {
 	if err := c.Degeler(time.Now().UTC()); err != nil {
 		return nil, err
 	}
-
 	if err := s.agregateur.DegelerCarte(ctx, c.IDExterne); err != nil {
 		return nil, fmt.Errorf("dégel carte: %w", err)
 	}
-
 	if err := s.cartes.Update(ctx, c); err != nil {
 		return nil, fmt.Errorf("mise à jour carte: %w", err)
 	}
-
 	return c, nil
 }
 
@@ -313,11 +384,30 @@ func (s *carteService) AnnulerCarte(ctx context.Context, utilisateurID, carteID 
 	if err != nil {
 		return nil, err
 	}
+	return s.annulerCarte(ctx, c)
+}
+
+// AnnulerCarteAdmin annule n'importe quelle carte, sans vérification de
+// propriétaire — action back-office, tracée dans l'audit log.
+func (s *carteService) AnnulerCarteAdmin(ctx context.Context, adminID, carteID string) (*domaincarte.Carte, error) {
+	c, err := s.cartes.FindByID(ctx, carteID)
+	if err != nil {
+		return nil, err
+	}
+	c, err = s.annulerCarte(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	_ = s.ecrireAuditLog(ctx, adminID, "carte_annulee_admin", "carte", c.ID)
+	return c, nil
+}
+
+func (s *carteService) annulerCarte(ctx context.Context, c *domaincarte.Carte) (*domaincarte.Carte, error) {
 	if c.Statut != domaincarte.StatutCarteActive && c.Statut != domaincarte.StatutCarteGelee {
 		return nil, domaincarte.ErrTransitionCarteInvalide
 	}
 
-	w, err := s.wallets.FindByUtilisateurID(ctx, utilisateurID)
+	w, err := s.wallets.FindByUtilisateurID(ctx, c.UtilisateurID)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +437,7 @@ func (s *carteService) AnnulerCarte(ctx context.Context, utilisateurID, carteID 
 
 	var transaction *domainwallet.Transaction
 	if soldeRestant > 0 {
-		transaction, err = domainwallet.NouvelleTransactionAnnulationCarte(w.ID, utilisateurID, w.Devise, soldeRestant)
+		transaction, err = domainwallet.NouvelleTransactionAnnulationCarte(w.ID, c.UtilisateurID, w.Devise, soldeRestant)
 		if err != nil {
 			return nil, err
 		}
@@ -385,7 +475,57 @@ func (s *carteService) AnnulerCarte(ctx context.Context, utilisateurID, carteID 
 		return nil, err
 	}
 
+	_ = s.notifierCarteAnnulee(ctx, c, soldeRestant)
+
 	return c, nil
+}
+
+// notifierCarteAnnulee envoie un email best-effort après une annulation
+// réussie : un échec d'envoi ne doit jamais remonter à l'appelant,
+// l'annulation est déjà actée à ce stade.
+func (s *carteService) notifierCarteAnnulee(ctx context.Context, c *domaincarte.Carte, soldeRestantCentimes int64) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, c.UtilisateurID)
+	if err != nil {
+		return err
+	}
+	corps := fmt.Sprintf("<p>Votre carte « %s » a été annulée.</p>", c.Label)
+	if soldeRestantCentimes > 0 {
+		corps += fmt.Sprintf("<p>%d %s ont été recrédités sur votre wallet.</p>", soldeRestantCentimes, c.Devise)
+	}
+	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailCarteAnnulee, corps)
+}
+
+// crediterCashback ajoute le cashback au solde disponible du wallet,
+// immédiatement (contrairement à une recharge, ce n'est pas un flux Mobile
+// Money externe soumis à un délai de rétention côté agrégateur).
+func (s *carteService) crediterCashback(ctx context.Context, walletID string, montantCentimes int64) error {
+	return s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+		w, err := s.wallets.FindByID(ctx, walletID)
+		if err != nil {
+			return err
+		}
+		if err := w.Crediter(montantCentimes); err != nil {
+			return err
+		}
+		return s.wallets.UpdateSolde(ctx, w)
+	})
+}
+
+// notifierDepenseDetectee envoie un email best-effort après une dépense
+// détectée par rapprochement de solde (voir SynchroniserSoldes) : un échec
+// d'envoi ne doit jamais faire échouer la synchronisation.
+func (s *carteService) notifierDepenseDetectee(ctx context.Context, c *domaincarte.Carte, montantDepenseCentimes int64) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, c.UtilisateurID)
+	if err != nil {
+		return err
+	}
+	corps := fmt.Sprintf(
+		"<p>Une dépense de %d %s a été détectée sur votre carte « %s ».</p>"+
+			"<p>Solde restant sur la carte : %d %s.</p>",
+		montantDepenseCentimes, c.Devise, c.Label,
+		c.SoldeCentimes, c.Devise,
+	)
+	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailDepenseDetectee, corps)
 }
 
 func (s *carteService) ListerDepenses(ctx context.Context, utilisateurID, carteID string) ([]*domaincarte.DepenseCarte, error) {
@@ -426,6 +566,7 @@ func (s *carteService) SynchroniserSoldes(ctx context.Context) (int, error) {
 			return depensesDetectees, fmt.Errorf("carte %s: %w", c.ID, err)
 		}
 
+		var montantCashback int64
 		err = s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
 			if err := s.cartes.Update(ctx, c); err != nil {
 				return fmt.Errorf("mise à jour carte: %w", err)
@@ -437,6 +578,7 @@ func (s *carteService) SynchroniserSoldes(ctx context.Context) (int, error) {
 			if err != nil {
 				return err
 			}
+			montantCashback = depense.CashbackCentimes
 			return s.depenses.Create(ctx, depense)
 		})
 		if err != nil {
@@ -444,6 +586,13 @@ func (s *carteService) SynchroniserSoldes(ctx context.Context) (int, error) {
 		}
 		if montantDepense > 0 {
 			depensesDetectees++
+			_ = s.notifierDepenseDetectee(ctx, c, montantDepense)
+			// Best-effort et hors transaction principale : un wallet gelé ou
+			// déjà au plafond ne doit jamais faire échouer la détection de
+			// dépense elle-même, qui reflète un fait déjà survenu côté carte.
+			if montantCashback > 0 {
+				_ = s.crediterCashback(ctx, c.WalletID, montantCashback)
+			}
 		}
 	}
 	return depensesDetectees, nil
