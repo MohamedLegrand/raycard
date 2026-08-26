@@ -39,6 +39,18 @@ var limiteurInscription = limiter.New(limiter.Config{
 	Expiration: time.Minute,
 })
 
+// limiteurOperationWallet freine le bourrage sur les opérations qui
+// déplacent réellement des fonds (topup, cashout) — contrairement aux
+// routes de connexion, elles étaient jusqu'ici protégées par
+// l'authentification seule, sans aucune limite de fréquence. Sert aussi
+// à éviter qu'un seul utilisateur monopolise le débit partagé imposé à
+// l'agrégateur (voir hrpay.delaiMinEntreAppels, 200ms entre TOUS les
+// appels agrégateur, tous utilisateurs confondus).
+var limiteurOperationWallet = limiter.New(limiter.Config{
+	Max:        10,
+	Expiration: time.Minute,
+})
+
 // Handlers regroupe tous les handlers HTTP câblés par main.go. Un
 // champ est ajouté ici à chaque nouveau module (wallet, cartes...).
 type Handlers struct {
@@ -90,8 +102,8 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 
 	api.Get("/wallet", authmw.RequireAuth(tokenGenerator), h.Wallet.ObtenirWallet)
 	api.Get("/wallet/transactions", authmw.RequireAuth(tokenGenerator), h.Wallet.ListerTransactions)
-	api.Post("/wallet/topup", authmw.RequireAuth(tokenGenerator), h.Wallet.InitierRecharge)
-	api.Post("/wallet/cashout", authmw.RequireAuth(tokenGenerator), h.Wallet.InitierRetrait)
+	api.Post("/wallet/topup", authmw.RequireAuth(tokenGenerator), limiteurOperationWallet, h.Wallet.InitierRecharge)
+	api.Post("/wallet/cashout", authmw.RequireAuth(tokenGenerator), limiteurOperationWallet, h.Wallet.InitierRetrait)
 	// Non authentifiée par JWT : l'authenticité vient exclusivement de la
 	// signature HMAC vérifiée par le use case (voir wallet.AgregateurPaiement).
 	api.Post("/webhooks/hrpay", h.Wallet.WebhookHrPay)
