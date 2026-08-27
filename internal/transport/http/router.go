@@ -132,6 +132,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 
 	backofficeKyc := api.Group("/backoffice/kyc", authmw.RequireAdmin(tokenGenerator))
 	backofficeKyc.Get("/dossiers", h.AdminKyc.ListerDossiersEnAttente)
+	backofficeKyc.Get("/dossiers/historique", h.AdminKyc.ListerTousDossiers)
 	backofficeKyc.Post("/dossiers/:id/approuver", h.AdminKyc.Approuver)
 	backofficeKyc.Post("/dossiers/:id/rejeter", h.AdminKyc.Rejeter)
 	backofficeKyc.Get("/dossiers/:id/documents", h.AdminKyc.ListerDocuments)
@@ -140,6 +141,10 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	backofficeUtilisateurs := api.Group("/backoffice/utilisateurs", authmw.RequireAdmin(tokenGenerator))
 	backofficeUtilisateurs.Get("/", h.Admin.ListerUtilisateurs)
 	backofficeUtilisateurs.Get("/:id", h.Admin.ObtenirUtilisateur)
+	// RequireSuperAdmin en plus de RequireAdmin (déjà posé par le
+	// groupe) : changer un rôle est une élévation de privilège, réservée
+	// au super_admin précisément.
+	backofficeUtilisateurs.Put("/:id/role", authmw.RequireSuperAdmin(tokenGenerator), h.Admin.ChangerRole)
 
 	backofficeWallets := api.Group("/backoffice/wallets", authmw.RequireAdmin(tokenGenerator))
 	backofficeWallets.Post("/:id/gel", h.AdminWallet.GelerWallet)

@@ -72,7 +72,7 @@ func TestUtilisateur_PasserAuTier2(t *testing.T) {
 }
 
 func TestNouvelAdministrateur(t *testing.T) {
-	admin, err := commun.NouvelAdministrateur("Zoa", "Stéphane", "admin@example.com", "+2250700000001", "CI", "hash")
+	admin, err := commun.NouvelAdministrateur("Zoa", "Stéphane", "admin@example.com", "+2250700000001", "CI", "hash", commun.RoleAdmin)
 	require.NoError(t, err)
 
 	assert.Equal(t, commun.RoleAdmin, admin.Role)

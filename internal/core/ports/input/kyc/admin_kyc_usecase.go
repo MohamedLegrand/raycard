@@ -11,6 +11,12 @@ import (
 // sensibles (voir audit_log), jamais accessibles à un client normal.
 type AdminKycUseCase interface {
 	ListerDossiersEnAttente(ctx context.Context) ([]*kycdomain.DossierKyc, error)
+
+	// ListerTousDossiers renvoie tous les dossiers, quel que soit leur
+	// statut — pour les KPI back-office (répartition
+	// en_attente/approuve/rejete), jamais pour la file de revue
+	// elle-même (ListerDossiersEnAttente).
+	ListerTousDossiers(ctx context.Context) ([]*kycdomain.DossierKyc, error)
 	ApprouverDossier(ctx context.Context, adminID, dossierID string) error
 	RejeterDossier(ctx context.Context, adminID, dossierID, motif string) error
 

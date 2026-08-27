@@ -26,10 +26,16 @@ func main() {
 	telephone := flag.String("telephone", "", "numéro de téléphone")
 	paysCode := flag.String("pays-code", "", "code pays ISO 3166-1 alpha-2, ex: CI")
 	motDePasse := flag.String("mot-de-passe", "", "mot de passe (min. 8 caractères)")
+	role := flag.String("role", "admin", "admin ou super_admin (super_admin peut gérer les autres administrateurs)")
 	flag.Parse()
 
 	if *nom == "" || *prenom == "" || *email == "" || *telephone == "" || *paysCode == "" || len(*motDePasse) < 8 {
-		fmt.Fprintln(os.Stderr, "usage: creer-admin -nom=... -prenom=... -email=... -telephone=... -pays-code=CI -mot-de-passe=... (min. 8 caractères)")
+		fmt.Fprintln(os.Stderr, "usage: creer-admin -nom=... -prenom=... -email=... -telephone=... -pays-code=CI -mot-de-passe=... (min. 8 caractères) [-role=admin|super_admin]")
+		os.Exit(1)
+	}
+	roleUtilisateur := commun.RoleUtilisateur(*role)
+	if roleUtilisateur != commun.RoleAdmin && roleUtilisateur != commun.RoleSuperAdmin {
+		fmt.Fprintln(os.Stderr, "-role doit être 'admin' ou 'super_admin'")
 		os.Exit(1)
 	}
 
@@ -66,7 +72,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	admin, err := commun.NouvelAdministrateur(*nom, *prenom, *email, *telephone, *paysCode, string(hash))
+	admin, err := commun.NouvelAdministrateur(*nom, *prenom, *email, *telephone, *paysCode, string(hash), roleUtilisateur)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "construction administrateur:", err)
 		os.Exit(1)

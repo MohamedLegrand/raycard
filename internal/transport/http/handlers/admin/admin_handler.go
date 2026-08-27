@@ -3,20 +3,24 @@
 package admin
 
 import (
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 
+	domaincommun "raycard/internal/core/domain/commun"
 	inputadmin "raycard/internal/core/ports/input/admin"
 	outputcommun "raycard/internal/core/ports/output/commun"
 	admindto "raycard/internal/transport/http/dto/admin"
 	handlerscommun "raycard/internal/transport/http/handlers/commun"
+	authmw "raycard/internal/transport/http/middleware/auth"
 )
 
 type AdminHandler struct {
 	adminUseCase inputadmin.AdminUseCase
+	validate     *validator.Validate
 }
 
-func NewAdminHandler(adminUseCase inputadmin.AdminUseCase) *AdminHandler {
-	return &AdminHandler{adminUseCase: adminUseCase}
+func NewAdminHandler(adminUseCase inputadmin.AdminUseCase, validate *validator.Validate) *AdminHandler {
+	return &AdminHandler{adminUseCase: adminUseCase, validate: validate}
 }
 
 // ListerUtilisateurs gère GET /api/v1/backoffice/utilisateurs.
@@ -96,4 +100,42 @@ func (h *AdminHandler) ListerAuditLogs(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(admindto.FromAuditLogs(entrees))
+}
+
+// ChangerRole gère PUT /api/v1/backoffice/utilisateurs/:id/role (route
+// réservée au super_admin, voir middleware.RequireSuperAdmin).
+//
+//	@Summary		Change le rôle d'un utilisateur (super-admin uniquement)
+//	@Description	Élève un client en admin/super_admin, ou rétrograde un admin — jamais son propre compte (évite un verrouillage accidentel). Tracé dans l'audit log.
+//	@Tags			"2. Admin - Utilisateurs"
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string							true	"ID de l'utilisateur"
+//	@Param			role	body		admin.ChangerRoleRequestDTO	true	"Nouveau rôle"
+//	@Success		200		{object}	admin.UtilisateurDTO
+//	@Failure		400		{object}	commun.ErreurDTO	"corps de requête invalide"
+//	@Failure		401		{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		403		{object}	commun.ErreurDTO	"réservé aux super-administrateurs"
+//	@Failure		404		{object}	commun.ErreurDTO	"utilisateur introuvable"
+//	@Failure		422		{object}	commun.ErreurDTO	"tentative de modifier son propre rôle"
+//	@Router			/backoffice/utilisateurs/{id}/role [put]
+func (h *AdminHandler) ChangerRole(c *fiber.Ctx) error {
+	adminID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+	utilisateurID := c.Params("id")
+
+	var req admindto.ChangerRoleRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	utilisateur, err := h.adminUseCase.ChangerRoleUtilisateur(c.Context(), adminID, utilisateurID, domaincommun.RoleUtilisateur(req.Role))
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(admindto.FromUtilisateur(utilisateur))
 }

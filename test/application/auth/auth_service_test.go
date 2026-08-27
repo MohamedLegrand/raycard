@@ -412,6 +412,17 @@ func creerUtilisateurTest(t *testing.T, repo *testcommun.UtilisateurRepoFake, em
 	return u
 }
 
+func creerAdminTest(t *testing.T, repo *testcommun.UtilisateurRepoFake, email, motDePasse string) *commun.Utilisateur {
+	t.Helper()
+	hash, err := bcrypt.GenerateFromPassword([]byte(motDePasse), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	admin, err := commun.NouvelAdministrateur("Legrand", "Mohamed", email, "+2250711111111", "CI", string(hash), commun.RoleAdmin)
+	require.NoError(t, err)
+	require.NoError(t, repo.Create(context.Background(), admin))
+	return admin
+}
+
 func extraireCodeOTP(t *testing.T, corps string) string {
 	t.Helper()
 	code := regexp.MustCompile(`\d{6}`).FindString(corps)
@@ -449,11 +460,34 @@ func TestAuthService_Connexion_Succes(t *testing.T) {
 	// Aucun token de session à cette étape : juste un ticket, la 2FA
 	// n'est pas encore validée.
 	assert.NotEmpty(t, resultat.Ticket)
-	assert.Equal(t, 600, resultat.ExpireDansSec)
+	assert.Equal(t, 900, resultat.ExpireDansSec)
 
 	require.Len(t, fakes.notifieur.emailsEnvoyes, 1)
 	assert.Equal(t, "awa@example.com", fakes.notifieur.emailsEnvoyes[0].destinataire)
 	assert.Len(t, fakes.ticketsConnexion.parHash, 1)
+}
+
+// TestAuthService_Connexion_AdminContourne2FA vérifie le comportement
+// ajouté pour les comptes admin : pas de ticket, pas de code envoyé par
+// email — une session complète est délivrée directement dès le mot de
+// passe vérifié (voir authService.Connexion).
+func TestAuthService_Connexion_AdminContourne2FA(t *testing.T) {
+	service, fakes := setupAuthService()
+	creerAdminTest(t, fakes.utilisateurs, "admin@raycard.com", "motdepasseadmin123")
+
+	resultat, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "admin@raycard.com", MotDePasse: "motdepasseadmin123"})
+	require.NoError(t, err)
+
+	assert.Empty(t, resultat.Ticket, "un admin ne doit jamais recevoir de ticket 2FA")
+	require.NotNil(t, resultat.Session)
+	assert.NotEmpty(t, resultat.Session.AccessToken)
+	assert.NotEmpty(t, resultat.Session.RefreshToken)
+
+	// Une notification de connexion est bien envoyée (comme pour les
+	// autres méthodes qui contournent la 2FA, ex: empreinte) — mais
+	// jamais de code à saisir.
+	require.Len(t, fakes.notifieur.emailsEnvoyes, 1)
+	assert.Empty(t, fakes.ticketsConnexion.parHash, "aucun ticket ne doit être créé pour un admin")
 }
 
 func TestAuthService_Connexion_MotDePasseIncorrect(t *testing.T) {

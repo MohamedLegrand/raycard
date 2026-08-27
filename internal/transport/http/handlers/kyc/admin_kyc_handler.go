@@ -40,6 +40,26 @@ func (h *AdminKycHandler) ListerDossiersEnAttente(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(kycdto.FromDossiersKyc(dossiers))
 }
 
+// ListerTousDossiers gère GET /api/v1/backoffice/kyc/dossiers/historique.
+//
+//	@Summary		Liste de tous les dossiers KYC, quel que soit leur statut
+//	@Description	Contrairement à /backoffice/kyc/dossiers (uniquement en attente), renvoie aussi les dossiers déjà approuvés ou rejetés — pour les KPI back-office (répartition par statut), jamais pour la file de revue elle-même.
+//	@Tags			"2. Admin - KYC"
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{array}		kyc.DossierKycDTO
+//	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		403	{object}	commun.ErreurDTO	"réservé aux administrateurs"
+//	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/backoffice/kyc/dossiers/historique [get]
+func (h *AdminKycHandler) ListerTousDossiers(c *fiber.Ctx) error {
+	dossiers, err := h.adminKycUseCase.ListerTousDossiers(c.Context())
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+	return c.Status(fiber.StatusOK).JSON(kycdto.FromDossiersKyc(dossiers))
+}
+
 // Approuver gère POST /api/v1/backoffice/kyc/dossiers/:id/approuver.
 //
 //	@Summary		Approuve un dossier KYC

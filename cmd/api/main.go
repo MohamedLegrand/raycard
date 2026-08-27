@@ -140,7 +140,7 @@ func main() {
 	adminKycHandler := handlerskyc.NewAdminKycHandler(adminKycUseCase, validate)
 	walletHandler := handlerswallet.NewWalletHandler(walletUseCase, validate)
 	carteHandler := handlerscarte.NewCarteHandler(carteUseCase, validate)
-	adminHandler := handlersadmin.NewAdminHandler(adminUseCase)
+	adminHandler := handlersadmin.NewAdminHandler(adminUseCase, validate)
 	adminWalletHandler := handlerswallet.NewAdminWalletHandler(adminWalletUseCase)
 	adminCarteHandler := handlerscarte.NewAdminCarteHandler(adminCarteUseCase)
 

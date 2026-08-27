@@ -28,7 +28,7 @@ const (
 	dureeTokenReinitialisation = 15 * time.Minute
 	sujetEmailReinitialisation = "Réinitialisation de votre mot de passe RAYCARD"
 
-	dureeTicketConnexion         = 10 * time.Minute
+	dureeTicketConnexion         = 15 * time.Minute
 	tentativesMaxCodeConnexion   = 5
 	sujetEmailConnexion          = "Votre code de connexion RAYCARD"
 	sujetEmailNouvelleConnexion  = "Nouvelle connexion à votre compte RAYCARD"
@@ -169,6 +169,22 @@ func (s *authService) Connexion(ctx context.Context, req authinput.ConnexionRequ
 		return nil, fmt.Errorf("mise à jour verrou connexion: %w", err)
 	}
 
+	// La 2FA par email est contournée pour un compte admin ou
+	// super_admin : le mot de passe suffit à obtenir une session
+	// directement, comme pour la connexion par empreinte (voir
+	// ConnexionEmpreinte). Décision explicite du produit, pas une
+	// omission — voir ConnexionResultat.
+	if utilisateur.EstAdmin() {
+		session, err := s.emettreSession(ctx, utilisateur)
+		if err != nil {
+			return nil, err
+		}
+		// Best-effort, même logique que les autres méthodes de connexion :
+		// ne bloque jamais une connexion réussie.
+		_ = s.notifierConnexionReussie(ctx, utilisateur, authinput.MetadonneesConnexion{})
+		return &authinput.ConnexionResultat{Session: session}, nil
+	}
+
 	return s.demarrerTicketConnexion(ctx, utilisateur)
 }
 
@@ -225,7 +241,7 @@ func (s *authService) demarrerTicketConnexion(ctx context.Context, utilisateur *
 
 	corps := fmt.Sprintf(
 		"<p>Voici votre code de connexion RAYCARD : <strong>%s</strong></p>"+
-			"<p>Ce code expire dans 10 minutes. Si vous n'êtes pas à l'origine de cette connexion, sécurisez immédiatement votre compte.</p>",
+			"<p>Ce code expire dans 15 minutes. Si vous n'êtes pas à l'origine de cette connexion, sécurisez immédiatement votre compte.</p>",
 		code,
 	)
 	if err := s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailConnexion, corps); err != nil {

@@ -93,6 +93,13 @@ func FromAuditLog(a *commun.AuditLog) AuditLogDTO {
 	}
 }
 
+// ChangerRoleRequestDTO : role doit être l'une des trois valeurs
+// exactes du domaine (voir commun.RoleUtilisateur) — "utilisateur"
+// rétrograde un admin en simple client.
+type ChangerRoleRequestDTO struct {
+	Role string `json:"role" validate:"required,oneof=utilisateur admin super_admin" example:"admin"`
+}
+
 func FromAuditLogs(entrees []*commun.AuditLog) []AuditLogDTO {
 	dtos := make([]AuditLogDTO, 0, len(entrees))
 	for _, e := range entrees {
