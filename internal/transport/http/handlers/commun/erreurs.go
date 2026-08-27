@@ -29,7 +29,7 @@ func MapErreurDomaine(err error) error {
 	case errors.Is(err, authdomain.ErrIdentifiantsInvalides), errors.Is(err, authdomain.ErrTokenInvalide), errors.Is(err, wallet.ErrWebhookSignatureInvalide):
 		return fiber.NewError(fiber.StatusUnauthorized, err.Error())
 	case errors.Is(err, commun.ErrUtilisateurIntrouvable), errors.Is(err, kyc.ErrDossierKycIntrouvable), errors.Is(err, kyc.ErrDocumentKycIntrouvable), errors.Is(err, authdomain.ErrCleAppareilIntrouvable),
-		errors.Is(err, commun.ErrWalletIntrouvable), errors.Is(err, wallet.ErrTransactionIntrouvable), errors.Is(err, carte.ErrCarteIntrouvable):
+		errors.Is(err, commun.ErrWalletIntrouvable), errors.Is(err, wallet.ErrTransactionIntrouvable), errors.Is(err, carte.ErrCarteIntrouvable), errors.Is(err, commun.ErrPhotoProfilAbsente):
 		return fiber.NewError(fiber.StatusNotFound, err.Error())
 	case errors.Is(err, authdomain.ErrCompteVerrouille):
 		return fiber.NewError(fiber.StatusTooManyRequests, err.Error())

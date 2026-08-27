@@ -167,6 +167,13 @@ type AuthUseCase interface {
 	// l'utilisateur authentifié.
 	ModifierPhotoProfil(ctx context.Context, utilisateurID, nomFichier string, contenu []byte) (*commun.Utilisateur, error)
 
+	// ObtenirPhotoProfil relit la photo de profil stockée (voir
+	// StockageFichier.Lire) — sans cet endpoint, PhotoProfil n'était
+	// qu'un chemin de fichier sur le disque du serveur, jamais
+	// accessible par le client (aucune route statique ne l'exposait).
+	// commun.ErrPhotoProfilAbsente si l'utilisateur n'en a pas encore.
+	ObtenirPhotoProfil(ctx context.Context, utilisateurID string) (contenu []byte, contentType string, err error)
+
 	// ChangerMotDePasse change le mot de passe de l'utilisateur
 	// authentifié, après vérification du mot de passe actuel, et révoque
 	// toutes les autres sessions actives.

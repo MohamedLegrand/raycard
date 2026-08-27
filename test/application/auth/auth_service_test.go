@@ -1002,6 +1002,29 @@ func TestAuthService_ModifierPhotoProfil_FormatInvalide(t *testing.T) {
 	assert.ErrorIs(t, err, commun.ErrDonneesInvalides)
 }
 
+func TestAuthService_ObtenirPhotoProfil_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+	_, err := service.ModifierPhotoProfil(context.Background(), u.ID, "photo.jpg", jpegFactice)
+	require.NoError(t, err)
+
+	// StockageFichierFake.Lire renvoie un contenu factice fixe, pas le
+	// contenu réellement sauvegardé (voir test/application/commun/fakes.go)
+	// — ce test vérifie donc seulement que le chemin utilisateur→stockage
+	// est bien emprunté, pas un aller-retour de données réel.
+	contenu, _, err := service.ObtenirPhotoProfil(context.Background(), u.ID)
+	require.NoError(t, err)
+	assert.NotEmpty(t, contenu)
+}
+
+func TestAuthService_ObtenirPhotoProfil_Absente(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	_, _, err := service.ObtenirPhotoProfil(context.Background(), u.ID)
+	assert.ErrorIs(t, err, commun.ErrPhotoProfilAbsente)
+}
+
 func TestAuthService_ChangerMotDePasse_Succes(t *testing.T) {
 	service, fakes := setupAuthService()
 	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "ancienmotdepasse123")

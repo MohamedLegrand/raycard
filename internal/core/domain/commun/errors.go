@@ -18,6 +18,7 @@ var (
 	ErrPaysNonSupporte        = errors.New("pays non supporté")
 	ErrTransitionKycInvalide  = errors.New("transition de statut kyc invalide")
 	ErrDonneesInvalides       = errors.New("données invalides")
+	ErrPhotoProfilAbsente     = errors.New("aucune photo de profil")
 
 	// Wallet
 	ErrWalletIntrouvable        = errors.New("wallet introuvable")

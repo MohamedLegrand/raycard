@@ -780,6 +780,25 @@ func (s *authService) ModifierPhotoProfil(ctx context.Context, utilisateurID, no
 	return utilisateur, nil
 }
 
+// ObtenirPhotoProfil relit la photo de profil stockée pour
+// l'utilisateur authentifié.
+func (s *authService) ObtenirPhotoProfil(ctx context.Context, utilisateurID string) ([]byte, string, error) {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return nil, "", fmt.Errorf("recherche utilisateur: %w", err)
+	}
+	if utilisateur.PhotoProfil == "" {
+		return nil, "", commun.ErrPhotoProfilAbsente
+	}
+
+	contenu, err := s.stockage.Lire(ctx, utilisateur.PhotoProfil)
+	if err != nil {
+		return nil, "", fmt.Errorf("lecture photo profil: %w", err)
+	}
+
+	return contenu, http.DetectContentType(contenu), nil
+}
+
 // ChangerMotDePasse change le mot de passe de l'utilisateur authentifié
 // après vérification du mot de passe actuel, et révoque toutes les
 // autres sessions actives : si ce changement répond à un soupçon de

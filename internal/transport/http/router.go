@@ -96,6 +96,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 
 	auth.Get("/profil", authmw.RequireAuth(tokenGenerator), h.Auth.ObtenirProfil)
 	auth.Put("/profil", authmw.RequireAuth(tokenGenerator), h.Auth.ModifierProfil)
+	auth.Get("/profil/photo", authmw.RequireAuth(tokenGenerator), h.Auth.ObtenirPhotoProfil)
 	auth.Post("/profil/photo", authmw.RequireAuth(tokenGenerator), h.Auth.ModifierPhotoProfil)
 	auth.Post("/profil/mot-de-passe", authmw.RequireAuth(tokenGenerator), h.Auth.ChangerMotDePasse)
 	auth.Post("/profil/email", authmw.RequireAuth(tokenGenerator), h.Auth.DemanderChangementEmail)
