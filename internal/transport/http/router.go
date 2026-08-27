@@ -60,6 +60,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	api := app.Group("/api/v1")
 
 	kyc := api.Group("/kyc")
+	kyc.Get("/dossier-courant", authmw.RequireAuth(tokenGenerator), h.Kyc.ObtenirDossierCourant)
 	kyc.Post("/demande-tier2", authmw.RequireAuth(tokenGenerator), h.Kyc.DemanderTier2)
 	kyc.Post("/documents", authmw.RequireAuth(tokenGenerator), h.Kyc.TeleverserDocument)
 
@@ -82,6 +83,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	auth.Post("/empreinte/challenge", h.Auth.DemanderChallengeEmpreinte)
 	auth.Post("/empreinte/verifier", limiteurConnexion, h.Auth.ConnexionEmpreinte)
 
+	auth.Get("/profil", authmw.RequireAuth(tokenGenerator), h.Auth.ObtenirProfil)
 	auth.Put("/profil", authmw.RequireAuth(tokenGenerator), h.Auth.ModifierProfil)
 	auth.Post("/profil/photo", authmw.RequireAuth(tokenGenerator), h.Auth.ModifierPhotoProfil)
 	auth.Post("/profil/mot-de-passe", authmw.RequireAuth(tokenGenerator), h.Auth.ChangerMotDePasse)

@@ -1059,3 +1059,13 @@ func TestAuthService_ConfirmerChangementEmail_CodeInvalide(t *testing.T) {
 	_, err := service.ConfirmerChangementEmail(context.Background(), "000000")
 	assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
 }
+
+func TestAuthService_ObtenirProfil_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	profil, err := service.ObtenirProfil(context.Background(), u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, profil.ID)
+	assert.Equal(t, "awa@example.com", profil.Email)
+}

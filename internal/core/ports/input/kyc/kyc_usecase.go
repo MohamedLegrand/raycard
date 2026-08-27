@@ -56,4 +56,8 @@ type KycUseCase interface {
 	// dossier ciblé doit appartenir à l'utilisateur authentifié et être
 	// encore en attente de revue.
 	TeleverserDocument(ctx context.Context, utilisateurID string, req TeleverserDocumentRequest) (*kycdomain.DocumentKyc, error)
+
+	// ObtenirDossierCourant renvoie le dernier dossier KYC Tier 2 soumis par
+	// l'utilisateur authentifié donné (qu'il soit en attente, approuvé ou rejeté).
+	ObtenirDossierCourant(ctx context.Context, utilisateurID string) (*kycdomain.DossierKyc, error)
 }

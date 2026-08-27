@@ -10,6 +10,29 @@ import (
 	authmw "raycard/internal/transport/http/middleware/auth"
 )
 
+// ObtenirProfil gère GET /api/v1/auth/profil (route protégée).
+//
+//	@Summary		Consultation du profil
+//	@Description	Renvoie les informations de profil de l'utilisateur authentifié.
+//	@Tags			"1. Client - Auth"
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	auth.UtilisateurDTO
+//	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		404	{object}	commun.ErreurDTO	"utilisateur introuvable"
+//	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/auth/profil [get]
+func (h *AuthHandler) ObtenirProfil(c *fiber.Ctx) error {
+	utilisateurID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+
+	utilisateur, err := h.authUseCase.ObtenirProfil(c.Context(), utilisateurID)
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(authdto.FromUtilisateur(utilisateur))
+}
+
 // ModifierProfil gère PUT /api/v1/auth/profil (route protégée).
 //
 //	@Summary		Modification du profil

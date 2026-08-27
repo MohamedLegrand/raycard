@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/rs/zerolog"
 
 	_ "raycard/docs" // docs générés par `swag init`, nécessaires pour servir la spec Swagger
@@ -56,7 +58,11 @@ const tailleMaxCorpsRequete = 10 * 1024 * 1024
 // @in							header
 // @name						Authorization
 func main() {
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	var output io.Writer = os.Stdout
+	if os.Getenv("APP_ENV") != "production" {
+		output = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
+	}
+	logger := zerolog.New(output).With().Timestamp().Logger()
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -150,9 +156,14 @@ func main() {
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
 			}
-			return c.Status(code).JSON(fiber.Map{"erreur": err.Error()})
+			msgClient := err.Error()
+			if code == fiber.StatusInternalServerError {
+				msgClient = "erreur interne"
+			}
+			return c.Status(code).JSON(fiber.Map{"erreur": msgClient})
 		},
 	})
+	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
 	app.Use(middleware.Logger(logger))
 
 	// Désactivé par défaut (voir config.Config.CorsAllowedOrigins) : l'app

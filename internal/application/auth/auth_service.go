@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"os"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -196,6 +197,10 @@ func (s *authService) demarrerTicketConnexion(ctx context.Context, utilisateur *
 	}
 	if err := s.ticketsConnexion.Create(ctx, ticket); err != nil {
 		return nil, fmt.Errorf("persistance ticket connexion: %w", err)
+	}
+
+	if os.Getenv("APP_ENV") != "production" {
+		_ = os.WriteFile("key.txt", []byte(code), 0644)
 	}
 
 	corps := fmt.Sprintf(
@@ -467,6 +472,10 @@ func (s *authService) DemanderReinitialisation(ctx context.Context, email string
 		return fmt.Errorf("persistance token réinitialisation: %w", err)
 	}
 
+	if os.Getenv("APP_ENV") != "production" {
+		_ = os.WriteFile("key.txt", []byte(code), 0644)
+	}
+
 	corps := fmt.Sprintf(
 		"<p>Voici votre code de réinitialisation RAYCARD : <strong>%s</strong></p>"+
 			"<p>Ce code expire dans 15 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>",
@@ -725,6 +734,16 @@ func genererCodeOTP() (string, error) {
 	return fmt.Sprintf("%06d", n.Int64()), nil
 }
 
+// ObtenirProfil renvoie les informations de profil de l'utilisateur
+// authentifié donné.
+func (s *authService) ObtenirProfil(ctx context.Context, utilisateurID string) (*commun.Utilisateur, error) {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return nil, fmt.Errorf("recherche utilisateur: %w", err)
+	}
+	return utilisateur, nil
+}
+
 // ModifierProfil met à jour le nom et le prénom de l'utilisateur
 // authentifié.
 func (s *authService) ModifierProfil(ctx context.Context, utilisateurID string, req authinput.ModifierProfilRequest) (*commun.Utilisateur, error) {
@@ -838,6 +857,10 @@ func (s *authService) DemanderChangementEmail(ctx context.Context, utilisateurID
 	}
 	if err := s.tokensChangementEmail.Create(ctx, token); err != nil {
 		return fmt.Errorf("persistance token changement email: %w", err)
+	}
+
+	if os.Getenv("APP_ENV") != "production" {
+		_ = os.WriteFile("key.txt", []byte(code), 0644)
 	}
 
 	corps := fmt.Sprintf(

@@ -34,6 +34,6 @@ func MapErreurDomaine(err error) error {
 	case errors.Is(err, authdomain.ErrCompteVerrouille):
 		return fiber.NewError(fiber.StatusTooManyRequests, err.Error())
 	default:
-		return fiber.NewError(fiber.StatusInternalServerError, "erreur interne")
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 }

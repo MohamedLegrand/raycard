@@ -151,6 +151,10 @@ type AuthUseCase interface {
 	// déjà deux facteurs.
 	ConnexionEmpreinte(ctx context.Context, req VerifierEmpreinteRequest, metadonnees MetadonneesConnexion) (*SessionResultat, error)
 
+	// ObtenirProfil renvoie les informations de profil de l'utilisateur
+	// authentifié donné.
+	ObtenirProfil(ctx context.Context, utilisateurID string) (*commun.Utilisateur, error)
+
 	// ModifierProfil met à jour le nom et le prénom de l'utilisateur
 	// authentifié.
 	ModifierProfil(ctx context.Context, utilisateurID string, req ModifierProfilRequest) (*commun.Utilisateur, error)
