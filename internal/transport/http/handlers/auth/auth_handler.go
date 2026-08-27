@@ -180,6 +180,7 @@ func (h *AuthHandler) Deconnexion(c *fiber.Ctx) error {
 //	@Param			demande	body	auth.DemanderReinitialisationRequestDTO	true	"Email du compte"
 //	@Success		204
 //	@Failure		400	{object}	commun.ErreurDTO	"corps de requête invalide"
+//	@Failure		429	{object}	commun.ErreurDTO	"trop de tentatives, réessayer plus tard"
 //	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
 //	@Router			/auth/mot-de-passe-oublie [post]
 func (h *AuthHandler) DemanderReinitialisation(c *fiber.Ctx) error {
@@ -209,6 +210,7 @@ func (h *AuthHandler) DemanderReinitialisation(c *fiber.Ctx) error {
 //	@Success		204
 //	@Failure		400	{object}	commun.ErreurDTO	"corps de requête invalide"
 //	@Failure		401	{object}	commun.ErreurDTO	"code invalide, expiré ou déjà utilisé"
+//	@Failure		429	{object}	commun.ErreurDTO	"trop de tentatives, réessayer plus tard"
 //	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
 //	@Router			/auth/reinitialiser-mot-de-passe [post]
 func (h *AuthHandler) Reinitialiser(c *fiber.Ctx) error {

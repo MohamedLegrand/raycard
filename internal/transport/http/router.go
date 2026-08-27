@@ -86,8 +86,15 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	auth.Post("/connexion-google", limiteurConnexion, h.Auth.ConnexionGoogle)
 	auth.Post("/rafraichir", h.Auth.Rafraichir)
 	auth.Post("/deconnexion", h.Auth.Deconnexion)
-	auth.Post("/mot-de-passe-oublie", h.Auth.DemanderReinitialisation)
-	auth.Post("/reinitialiser-mot-de-passe", h.Auth.Reinitialiser)
+	// limiteurConnexion réutilisé ici : /mot-de-passe-oublie sans limite
+	// permettrait de spammer la boîte mail d'une victime ; le token de
+	// /reinitialiser-mot-de-passe est un code à 6 chiffres (1M
+	// possibilités) recherché par simple égalité de hash, sans verrou
+	// par tentative (contrairement à la 2FA, voir VerifierCode2FA) — un
+	// rate-limit par IP reste la seule protection contre le bourrage
+	// aujourd'hui.
+	auth.Post("/mot-de-passe-oublie", limiteurConnexion, h.Auth.DemanderReinitialisation)
+	auth.Post("/reinitialiser-mot-de-passe", limiteurConnexion, h.Auth.Reinitialiser)
 
 	auth.Post("/empreinte/appareils", authmw.RequireAuth(tokenGenerator), h.Auth.EnregistrerAppareil)
 	auth.Delete("/empreinte/appareils/:id", authmw.RequireAuth(tokenGenerator), h.Auth.RevoquerAppareil)
