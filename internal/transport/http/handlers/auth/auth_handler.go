@@ -299,6 +299,7 @@ func (h *AuthHandler) RevoquerAppareil(c *fiber.Ctx) error {
 //	@Success		200		{object}	auth.ChallengeEmpreinteResponseDTO
 //	@Failure		400		{object}	commun.ErreurDTO	"corps de requête invalide"
 //	@Failure		401		{object}	commun.ErreurDTO	"appareil inconnu ou révoqué"
+//	@Failure		429		{object}	commun.ErreurDTO	"trop de tentatives, réessayer plus tard"
 //	@Failure		500		{object}	commun.ErreurDTO	"erreur interne"
 //	@Router			/auth/empreinte/challenge [post]
 func (h *AuthHandler) DemanderChallengeEmpreinte(c *fiber.Ctx) error {

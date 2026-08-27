@@ -98,7 +98,11 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 
 	auth.Post("/empreinte/appareils", authmw.RequireAuth(tokenGenerator), h.Auth.EnregistrerAppareil)
 	auth.Delete("/empreinte/appareils/:id", authmw.RequireAuth(tokenGenerator), h.Auth.RevoquerAppareil)
-	auth.Post("/empreinte/challenge", h.Auth.DemanderChallengeEmpreinte)
+	// limiteurConnexion réutilisé ici : contrairement à /empreinte/verifier
+	// (déjà protégée), cette route n'exigeait aucune authentification NI
+	// aucune limite de fréquence — rien n'empêchait de sonder en masse
+	// l'existence d'appareil_id.
+	auth.Post("/empreinte/challenge", limiteurConnexion, h.Auth.DemanderChallengeEmpreinte)
 	auth.Post("/empreinte/verifier", limiteurConnexion, h.Auth.ConnexionEmpreinte)
 
 	auth.Get("/profil", authmw.RequireAuth(tokenGenerator), h.Auth.ObtenirProfil)
