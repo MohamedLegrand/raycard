@@ -57,8 +57,8 @@ func Load() (*Config, error) {
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL est requis")
 	}
-	if cfg.JWTSecret == "" {
-		return nil, fmt.Errorf("JWT_SECRET est requis")
+	if err := validerJWTSecret(cfg.JWTSecret); err != nil {
+		return nil, err
 	}
 	if cfg.BrevoAPIKey == "" {
 		return nil, fmt.Errorf("BREVO_API_KEY est requis")
@@ -80,6 +80,35 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// dureeMinJWTSecret : sous cette longueur, un secret HS256 est trop
+// facile à retrouver par force brute — 32 caractères donne au moins
+// 256 bits d'entropie si le secret est réellement aléatoire (voir
+// recommandation RFC 7518 §3.2 : la clé HMAC doit faire au moins la
+// taille de sortie du hash, 256 bits pour HS256).
+const longueurMinJWTSecret = 32
+
+// jwtSecretPlaceholder est la valeur d'exemple de .env.example, commitée
+// dans le repo et donc connue de quiconque y a accès. La refuser
+// explicitement évite le scénario "copie de .env.example en prod sans
+// changer le secret" : sans ce garde-fou, un JWT_SECRET non vide mais
+// public permettrait de forger un token valide pour n'importe quel
+// utilisateur, y compris un rôle admin (RequireAdmin ne fait confiance
+// qu'à la signature).
+const jwtSecretPlaceholder = "change-moi-en-production"
+
+func validerJWTSecret(secret string) error {
+	if secret == "" {
+		return fmt.Errorf("JWT_SECRET est requis")
+	}
+	if secret == jwtSecretPlaceholder {
+		return fmt.Errorf("JWT_SECRET ne peut pas être la valeur d'exemple de .env.example — génère un secret réel (ex: openssl rand -base64 32)")
+	}
+	if len(secret) < longueurMinJWTSecret {
+		return fmt.Errorf("JWT_SECRET doit faire au moins %d caractères", longueurMinJWTSecret)
+	}
+	return nil
 }
 
 func getEnv(key, fallback string) string {
