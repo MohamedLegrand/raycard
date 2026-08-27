@@ -958,6 +958,23 @@ func TestAuthService_RevoquerAppareil_DunAutreUtilisateur(t *testing.T) {
 // reconnaisse un JPEG (FF D8 FF), sans avoir besoin d'une vraie image.
 var jpegFactice = []byte{0xFF, 0xD8, 0xFF, 0x00}
 
+func TestAuthService_ObtenirProfil_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	utilisateur, err := service.ObtenirProfil(context.Background(), u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, utilisateur.ID)
+	assert.Equal(t, "awa@example.com", utilisateur.Email)
+}
+
+func TestAuthService_ObtenirProfil_UtilisateurIntrouvable(t *testing.T) {
+	service, _ := setupAuthService()
+
+	_, err := service.ObtenirProfil(context.Background(), "id-inexistant")
+	assert.Error(t, err)
+}
+
 func TestAuthService_ModifierProfil_Succes(t *testing.T) {
 	service, fakes := setupAuthService()
 	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")

@@ -94,6 +94,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	auth.Post("/empreinte/challenge", h.Auth.DemanderChallengeEmpreinte)
 	auth.Post("/empreinte/verifier", limiteurConnexion, h.Auth.ConnexionEmpreinte)
 
+	auth.Get("/profil", authmw.RequireAuth(tokenGenerator), h.Auth.ObtenirProfil)
 	auth.Put("/profil", authmw.RequireAuth(tokenGenerator), h.Auth.ModifierProfil)
 	auth.Post("/profil/photo", authmw.RequireAuth(tokenGenerator), h.Auth.ModifierPhotoProfil)
 	auth.Post("/profil/mot-de-passe", authmw.RequireAuth(tokenGenerator), h.Auth.ChangerMotDePasse)

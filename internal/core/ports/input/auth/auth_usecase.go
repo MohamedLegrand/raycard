@@ -151,6 +151,14 @@ type AuthUseCase interface {
 	// déjà deux facteurs.
 	ConnexionEmpreinte(ctx context.Context, req VerifierEmpreinteRequest, metadonnees MetadonneesConnexion) (*SessionResultat, error)
 
+	// ObtenirProfil retourne le profil de l'utilisateur authentifié, sans
+	// le modifier — contrairement à ModifierProfil ci-dessous, aucun
+	// endpoint de lecture seule n'existait avant : le client n'avait
+	// aucun moyen de connaître nom/prénom/email/kyc_tier après une
+	// simple connexion (les flux de connexion ne renvoient qu'une
+	// session, jamais le profil).
+	ObtenirProfil(ctx context.Context, utilisateurID string) (*commun.Utilisateur, error)
+
 	// ModifierProfil met à jour le nom et le prénom de l'utilisateur
 	// authentifié.
 	ModifierProfil(ctx context.Context, utilisateurID string, req ModifierProfilRequest) (*commun.Utilisateur, error)

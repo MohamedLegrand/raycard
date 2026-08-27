@@ -725,6 +725,16 @@ func genererCodeOTP() (string, error) {
 	return fmt.Sprintf("%06d", n.Int64()), nil
 }
 
+// ObtenirProfil retourne le profil de l'utilisateur authentifié, sans le
+// modifier.
+func (s *authService) ObtenirProfil(ctx context.Context, utilisateurID string) (*commun.Utilisateur, error) {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return nil, fmt.Errorf("recherche utilisateur: %w", err)
+	}
+	return utilisateur, nil
+}
+
 // ModifierProfil met à jour le nom et le prénom de l'utilisateur
 // authentifié.
 func (s *authService) ModifierProfil(ctx context.Context, utilisateurID string, req authinput.ModifierProfilRequest) (*commun.Utilisateur, error) {
