@@ -128,7 +128,11 @@ type AuthUseCase interface {
 	// Reinitialiser change le mot de passe si le code fourni est valide,
 	// et révoque toutes les sessions actives de l'utilisateur, y compris
 	// les appareils enregistrés pour la connexion par empreinte.
-	Reinitialiser(ctx context.Context, token, nouveauMotDePasse string) error
+	// adresseIP alimente VerrouReinitialisation : contrairement à
+	// MetadonneesConnexion (purement informatif), elle influence ici
+	// directement une décision de sécurité (blocage après trop
+	// d'échecs) — voir domain/auth.VerrouReinitialisation.
+	Reinitialiser(ctx context.Context, token, nouveauMotDePasse, adresseIP string) error
 
 	// EnregistrerAppareil associe une clé publique d'appareil à
 	// l'utilisateur authentifié donné, pour une future connexion par

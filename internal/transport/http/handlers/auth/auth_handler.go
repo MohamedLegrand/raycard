@@ -222,7 +222,7 @@ func (h *AuthHandler) Reinitialiser(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 
-	if err := h.authUseCase.Reinitialiser(c.Context(), req.Token, req.NouveauMotDePasse); err != nil {
+	if err := h.authUseCase.Reinitialiser(c.Context(), req.Token, req.NouveauMotDePasse, c.IP()); err != nil {
 		return handlerscommun.MapErreurDomaine(err)
 	}
 

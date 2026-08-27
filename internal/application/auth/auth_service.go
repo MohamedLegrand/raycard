@@ -51,6 +51,14 @@ const (
 	dureeMaxVerrouConnexion    = 30 * time.Minute
 	dureeResetEscaladeVerrou   = 24 * time.Hour
 	sujetEmailCompteVerrouille = "Alerte de sécurité RAYCARD : tentatives de connexion répétées échouées"
+
+	// Même principe que ci-dessus, appliqué par IP à
+	// /reinitialiser-mot-de-passe (voir domain/auth.VerrouReinitialisation) —
+	// mêmes seuils que la connexion, pas de raison de les faire diverger.
+	seuilEchecsReinitialisation     = 5
+	dureeBaseVerrouReinitialisation = time.Minute
+	dureeMaxVerrouReinitialisation  = 30 * time.Minute
+	dureeResetEscaladeReinit        = 24 * time.Hour
 )
 
 // formatsPhotoAutorises : mêmes formats que pour les documents KYC —
@@ -61,21 +69,22 @@ var formatsPhotoAutorises = map[string]bool{
 }
 
 type authService struct {
-	utilisateurs           commonoutput.UtilisateurRepository
-	wallets                commonoutput.WalletRepository
-	reglesKyc              commonoutput.ReglesKycRepository
-	refreshTokens          authoutput.RefreshTokenRepository
-	tokensReinitialisation authoutput.TokenReinitialisationRepository
-	ticketsConnexion       authoutput.TicketConnexionRepository
-	clesAppareil           authoutput.CleAppareilRepository
-	challengesEmpreinte    authoutput.ChallengeEmpreinteRepository
-	tokensChangementEmail  authoutput.TokenChangementEmailRepository
-	verrousConnexion       authoutput.VerrouConnexionRepository
-	stockage               commonoutput.StockageFichier
-	tokenGenerator         authoutput.TokenGenerator
-	notifieur              commonoutput.Notifieur
-	googleAuthProvider     authoutput.GoogleAuthProvider
-	txManager              commonoutput.TxManager
+	utilisateurs            commonoutput.UtilisateurRepository
+	wallets                 commonoutput.WalletRepository
+	reglesKyc               commonoutput.ReglesKycRepository
+	refreshTokens           authoutput.RefreshTokenRepository
+	tokensReinitialisation  authoutput.TokenReinitialisationRepository
+	ticketsConnexion        authoutput.TicketConnexionRepository
+	clesAppareil            authoutput.CleAppareilRepository
+	challengesEmpreinte     authoutput.ChallengeEmpreinteRepository
+	tokensChangementEmail   authoutput.TokenChangementEmailRepository
+	verrousConnexion        authoutput.VerrouConnexionRepository
+	verrousReinitialisation authoutput.VerrouReinitialisationRepository
+	stockage                commonoutput.StockageFichier
+	tokenGenerator          authoutput.TokenGenerator
+	notifieur               commonoutput.Notifieur
+	googleAuthProvider      authoutput.GoogleAuthProvider
+	txManager               commonoutput.TxManager
 }
 
 // NewAuthService construit l'implémentation de authinput.AuthUseCase.
@@ -90,6 +99,7 @@ func NewAuthService(
 	challengesEmpreinte authoutput.ChallengeEmpreinteRepository,
 	tokensChangementEmail authoutput.TokenChangementEmailRepository,
 	verrousConnexion authoutput.VerrouConnexionRepository,
+	verrousReinitialisation authoutput.VerrouReinitialisationRepository,
 	stockage commonoutput.StockageFichier,
 	tokenGenerator authoutput.TokenGenerator,
 	notifieur commonoutput.Notifieur,
@@ -97,21 +107,22 @@ func NewAuthService(
 	txManager commonoutput.TxManager,
 ) authinput.AuthUseCase {
 	return &authService{
-		utilisateurs:           utilisateurs,
-		wallets:                wallets,
-		reglesKyc:              reglesKyc,
-		refreshTokens:          refreshTokens,
-		tokensReinitialisation: tokensReinitialisation,
-		ticketsConnexion:       ticketsConnexion,
-		clesAppareil:           clesAppareil,
-		challengesEmpreinte:    challengesEmpreinte,
-		tokensChangementEmail:  tokensChangementEmail,
-		verrousConnexion:       verrousConnexion,
-		stockage:               stockage,
-		tokenGenerator:         tokenGenerator,
-		notifieur:              notifieur,
-		googleAuthProvider:     googleAuthProvider,
-		txManager:              txManager,
+		utilisateurs:            utilisateurs,
+		wallets:                 wallets,
+		reglesKyc:               reglesKyc,
+		refreshTokens:           refreshTokens,
+		tokensReinitialisation:  tokensReinitialisation,
+		ticketsConnexion:        ticketsConnexion,
+		clesAppareil:            clesAppareil,
+		challengesEmpreinte:     challengesEmpreinte,
+		tokensChangementEmail:   tokensChangementEmail,
+		verrousConnexion:        verrousConnexion,
+		verrousReinitialisation: verrousReinitialisation,
+		stockage:                stockage,
+		tokenGenerator:          tokenGenerator,
+		notifieur:               notifieur,
+		googleAuthProvider:      googleAuthProvider,
+		txManager:               txManager,
 	}
 }
 
@@ -172,6 +183,20 @@ func (s *authService) verrouConnexionDe(ctx context.Context, utilisateurID strin
 		return nil, fmt.Errorf("recherche verrou connexion: %w", err)
 	}
 	return authdomain.NouveauVerrouConnexion(utilisateurID)
+}
+
+// verrouReinitialisationDe renvoie le verrou existant de l'IP, ou un
+// verrou vierge si aucune tentative n'a encore jamais échoué depuis
+// elle.
+func (s *authService) verrouReinitialisationDe(ctx context.Context, adresseIP string) (*authdomain.VerrouReinitialisation, error) {
+	verrou, err := s.verrousReinitialisation.FindByAdresseIP(ctx, adresseIP)
+	if err == nil {
+		return verrou, nil
+	}
+	if !errors.Is(err, authdomain.ErrVerrouReinitialisationIntrouvable) {
+		return nil, fmt.Errorf("recherche verrou réinitialisation: %w", err)
+	}
+	return authdomain.NouveauVerrouReinitialisation(adresseIP)
 }
 
 // demarrerTicketConnexion émet le ticket + code du second facteur, une
@@ -479,21 +504,41 @@ func (s *authService) DemanderReinitialisation(ctx context.Context, email string
 	return nil
 }
 
-func (s *authService) Reinitialiser(ctx context.Context, token, nouveauMotDePasse string) error {
-	tr, err := s.tokensReinitialisation.FindByHash(ctx, hacherToken(token))
+func (s *authService) Reinitialiser(ctx context.Context, token, nouveauMotDePasse, adresseIP string) error {
+	verrou, err := s.verrouReinitialisationDe(ctx, adresseIP)
 	if err != nil {
-		if errors.Is(err, authdomain.ErrTokenInvalide) {
-			return authdomain.ErrTokenInvalide
-		}
+		return err
+	}
+
+	maintenant := time.Now().UTC()
+	if verrou.EstVerrouille(maintenant) {
+		return authdomain.ErrTropDeTentativesReinitialisation
+	}
+
+	tr, err := s.tokensReinitialisation.FindByHash(ctx, hacherToken(token))
+	if err != nil && !errors.Is(err, authdomain.ErrTokenInvalide) {
 		return fmt.Errorf("recherche token réinitialisation: %w", err)
 	}
-	if !tr.EstValide() {
+	if err != nil || !tr.EstValide() {
+		// Toute soumission qui ne mène pas à une réinitialisation réussie
+		// compte comme une tentative — code introuvable (mauvaise
+		// devinette) ou trouvé mais expiré/déjà utilisé, même traitement :
+		// ni l'un ni l'autre ne doit pouvoir être répété sans limite.
+		verrou.EnregistrerEchec(maintenant, seuilEchecsReinitialisation, dureeBaseVerrouReinitialisation, dureeMaxVerrouReinitialisation, dureeResetEscaladeReinit)
+		if err := s.verrousReinitialisation.Sauvegarder(ctx, verrou); err != nil {
+			return fmt.Errorf("mise à jour verrou réinitialisation: %w", err)
+		}
 		return authdomain.ErrTokenInvalide
 	}
 
 	utilisateur, err := s.utilisateurs.FindByID(ctx, tr.UtilisateurID)
 	if err != nil {
 		return fmt.Errorf("recherche utilisateur: %w", err)
+	}
+
+	verrou.EnregistrerSucces()
+	if err := s.verrousReinitialisation.Sauvegarder(ctx, verrou); err != nil {
+		return fmt.Errorf("mise à jour verrou réinitialisation: %w", err)
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(nouveauMotDePasse), bcrypt.DefaultCost)

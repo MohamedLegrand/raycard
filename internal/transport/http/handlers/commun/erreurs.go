@@ -31,7 +31,7 @@ func MapErreurDomaine(err error) error {
 	case errors.Is(err, commun.ErrUtilisateurIntrouvable), errors.Is(err, kyc.ErrDossierKycIntrouvable), errors.Is(err, kyc.ErrDocumentKycIntrouvable), errors.Is(err, authdomain.ErrCleAppareilIntrouvable),
 		errors.Is(err, commun.ErrWalletIntrouvable), errors.Is(err, wallet.ErrTransactionIntrouvable), errors.Is(err, carte.ErrCarteIntrouvable), errors.Is(err, commun.ErrPhotoProfilAbsente):
 		return fiber.NewError(fiber.StatusNotFound, err.Error())
-	case errors.Is(err, authdomain.ErrCompteVerrouille):
+	case errors.Is(err, authdomain.ErrCompteVerrouille), errors.Is(err, authdomain.ErrTropDeTentativesReinitialisation):
 		return fiber.NewError(fiber.StatusTooManyRequests, err.Error())
 	default:
 		return fiber.NewError(fiber.StatusInternalServerError, "erreur interne")

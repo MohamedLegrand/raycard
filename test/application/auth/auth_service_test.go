@@ -184,6 +184,30 @@ func (r *verrouConnexionRepoFake) Sauvegarder(_ context.Context, v *authdomain.V
 	return nil
 }
 
+type verrouReinitialisationRepoFake struct {
+	parAdresseIP map[string]*authdomain.VerrouReinitialisation
+}
+
+func nouveauVerrouReinitialisationRepoFake() *verrouReinitialisationRepoFake {
+	return &verrouReinitialisationRepoFake{parAdresseIP: make(map[string]*authdomain.VerrouReinitialisation)}
+}
+
+func (r *verrouReinitialisationRepoFake) FindByAdresseIP(_ context.Context, adresseIP string) (*authdomain.VerrouReinitialisation, error) {
+	v, ok := r.parAdresseIP[adresseIP]
+	if !ok {
+		return nil, authdomain.ErrVerrouReinitialisationIntrouvable
+	}
+	// Copie défensive, comme les autres fakes de ce fichier.
+	copie := *v
+	return &copie, nil
+}
+
+func (r *verrouReinitialisationRepoFake) Sauvegarder(_ context.Context, v *authdomain.VerrouReinitialisation) error {
+	copie := *v
+	r.parAdresseIP[v.AdresseIP] = &copie
+	return nil
+}
+
 type ticketConnexionRepoFake struct {
 	parHash map[string]*authdomain.TicketConnexion
 	parID   map[string]*authdomain.TicketConnexion
@@ -329,29 +353,31 @@ type authServiceFakes struct {
 	clesAppareil           *cleAppareilRepoFake
 	challengesEmpreinte    *challengeEmpreinteRepoFake
 	tokensChangementEmail  *tokenChangementEmailRepoFake
-	verrousConnexion       *verrouConnexionRepoFake
-	notifieur              *notifieurFake
-	googleAuthProvider     *googleAuthProviderFake
+	verrousConnexion        *verrouConnexionRepoFake
+	verrousReinitialisation *verrouReinitialisationRepoFake
+	notifieur               *notifieurFake
+	googleAuthProvider      *googleAuthProviderFake
 }
 
 func setupAuthService() (authinput.AuthUseCase, *authServiceFakes) {
 	fakes := &authServiceFakes{
-		utilisateurs:           testcommun.NewUtilisateurRepoFake(),
-		wallets:                testcommun.NewWalletRepoFake(),
-		refreshTokens:          nouveauRefreshTokenRepoFake(),
-		tokensReinitialisation: nouveauTokenReinitialisationRepoFake(),
-		ticketsConnexion:       nouveauTicketConnexionRepoFake(),
-		clesAppareil:           nouveauCleAppareilRepoFake(),
-		challengesEmpreinte:    nouveauChallengeEmpreinteRepoFake(),
-		tokensChangementEmail:  nouveauTokenChangementEmailRepoFake(),
-		verrousConnexion:       nouveauVerrouConnexionRepoFake(),
-		notifieur:              &notifieurFake{},
+		utilisateurs:            testcommun.NewUtilisateurRepoFake(),
+		wallets:                 testcommun.NewWalletRepoFake(),
+		refreshTokens:           nouveauRefreshTokenRepoFake(),
+		tokensReinitialisation:  nouveauTokenReinitialisationRepoFake(),
+		ticketsConnexion:        nouveauTicketConnexionRepoFake(),
+		clesAppareil:            nouveauCleAppareilRepoFake(),
+		challengesEmpreinte:     nouveauChallengeEmpreinteRepoFake(),
+		tokensChangementEmail:   nouveauTokenChangementEmailRepoFake(),
+		verrousConnexion:        nouveauVerrouConnexionRepoFake(),
+		verrousReinitialisation: nouveauVerrouReinitialisationRepoFake(),
+		notifieur:               &notifieurFake{},
 		googleAuthProvider:     &googleAuthProviderFake{},
 	}
 	service := appauth.NewAuthService(
 		fakes.utilisateurs, fakes.wallets, testcommun.NewReglesKycRepoFake(),
 		fakes.refreshTokens, fakes.tokensReinitialisation, fakes.ticketsConnexion,
-		fakes.clesAppareil, fakes.challengesEmpreinte, fakes.tokensChangementEmail, fakes.verrousConnexion, testcommun.StockageFichierFake{},
+		fakes.clesAppareil, fakes.challengesEmpreinte, fakes.tokensChangementEmail, fakes.verrousConnexion, fakes.verrousReinitialisation, testcommun.StockageFichierFake{},
 		tokenGeneratorFake{}, fakes.notifieur, fakes.googleAuthProvider, testcommun.TxManagerFake{},
 	)
 	return service, fakes
@@ -782,7 +808,7 @@ func TestAuthService_Reinitialiser_Succes(t *testing.T) {
 	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
 	code := extraireCodeOTP(t, dernierEmail.corps)
 
-	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456"))
+	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456", "1.2.3.4"))
 
 	_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "ancienmotdepasse123"})
 	assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides, "l'ancien mot de passe ne doit plus fonctionner")
@@ -796,15 +822,44 @@ func TestAuthService_Reinitialiser_Succes(t *testing.T) {
 	assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
 
 	// Le code est à usage unique.
-	err = service.Reinitialiser(context.Background(), code, "autremotdepasse789")
+	err = service.Reinitialiser(context.Background(), code, "autremotdepasse789", "1.2.3.4")
 	assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
 }
 
 func TestAuthService_Reinitialiser_TokenInvalide(t *testing.T) {
 	service, _ := setupAuthService()
 
-	err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456")
+	err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456", "1.2.3.4")
 	assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
+}
+
+// TestAuthService_Reinitialiser_VerrouApresTropDechecs vérifie la
+// protection ajoutée contre le bourrage du code à 6 chiffres (voir
+// domain/auth.VerrouReinitialisation) : après seuilEchecsReinitialisation
+// codes invalides soumis depuis la même IP, les tentatives suivantes
+// sont bloquées AVANT même d'être vérifiées, y compris avec un code
+// par ailleurs correct.
+func TestAuthService_Reinitialiser_VerrouApresTropDechecs(t *testing.T) {
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "ancienmotdepasse123")
+	require.NoError(t, service.DemanderReinitialisation(context.Background(), "awa@example.com"))
+	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
+	codeValide := extraireCodeOTP(t, dernierEmail.corps)
+
+	const adresseIP = "9.9.9.9"
+	for i := 0; i < 5; i++ {
+		err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456", adresseIP)
+		assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
+	}
+
+	// Le verrou est maintenant posé pour cette IP : même le vrai code
+	// est refusé, sans même être vérifié.
+	err := service.Reinitialiser(context.Background(), codeValide, "nouveaumotdepasse456", adresseIP)
+	assert.ErrorIs(t, err, authdomain.ErrTropDeTentativesReinitialisation)
+
+	// Une autre IP n'est pas affectée par le verrou de la première.
+	err = service.Reinitialiser(context.Background(), codeValide, "nouveaumotdepasse456", "1.2.3.4")
+	assert.NoError(t, err)
 }
 
 func TestAuthService_Reinitialiser_RevoqueAussiLesAppareilsEmpreinte(t *testing.T) {
@@ -815,7 +870,7 @@ func TestAuthService_Reinitialiser_RevoqueAussiLesAppareilsEmpreinte(t *testing.
 	require.NoError(t, service.DemanderReinitialisation(context.Background(), "awa@example.com"))
 	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
 	code := extraireCodeOTP(t, dernierEmail.corps)
-	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456"))
+	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456", "1.2.3.4"))
 
 	cleMaj, err := fakes.clesAppareil.FindByID(context.Background(), appareilID)
 	require.NoError(t, err)
