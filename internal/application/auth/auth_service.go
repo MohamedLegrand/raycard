@@ -227,7 +227,13 @@ func (s *authService) demarrerTicketConnexion(ctx context.Context, utilisateur *
 		return nil, fmt.Errorf("persistance ticket connexion: %w", err)
 	}
 
-	if os.Getenv("APP_ENV") != "production" {
+	// Opt-in explicite (== "development"), jamais l'inverse : APP_ENV vaut
+	// "development" par défaut si la variable n'est pas définie (voir
+	// config.Config.Env) — un "!= production" activerait ce débogage par
+	// défaut sur un serveur de prod qui oublierait de fixer APP_ENV,
+	// écrivant en clair sur disque le code de connexion de vrais
+	// utilisateurs.
+	if os.Getenv("APP_ENV") == "development" {
 		_ = os.WriteFile("key.txt", []byte(code), 0644)
 	}
 
@@ -500,7 +506,9 @@ func (s *authService) DemanderReinitialisation(ctx context.Context, email string
 		return fmt.Errorf("persistance token réinitialisation: %w", err)
 	}
 
-	if os.Getenv("APP_ENV") != "production" {
+	// Opt-in explicite — voir le commentaire équivalent dans
+	// demarrerTicketConnexion.
+	if os.Getenv("APP_ENV") == "development" {
 		_ = os.WriteFile("key.txt", []byte(code), 0644)
 	}
 
@@ -926,7 +934,9 @@ func (s *authService) DemanderChangementEmail(ctx context.Context, utilisateurID
 		return fmt.Errorf("persistance token changement email: %w", err)
 	}
 
-	if os.Getenv("APP_ENV") != "production" {
+	// Opt-in explicite — voir le commentaire équivalent dans
+	// demarrerTicketConnexion.
+	if os.Getenv("APP_ENV") == "development" {
 		_ = os.WriteFile("key.txt", []byte(code), 0644)
 	}
 
