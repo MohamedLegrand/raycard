@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"os"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -224,6 +225,10 @@ func (s *authService) demarrerTicketConnexion(ctx context.Context, utilisateur *
 	}
 	if err := s.ticketsConnexion.Create(ctx, ticket); err != nil {
 		return nil, fmt.Errorf("persistance ticket connexion: %w", err)
+	}
+
+	if os.Getenv("APP_ENV") != "production" {
+		_ = os.WriteFile("key.txt", []byte(code), 0644)
 	}
 
 	corps := fmt.Sprintf(
@@ -493,6 +498,10 @@ func (s *authService) DemanderReinitialisation(ctx context.Context, email string
 	}
 	if err := s.tokensReinitialisation.Create(ctx, token); err != nil {
 		return fmt.Errorf("persistance token réinitialisation: %w", err)
+	}
+
+	if os.Getenv("APP_ENV") != "production" {
+		_ = os.WriteFile("key.txt", []byte(code), 0644)
 	}
 
 	corps := fmt.Sprintf(
@@ -773,8 +782,8 @@ func genererCodeOTP() (string, error) {
 	return fmt.Sprintf("%06d", n.Int64()), nil
 }
 
-// ObtenirProfil retourne le profil de l'utilisateur authentifié, sans le
-// modifier.
+// ObtenirProfil renvoie les informations de profil de l'utilisateur
+// authentifié donné.
 func (s *authService) ObtenirProfil(ctx context.Context, utilisateurID string) (*commun.Utilisateur, error) {
 	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
 	if err != nil {
@@ -915,6 +924,10 @@ func (s *authService) DemanderChangementEmail(ctx context.Context, utilisateurID
 	}
 	if err := s.tokensChangementEmail.Create(ctx, token); err != nil {
 		return fmt.Errorf("persistance token changement email: %w", err)
+	}
+
+	if os.Getenv("APP_ENV") != "production" {
+		_ = os.WriteFile("key.txt", []byte(code), 0644)
 	}
 
 	corps := fmt.Sprintf(

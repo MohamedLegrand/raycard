@@ -942,6 +942,10 @@ paths:
           description: non authentifié
           schema:
             $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: utilisateur introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
         "500":
           description: erreur interne
           schema:
@@ -2326,6 +2330,34 @@ paths:
       security:
       - BearerAuth: []
       summary: Téléversement d'un document d'identité
+      tags:
+      - '"1. Client - KYC"'
+  /kyc/dossier-courant:
+    get:
+      description: Renvoie le dernier dossier de demande KYC Tier 2 de l'utilisateur
+        authentifié.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/kyc.DossierKycDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: aucun dossier kyc trouvé
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Consultation du dossier KYC courant
       tags:
       - '"1. Client - KYC"'
   /wallet:

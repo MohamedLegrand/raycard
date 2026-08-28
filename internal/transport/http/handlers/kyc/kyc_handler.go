@@ -138,3 +138,26 @@ func (h *KycHandler) TeleverserDocument(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(kycdto.FromDocumentKyc(document))
 }
+
+// ObtenirDossierCourant gère GET /api/v1/kyc/dossier-courant (route protégée).
+//
+//	@Summary		Consultation du dossier KYC courant
+//	@Description	Renvoie le dernier dossier de demande KYC Tier 2 de l'utilisateur authentifié.
+//	@Tags			"1. Client - KYC"
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	kyc.DossierKycDTO
+//	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		404	{object}	commun.ErreurDTO	"aucun dossier kyc trouvé"
+//	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/kyc/dossier-courant [get]
+func (h *KycHandler) ObtenirDossierCourant(c *fiber.Ctx) error {
+	utilisateurID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+
+	dossier, err := h.kycUseCase.ObtenirDossierCourant(c.Context(), utilisateurID)
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(kycdto.FromDossierKyc(dossier))
+}

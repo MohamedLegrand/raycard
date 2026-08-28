@@ -72,6 +72,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	api := app.Group("/api/v1")
 
 	kyc := api.Group("/kyc")
+	kyc.Get("/dossier-courant", authmw.RequireAuth(tokenGenerator), h.Kyc.ObtenirDossierCourant)
 	kyc.Post("/demande-tier2", authmw.RequireAuth(tokenGenerator), h.Kyc.DemanderTier2)
 	kyc.Post("/documents", authmw.RequireAuth(tokenGenerator), h.Kyc.TeleverserDocument)
 

@@ -51,6 +51,21 @@ func (r *dossierKycRepoFake) FindEnAttenteByUtilisateurID(_ context.Context, uti
 	return nil, kyc.ErrDossierKycIntrouvable
 }
 
+func (r *dossierKycRepoFake) FindDernierByUtilisateurID(_ context.Context, utilisateurID string) (*kyc.DossierKyc, error) {
+	var dernier *kyc.DossierKyc
+	for _, d := range r.parID {
+		if d.UtilisateurID == utilisateurID {
+			if dernier == nil || d.CreatedAt.After(dernier.CreatedAt) {
+				dernier = d
+			}
+		}
+	}
+	if dernier != nil {
+		return dernier, nil
+	}
+	return nil, kyc.ErrDossierKycIntrouvable
+}
+
 func (r *dossierKycRepoFake) ListEnAttente(_ context.Context) ([]*kyc.DossierKyc, error) {
 	var resultat []*kyc.DossierKyc
 	for _, d := range r.parID {
@@ -375,4 +390,13 @@ func TestKycService_TeleverserDocument_OcrEnEchec_DocumentQuandMemeStocke(t *tes
 	})
 	require.NoError(t, err)
 	assert.Empty(t, document.TexteExtrait)
+}
+
+func TestKycService_ObtenirDossierCourant_Succes(t *testing.T) {
+	service, _, _, _, _ := setupService()
+	utilisateurID, dossierID := creerUtilisateurEtDossier(t, service)
+
+	dossier, err := service.ObtenirDossierCourant(context.Background(), utilisateurID)
+	require.NoError(t, err)
+	assert.Equal(t, dossierID, dossier.ID)
 }

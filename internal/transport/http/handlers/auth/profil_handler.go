@@ -19,6 +19,7 @@ import (
 //	@Security		BearerAuth
 //	@Success		200	{object}	auth.UtilisateurDTO
 //	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		404	{object}	commun.ErreurDTO	"utilisateur introuvable"
 //	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
 //	@Router			/auth/profil [get]
 func (h *AuthHandler) ObtenirProfil(c *fiber.Ctx) error {

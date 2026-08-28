@@ -45,6 +45,13 @@ func (r *DossierKycRepository) FindEnAttenteByUtilisateurID(ctx context.Context,
 	return r.scanUne(commun.DbFromContext(ctx, r.pool).QueryRow(ctx, query, utilisateurID))
 }
 
+func (r *DossierKycRepository) FindDernierByUtilisateurID(ctx context.Context, utilisateurID string) (*kyc.DossierKyc, error) {
+	const query = `
+		SELECT id, utilisateur_id, tier_demande, statut, motif_rejet, admin_id, created_at, traite_at
+		FROM dossiers_kyc WHERE utilisateur_id = $1 ORDER BY created_at DESC LIMIT 1`
+	return r.scanUne(commun.DbFromContext(ctx, r.pool).QueryRow(ctx, query, utilisateurID))
+}
+
 // findOneBy : colonne provient toujours d'un appel interne codé en dur.
 func (r *DossierKycRepository) findOneBy(ctx context.Context, colonne string, valeur any) (*kyc.DossierKyc, error) {
 	query := fmt.Sprintf(`

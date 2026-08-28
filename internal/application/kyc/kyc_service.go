@@ -191,3 +191,9 @@ func (s *kycService) TeleverserDocument(ctx context.Context, utilisateurID strin
 
 	return document, nil
 }
+
+// ObtenirDossierCourant renvoie le dernier dossier de demande KYC Tier 2 de
+// l'utilisateur authentifié donné.
+func (s *kycService) ObtenirDossierCourant(ctx context.Context, utilisateurID string) (*domainkyc.DossierKyc, error) {
+	return s.dossiersKyc.FindDernierByUtilisateurID(ctx, utilisateurID)
+}

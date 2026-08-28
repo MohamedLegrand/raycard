@@ -567,6 +567,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
+                    "404": {
+                        "description": "utilisateur introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
@@ -2659,6 +2665,49 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "format de document ou type de document non supporté, ou dossier déjà traité",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/kyc/dossier-courant": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Renvoie le dernier dossier de demande KYC Tier 2 de l'utilisateur authentifié.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "\"1. Client - KYC\""
+                ],
+                "summary": "Consultation du dossier KYC courant",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/kyc.DossierKycDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "aucun dossier kyc trouvé",
                         "schema": {
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
