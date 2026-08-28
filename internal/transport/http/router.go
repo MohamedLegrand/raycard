@@ -141,6 +141,10 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 
 	backofficeUtilisateurs := api.Group("/backoffice/utilisateurs", authmw.RequireAdmin(tokenGenerator))
 	backofficeUtilisateurs.Get("/", h.Admin.ListerUtilisateurs)
+	// RequireSuperAdmin en plus de RequireAdmin (déjà posé par le groupe) :
+	// créer un compte admin est une élévation de privilège, réservée au
+	// super_admin précisément — même logique que le changement de rôle.
+	backofficeUtilisateurs.Post("/", authmw.RequireSuperAdmin(tokenGenerator), h.Admin.CreerAdministrateur)
 	backofficeUtilisateurs.Get("/:id", h.Admin.ObtenirUtilisateur)
 	// RequireSuperAdmin en plus de RequireAdmin (déjà posé par le
 	// groupe) : changer un rôle est une élévation de privilège, réservée

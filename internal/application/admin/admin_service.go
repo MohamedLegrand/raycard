@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 
+	"golang.org/x/crypto/bcrypt"
+
 	domaincommun "raycard/internal/core/domain/commun"
 	inputadmin "raycard/internal/core/ports/input/admin"
 	outputcarte "raycard/internal/core/ports/output/carte"
@@ -96,4 +98,49 @@ func (s *adminService) ChangerRoleUtilisateur(ctx context.Context, adminID, util
 	}
 
 	return utilisateur, nil
+}
+
+// CreerAdministrateur crée directement un compte admin ou super_admin —
+// même vérification d'unicité email/téléphone que l'inscription cliente
+// (voir kyc.kycService.Inscrire), mais sans wallet ni palier KYC à
+// franchir (voir commun.NouvelAdministrateur).
+func (s *adminService) CreerAdministrateur(ctx context.Context, adminID string, req inputadmin.CreerAdministrateurRequest) (*domaincommun.Utilisateur, error) {
+	if _, err := s.utilisateurs.FindByEmail(ctx, req.Email); !errors.Is(err, domaincommun.ErrUtilisateurIntrouvable) {
+		if err == nil {
+			return nil, domaincommun.ErrEmailDejaUtilise
+		}
+		return nil, fmt.Errorf("vérification email: %w", err)
+	}
+	if _, err := s.utilisateurs.FindByTelephone(ctx, req.Telephone); !errors.Is(err, domaincommun.ErrUtilisateurIntrouvable) {
+		if err == nil {
+			return nil, domaincommun.ErrTelephoneDejaUtilise
+		}
+		return nil, fmt.Errorf("vérification téléphone: %w", err)
+	}
+
+	motDePasseHash, err := bcrypt.GenerateFromPassword([]byte(req.MotDePasse), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hachage mot de passe: %w", err)
+	}
+
+	admin, err := domaincommun.NouvelAdministrateur(req.Nom, req.Prenom, req.Email, req.Telephone, req.PaysCode, string(motDePasseHash), req.Role)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.utilisateurs.Create(ctx, admin); err != nil {
+		return nil, fmt.Errorf("création administrateur: %w", err)
+	}
+
+	entree, err := domaincommun.NouvelleEntreeAuditLog(
+		adminID, "administrateur_cree", "utilisateur", admin.ID,
+		fmt.Sprintf(`{"email":%q,"role":%q}`, admin.Email, admin.Role),
+	)
+	if err == nil {
+		// Best-effort, même logique que ChangerRoleUtilisateur : le compte
+		// est déjà créé, un échec de traçabilité ne doit pas le défaire.
+		_ = s.auditLog.Create(ctx, entree)
+	}
+
+	return admin, nil
 }

@@ -148,3 +148,70 @@ func TestAdminService_ChangerRoleUtilisateur_RefusePourSoiMeme(t *testing.T) {
 	_, err = service.ChangerRoleUtilisateur(context.Background(), superAdmin.ID, superAdmin.ID, domaincommun.RoleAdmin)
 	assert.ErrorIs(t, err, domaincommun.ErrAutoModificationRole)
 }
+
+func TestAdminService_CreerAdministrateur_Succes(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	auditLog := &testcommun.AuditLogRepoFake{}
+	service := nouveauService(utilisateurs, testcommun.NewWalletRepoFake(), testcarte.NewCarteRepoFake(), auditLog)
+
+	superAdmin, err := domaincommun.NouvelAdministrateur("Legrand", "Mohamed", "super@example.com", "+2250700000098", "CI", "hash", domaincommun.RoleSuperAdmin)
+	require.NoError(t, err)
+	require.NoError(t, utilisateurs.Create(context.Background(), superAdmin))
+
+	nouvel, err := service.CreerAdministrateur(context.Background(), superAdmin.ID, inputadmin.CreerAdministrateurRequest{
+		Nom: "Tagne", Prenom: "Alex", Email: "alex@raycard.app", Telephone: "+2250700000097",
+		PaysCode: "CI", MotDePasse: "motdepasse123", Role: domaincommun.RoleAdmin,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, domaincommun.RoleAdmin, nouvel.Role)
+	assert.NotEqual(t, "motdepasse123", nouvel.MotDePasseHash, "le mot de passe ne doit jamais être stocké en clair")
+
+	// Le compte créé doit être immédiatement fonctionnel — persisté avec
+	// un hash utilisable, pas seulement renvoyé en mémoire.
+	relu, err := utilisateurs.FindByEmail(context.Background(), "alex@raycard.app")
+	require.NoError(t, err)
+	assert.Equal(t, nouvel.ID, relu.ID)
+
+	entrees, err := service.ListerAuditLogs(context.Background(), outputcommun.FiltreAuditLog{})
+	require.NoError(t, err)
+	require.Len(t, entrees, 1)
+	assert.Equal(t, "administrateur_cree", entrees[0].Action)
+	assert.Equal(t, superAdmin.ID, entrees[0].AdminID)
+}
+
+func TestAdminService_CreerAdministrateur_EmailDejaUtilise(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	service := nouveauService(utilisateurs, testcommun.NewWalletRepoFake(), testcarte.NewCarteRepoFake(), &testcommun.AuditLogRepoFake{})
+
+	nouvelUtilisateurTest(t, utilisateurs, "awa@example.com", "+2250700000000")
+
+	_, err := service.CreerAdministrateur(context.Background(), "admin-1", inputadmin.CreerAdministrateurRequest{
+		Nom: "Tagne", Prenom: "Alex", Email: "awa@example.com", Telephone: "+2250700000097",
+		PaysCode: "CI", MotDePasse: "motdepasse123", Role: domaincommun.RoleAdmin,
+	})
+	assert.ErrorIs(t, err, domaincommun.ErrEmailDejaUtilise)
+}
+
+func TestAdminService_CreerAdministrateur_TelephoneDejaUtilise(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	service := nouveauService(utilisateurs, testcommun.NewWalletRepoFake(), testcarte.NewCarteRepoFake(), &testcommun.AuditLogRepoFake{})
+
+	nouvelUtilisateurTest(t, utilisateurs, "awa@example.com", "+2250700000000")
+
+	_, err := service.CreerAdministrateur(context.Background(), "admin-1", inputadmin.CreerAdministrateurRequest{
+		Nom: "Tagne", Prenom: "Alex", Email: "alex@raycard.app", Telephone: "+2250700000000",
+		PaysCode: "CI", MotDePasse: "motdepasse123", Role: domaincommun.RoleAdmin,
+	})
+	assert.ErrorIs(t, err, domaincommun.ErrTelephoneDejaUtilise)
+}
+
+func TestAdminService_CreerAdministrateur_RoleInvalide(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	service := nouveauService(utilisateurs, testcommun.NewWalletRepoFake(), testcarte.NewCarteRepoFake(), &testcommun.AuditLogRepoFake{})
+
+	_, err := service.CreerAdministrateur(context.Background(), "admin-1", inputadmin.CreerAdministrateurRequest{
+		Nom: "Tagne", Prenom: "Alex", Email: "alex@raycard.app", Telephone: "+2250700000097",
+		PaysCode: "CI", MotDePasse: "motdepasse123", Role: domaincommun.RoleClient,
+	})
+	assert.ErrorIs(t, err, domaincommun.ErrDonneesInvalides, "un compte créé par cet endpoint ne peut jamais être un simple client")
+}

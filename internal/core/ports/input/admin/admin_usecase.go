@@ -32,6 +32,26 @@ type AdminUseCase interface {
 	// vérifié ici : un super_admin ne peut jamais changer son propre
 	// rôle, pour éviter un verrouillage accidentel.
 	ChangerRoleUtilisateur(ctx context.Context, adminID, utilisateurID string, nouveauRole domaincommun.RoleUtilisateur) (*domaincommun.Utilisateur, error)
+
+	// CreerAdministrateur crée directement un compte admin ou
+	// super_admin — réservé au super_admin (voir
+	// middleware.RequireSuperAdmin). Différent de ChangerRoleUtilisateur :
+	// ne suppose aucun compte client préexistant, pour on-boarder un
+	// membre de l'équipe qui n'a jamais utilisé l'app mobile. adminID
+	// sert uniquement à tracer l'action dans l'audit log.
+	CreerAdministrateur(ctx context.Context, adminID string, req CreerAdministrateurRequest) (*domaincommun.Utilisateur, error)
+}
+
+// CreerAdministrateurRequest transporte les données nécessaires à la
+// création directe d'un compte admin (voir AdminUseCase.CreerAdministrateur).
+type CreerAdministrateurRequest struct {
+	Nom        string
+	Prenom     string
+	Email      string
+	Telephone  string
+	PaysCode   string
+	MotDePasse string
+	Role       domaincommun.RoleUtilisateur
 }
 
 // UtilisateurDetail agrège le profil, le wallet et les cartes d'un

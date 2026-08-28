@@ -100,6 +100,20 @@ type ChangerRoleRequestDTO struct {
 	Role string `json:"role" validate:"required,oneof=utilisateur admin super_admin" example:"admin"`
 }
 
+// CreerAdministrateurRequestDTO : contrairement à ChangerRoleRequestDTO,
+// role n'accepte pas "utilisateur" — cet endpoint crée un compte
+// d'emblée admin, jamais un compte client (voir
+// commun.NouvelAdministrateur).
+type CreerAdministrateurRequestDTO struct {
+	Nom        string `json:"nom" validate:"required" example:"Koné"`
+	Prenom     string `json:"prenom" validate:"required" example:"Awa"`
+	Email      string `json:"email" validate:"required,email" example:"awa.kone@raycard.app"`
+	Telephone  string `json:"telephone" validate:"required" example:"+2250700000000"`
+	PaysCode   string `json:"pays_code" validate:"required,len=2" example:"CI"`
+	MotDePasse string `json:"mot_de_passe" validate:"required,min=8" example:"motdepasse123"`
+	Role       string `json:"role" validate:"required,oneof=admin super_admin" example:"admin"`
+}
+
 func FromAuditLogs(entrees []*commun.AuditLog) []AuditLogDTO {
 	dtos := make([]AuditLogDTO, 0, len(entrees))
 	for _, e := range entrees {

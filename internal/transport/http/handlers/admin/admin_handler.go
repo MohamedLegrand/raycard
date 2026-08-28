@@ -139,3 +139,46 @@ func (h *AdminHandler) ChangerRole(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(admindto.FromUtilisateur(utilisateur))
 }
+
+// CreerAdministrateur gère POST /api/v1/backoffice/utilisateurs (route
+// réservée au super_admin, voir middleware.RequireSuperAdmin).
+//
+//	@Summary		Crée un administrateur (super-admin uniquement)
+//	@Description	Crée directement un compte admin ou super_admin, sans passer par l'inscription cliente — pour on-boarder un membre de l'équipe qui n'a jamais utilisé l'app mobile. Tracé dans l'audit log.
+//	@Tags			"2. Admin - Utilisateurs"
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			administrateur	body		admin.CreerAdministrateurRequestDTO	true	"Nouvel administrateur"
+//	@Success		201				{object}	admin.UtilisateurDTO
+//	@Failure		400				{object}	commun.ErreurDTO	"corps de requête invalide"
+//	@Failure		401				{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		403				{object}	commun.ErreurDTO	"réservé aux super-administrateurs"
+//	@Failure		409				{object}	commun.ErreurDTO	"email ou téléphone déjà utilisé"
+//	@Router			/backoffice/utilisateurs [post]
+func (h *AdminHandler) CreerAdministrateur(c *fiber.Ctx) error {
+	adminID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+
+	var req admindto.CreerAdministrateurRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	admin, err := h.adminUseCase.CreerAdministrateur(c.Context(), adminID, inputadmin.CreerAdministrateurRequest{
+		Nom:        req.Nom,
+		Prenom:     req.Prenom,
+		Email:      req.Email,
+		Telephone:  req.Telephone,
+		PaysCode:   req.PaysCode,
+		MotDePasse: req.MotDePasse,
+		Role:       domaincommun.RoleUtilisateur(req.Role),
+	})
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(admindto.FromUtilisateur(admin))
+}

@@ -36,6 +36,42 @@ definitions:
     required:
     - role
     type: object
+  admin.CreerAdministrateurRequestDTO:
+    properties:
+      email:
+        example: awa.kone@raycard.app
+        type: string
+      mot_de_passe:
+        example: motdepasse123
+        minLength: 8
+        type: string
+      nom:
+        example: Koné
+        type: string
+      pays_code:
+        example: CI
+        type: string
+      prenom:
+        example: Awa
+        type: string
+      role:
+        enum:
+        - admin
+        - super_admin
+        example: admin
+        type: string
+      telephone:
+        example: "+2250700000000"
+        type: string
+    required:
+    - email
+    - mot_de_passe
+    - nom
+    - pays_code
+    - prenom
+    - role
+    - telephone
+    type: object
   admin.UtilisateurDTO:
     properties:
       created_at:
@@ -1754,6 +1790,47 @@ paths:
       security:
       - BearerAuth: []
       summary: Liste des utilisateurs (back-office)
+      tags:
+      - '"2. Admin - Utilisateurs"'
+    post:
+      consumes:
+      - application/json
+      description: Crée directement un compte admin ou super_admin, sans passer par
+        l'inscription cliente — pour on-boarder un membre de l'équipe qui n'a jamais
+        utilisé l'app mobile. Tracé dans l'audit log.
+      parameters:
+      - description: Nouvel administrateur
+        in: body
+        name: administrateur
+        required: true
+        schema:
+          $ref: '#/definitions/admin.CreerAdministrateurRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/admin.UtilisateurDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux super-administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: email ou téléphone déjà utilisé
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Crée un administrateur (super-admin uniquement)
       tags:
       - '"2. Admin - Utilisateurs"'
   /backoffice/utilisateurs/{id}:

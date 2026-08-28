@@ -1802,6 +1802,67 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Crée directement un compte admin ou super_admin, sans passer par l'inscription cliente — pour on-boarder un membre de l'équipe qui n'a jamais utilisé l'app mobile. Tracé dans l'audit log.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "\"2. Admin - Utilisateurs\""
+                ],
+                "summary": "Crée un administrateur (super-admin uniquement)",
+                "parameters": [
+                    {
+                        "description": "Nouvel administrateur",
+                        "name": "administrateur",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.CreerAdministrateurRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/admin.UtilisateurDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux super-administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "email ou téléphone déjà utilisé",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
             }
         },
         "/backoffice/utilisateurs/{id}": {
@@ -3068,6 +3129,53 @@ const docTemplate = `{
                         "super_admin"
                     ],
                     "example": "admin"
+                }
+            }
+        },
+        "admin.CreerAdministrateurRequestDTO": {
+            "type": "object",
+            "required": [
+                "email",
+                "mot_de_passe",
+                "nom",
+                "pays_code",
+                "prenom",
+                "role",
+                "telephone"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "awa.kone@raycard.app"
+                },
+                "mot_de_passe": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "motdepasse123"
+                },
+                "nom": {
+                    "type": "string",
+                    "example": "Koné"
+                },
+                "pays_code": {
+                    "type": "string",
+                    "example": "CI"
+                },
+                "prenom": {
+                    "type": "string",
+                    "example": "Awa"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "admin",
+                        "super_admin"
+                    ],
+                    "example": "admin"
+                },
+                "telephone": {
+                    "type": "string",
+                    "example": "+2250700000000"
                 }
             }
         },
