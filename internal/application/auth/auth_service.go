@@ -169,22 +169,9 @@ func (s *authService) Connexion(ctx context.Context, req authinput.ConnexionRequ
 		return nil, fmt.Errorf("mise à jour verrou connexion: %w", err)
 	}
 
-	// La 2FA par email est contournée pour un compte admin ou
-	// super_admin : le mot de passe suffit à obtenir une session
-	// directement, comme pour la connexion par empreinte (voir
-	// ConnexionEmpreinte). Décision explicite du produit, pas une
-	// omission — voir ConnexionResultat.
-	if utilisateur.EstAdmin() {
-		session, err := s.emettreSession(ctx, utilisateur)
-		if err != nil {
-			return nil, err
-		}
-		// Best-effort, même logique que les autres méthodes de connexion :
-		// ne bloque jamais une connexion réussie.
-		_ = s.notifierConnexionReussie(ctx, utilisateur, authinput.MetadonneesConnexion{})
-		return &authinput.ConnexionResultat{Session: session}, nil
-	}
-
+	// La 2FA par email est obligatoire pour tous les comptes, y compris
+	// admin et super_admin : un accès back-office mérite au moins autant
+	// de protection qu'un compte client, pas moins.
 	return s.demarrerTicketConnexion(ctx, utilisateur)
 }
 

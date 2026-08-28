@@ -22,13 +22,13 @@ func NewAuthHandler(authUseCase authinput.AuthUseCase, validate *validator.Valid
 
 // Connexion gère POST /api/v1/auth/connexion.
 //
-//	@Summary		Connexion (étape 1/2, sauf admin)
-//	@Description	Vérifie email + mot de passe. Pour un compte client, déclenche la 2FA obligatoire (envoie un code par email, renvoie un ticket à présenter sur /auth/connexion/verifier-code — aucun token de session ici). Pour un compte admin, la 2FA par email est volontairement contournée : la réponse contient directement une session complète (mêmes champs que /auth/connexion/verifier-code).
+//	@Summary		Connexion (étape 1/2)
+//	@Description	Vérifie email + mot de passe et déclenche la 2FA obligatoire pour tout compte, client comme admin (envoie un code par email, renvoie un ticket à présenter sur /auth/connexion/verifier-code — aucun token de session ici).
 //	@Tags			"1. Client - Auth"
 //	@Accept			json
 //	@Produce		json
 //	@Param			connexion	body		auth.ConnexionRequestDTO	true	"Identifiants"
-//	@Success		200			{object}	auth.ConnexionResponseDTO	"ticket (compte client) ou session complète (compte admin)"
+//	@Success		200			{object}	auth.ConnexionResponseDTO
 //	@Failure		400			{object}	commun.ErreurDTO	"corps de requête invalide"
 //	@Failure		401			{object}	commun.ErreurDTO	"identifiants invalides"
 //	@Failure		500			{object}	commun.ErreurDTO	"erreur interne"
@@ -47,9 +47,6 @@ func (h *AuthHandler) Connexion(c *fiber.Ctx) error {
 		return handlerscommun.MapErreurDomaine(err)
 	}
 
-	if resultat.Session != nil {
-		return c.Status(fiber.StatusOK).JSON(authdto.FromSessionResultat(resultat.Session))
-	}
 	return c.Status(fiber.StatusOK).JSON(authdto.FromConnexionResultat(resultat))
 }
 

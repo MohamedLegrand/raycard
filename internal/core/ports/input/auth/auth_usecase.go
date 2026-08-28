@@ -26,17 +26,13 @@ type SessionResultat struct {
 	RefreshTokenExpireAt time.Time
 }
 
-// ConnexionResultat est émis après vérification du mot de passe. Deux
-// formes possibles : Ticket non vide (cas normal — la 2FA étant
-// obligatoire, aucun access/refresh token n'est encore délivré ; Ticket
-// doit être présenté avec le code reçu par email, voir
-// AuthUseCase.VerifierCode2FA), ou Session non nil (compte admin — la
-// 2FA par email est volontairement contournée pour ce rôle, voir
-// authService.Connexion ; jamais les deux à la fois).
+// ConnexionResultat est émis après vérification du mot de passe : la 2FA
+// étant obligatoire pour tous les comptes (client comme admin), aucun
+// access/refresh token n'est encore délivré ici — Ticket doit être
+// présenté avec le code reçu par email, voir AuthUseCase.VerifierCode2FA.
 type ConnexionResultat struct {
 	Ticket        string
 	ExpireDansSec int
-	Session       *SessionResultat
 }
 
 // ConnexionGoogleRequest transporte l'ID token émis par Google, ainsi

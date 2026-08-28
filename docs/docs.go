@@ -19,7 +19,7 @@ const docTemplate = `{
     "paths": {
         "/auth/connexion": {
             "post": {
-                "description": "Vérifie email + mot de passe et déclenche la 2FA obligatoire : envoie un code par email et renvoie un ticket à présenter avec ce code sur /auth/connexion/verifier-code. Aucun token de session n'est émis ici.",
+                "description": "Vérifie email + mot de passe et déclenche la 2FA obligatoire pour tout compte, client comme admin (envoie un code par email, renvoie un ticket à présenter sur /auth/connexion/verifier-code — aucun token de session ici).",
                 "consumes": [
                     "application/json"
                 ],
@@ -365,6 +365,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
+                    "429": {
+                        "description": "trop de tentatives, réessayer plus tard",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
@@ -518,6 +524,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
+                    "429": {
+                        "description": "trop de tentatives, réessayer plus tard",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
@@ -528,6 +540,41 @@ const docTemplate = `{
             }
         },
         "/auth/profil": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne le profil de l'utilisateur authentifié (nom, prénom, email, téléphone, palier KYC...) sans le modifier.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "\"1. Client - Auth\""
+                ],
+                "summary": "Consultation du profil",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.UtilisateurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            },
             "put": {
                 "security": [
                     {
@@ -757,6 +804,44 @@ const docTemplate = `{
             }
         },
         "/auth/profil/photo": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne le contenu brut (image) de la photo de profil de l'utilisateur authentifié.",
+                "produces": [
+                    "image/jpeg"
+                ],
+                "tags": [
+                    "\"1. Client - Auth\""
+                ],
+                "summary": "Consultation de la photo de profil",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "aucune photo de profil",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -905,6 +990,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "code invalide, expiré ou déjà utilisé",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "429": {
+                        "description": "trop de tentatives, réessayer plus tard",
                         "schema": {
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
@@ -1346,6 +1437,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/backoffice/kyc/dossiers/historique": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Contrairement à /backoffice/kyc/dossiers (uniquement en attente), renvoie aussi les dossiers déjà approuvés ou rejetés — pour les KPI back-office (répartition par statut), jamais pour la file de revue elle-même.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "\"2. Admin - KYC\""
+                ],
+                "summary": "Liste de tous les dossiers KYC, quel que soit leur statut",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/kyc.DossierKycDTO"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/backoffice/kyc/dossiers/{id}/approuver": {
             "post": {
                 "security": [
@@ -1712,6 +1849,82 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/utilisateurs/{id}/role": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Élève un client en admin/super_admin, ou rétrograde un admin — jamais son propre compte (évite un verrouillage accidentel). Tracé dans l'audit log.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "\"2. Admin - Utilisateurs\""
+                ],
+                "summary": "Change le rôle d'un utilisateur (super-admin uniquement)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de l'utilisateur",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Nouveau rôle",
+                        "name": "role",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/admin.ChangerRoleRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/admin.UtilisateurDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux super-administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "utilisateur introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "tentative de modifier son propre rôle",
                         "schema": {
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
@@ -2568,6 +2781,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
                     },
+                    "429": {
+                        "description": "trop de tentatives, réessayer plus tard",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
                     "500": {
                         "description": "erreur interne",
                         "schema": {
@@ -2639,6 +2858,12 @@ const docTemplate = `{
                     },
                     "422": {
                         "description": "wallet gelé, montant invalide, plafond dépassé ou opérateur non supporté",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "429": {
+                        "description": "trop de tentatives, réessayer plus tard",
                         "schema": {
                             "$ref": "#/definitions/commun.ErreurDTO"
                         }
@@ -2777,6 +3002,23 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "example": "9c1a2b3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d"
+                }
+            }
+        },
+        "admin.ChangerRoleRequestDTO": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "utilisateur",
+                        "admin",
+                        "super_admin"
+                    ],
+                    "example": "admin"
                 }
             }
         },
