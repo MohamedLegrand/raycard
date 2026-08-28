@@ -30,11 +30,19 @@ const (
 // RoleUtilisateur distingue un client d'un administrateur RAYCARD. Les
 // deux partagent la même entité et le même mécanisme de connexion :
 // seul ce champ change leurs permissions (voir middleware.RequireAdmin).
+//
+// RoleSuperAdmin est un admin ordinaire avec un pouvoir supplémentaire :
+// gérer les autres administrateurs (voir middleware.RequireSuperAdmin) —
+// changer un rôle est une élévation de privilège, ça ne doit pas être à
+// la portée de n'importe quel admin. Pour tout le reste du back-office
+// (utilisateurs, wallets, cartes, KYC), admin et super_admin ont
+// exactement les mêmes droits.
 type RoleUtilisateur string
 
 const (
-	RoleClient RoleUtilisateur = "utilisateur"
-	RoleAdmin  RoleUtilisateur = "admin"
+	RoleClient     RoleUtilisateur = "utilisateur"
+	RoleAdmin      RoleUtilisateur = "admin"
+	RoleSuperAdmin RoleUtilisateur = "super_admin"
 )
 
 var emailRegex = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
@@ -60,9 +68,17 @@ type Utilisateur struct {
 }
 
 // EstAdmin indique si l'utilisateur a les permissions d'administration
-// (accès au back-office).
+// (accès au back-office) — vrai pour un admin ordinaire comme pour un
+// super_admin, les deux ayant les mêmes droits partout sauf la gestion
+// des autres administrateurs (voir EstSuperAdmin).
 func (u *Utilisateur) EstAdmin() bool {
-	return u.Role == RoleAdmin
+	return u.Role == RoleAdmin || u.Role == RoleSuperAdmin
+}
+
+// EstSuperAdmin indique si l'utilisateur peut gérer les autres
+// administrateurs (créer, changer leur rôle).
+func (u *Utilisateur) EstSuperAdmin() bool {
+	return u.Role == RoleSuperAdmin
 }
 
 // nouvelUtilisateurBase valide et normalise les champs communs à toute
@@ -151,6 +167,21 @@ func (u *Utilisateur) LierGoogleID(googleID string) error {
 	return nil
 }
 
+// ChangerRole modifie le rôle de l'utilisateur — voir
+// admin.AdminUseCase.ChangerRoleUtilisateur pour la restriction
+// supplémentaire côté application (un super_admin ne doit jamais
+// pouvoir se rétrograder lui-même par erreur).
+func (u *Utilisateur) ChangerRole(nouveauRole RoleUtilisateur) error {
+	switch nouveauRole {
+	case RoleClient, RoleAdmin, RoleSuperAdmin:
+	default:
+		return ErrDonneesInvalides
+	}
+	u.Role = nouveauRole
+	u.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 // ModifierIdentite met à jour le nom et le prénom affichés.
 func (u *Utilisateur) ModifierIdentite(nom, prenom string) error {
 	nom = strings.TrimSpace(nom)
@@ -220,12 +251,17 @@ func (u *Utilisateur) PasserAuTier2() error {
 // partage l'entité Utilisateur (même mécanisme de connexion), mais le
 // concept de palier KYC ne s'applique pas à lui : il est créé
 // directement vérifié, sans wallet associé (voir cmd/creer-admin).
-func NouvelAdministrateur(nom, prenom, email, telephone, paysCode, motDePasseHash string) (*Utilisateur, error) {
+// role doit être RoleAdmin ou RoleSuperAdmin — tout autre rôle est
+// refusé (ce constructeur ne crée que des comptes back-office).
+func NouvelAdministrateur(nom, prenom, email, telephone, paysCode, motDePasseHash string, role RoleUtilisateur) (*Utilisateur, error) {
+	if role != RoleAdmin && role != RoleSuperAdmin {
+		return nil, ErrDonneesInvalides
+	}
 	admin, err := NouveauUtilisateur(nom, prenom, email, telephone, paysCode, motDePasseHash)
 	if err != nil {
 		return nil, err
 	}
-	admin.Role = RoleAdmin
+	admin.Role = role
 	admin.KycTier = KycTier2
 	admin.KycStatut = KycStatutVerifie
 	return admin, nil

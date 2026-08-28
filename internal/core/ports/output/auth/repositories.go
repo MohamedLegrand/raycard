@@ -83,3 +83,15 @@ type VerrouConnexionRepository interface {
 	// (upsert : au plus une ligne par utilisateur).
 	Sauvegarder(ctx context.Context, v *auth.VerrouConnexion) error
 }
+
+// VerrouReinitialisationRepository persiste l'état de protection contre
+// le bourrage du code de réinitialisation de mot de passe, une ligne
+// par adresse IP. Une absence de résultat doit être signalée par
+// auth.ErrVerrouReinitialisationIntrouvable.
+type VerrouReinitialisationRepository interface {
+	FindByAdresseIP(ctx context.Context, adresseIP string) (*auth.VerrouReinitialisation, error)
+
+	// Sauvegarder crée ou met à jour le verrou de l'IP concernée (upsert :
+	// au plus une ligne par IP).
+	Sauvegarder(ctx context.Context, v *auth.VerrouReinitialisation) error
+}

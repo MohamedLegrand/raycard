@@ -25,6 +25,13 @@ type AdminUseCase interface {
 	ObtenirUtilisateur(ctx context.Context, utilisateurID string) (*UtilisateurDetail, error)
 
 	ListerAuditLogs(ctx context.Context, filtre outputcommun.FiltreAuditLog) ([]*domaincommun.AuditLog, error)
+
+	// ChangerRoleUtilisateur élève ou rétrograde un compte (client,
+	// admin, super_admin) — réservé au super_admin (voir
+	// middleware.RequireSuperAdmin). adminID != utilisateurID est
+	// vérifié ici : un super_admin ne peut jamais changer son propre
+	// rôle, pour éviter un verrouillage accidentel.
+	ChangerRoleUtilisateur(ctx context.Context, adminID, utilisateurID string, nouveauRole domaincommun.RoleUtilisateur) (*domaincommun.Utilisateur, error)
 }
 
 // UtilisateurDetail agrège le profil, le wallet et les cartes d'un

@@ -106,6 +106,34 @@ func (r *DossierKycRepository) ListEnAttente(ctx context.Context) ([]*kyc.Dossie
 	return dossiers, nil
 }
 
+// ListAll renvoie tous les dossiers, quel que soit leur statut — pour
+// les KPI back-office (répartition en_attente/approuve/rejete), jamais
+// pour la file de revue elle-même (voir ListEnAttente).
+func (r *DossierKycRepository) ListAll(ctx context.Context) ([]*kyc.DossierKyc, error) {
+	const query = `
+		SELECT id, utilisateur_id, tier_demande, statut, motif_rejet, admin_id, created_at, traite_at
+		FROM dossiers_kyc ORDER BY created_at DESC`
+
+	rows, err := commun.DbFromContext(ctx, r.pool).Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("liste tous les dossiers kyc: %w", err)
+	}
+	defer rows.Close()
+
+	var dossiers []*kyc.DossierKyc
+	for rows.Next() {
+		d, err := r.scanUne(rows)
+		if err != nil {
+			return nil, err
+		}
+		dossiers = append(dossiers, d)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("liste tous les dossiers kyc: %w", err)
+	}
+	return dossiers, nil
+}
+
 func (r *DossierKycRepository) Update(ctx context.Context, d *kyc.DossierKyc) error {
 	const query = `
 		UPDATE dossiers_kyc

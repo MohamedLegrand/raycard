@@ -49,6 +49,24 @@ func TestAdminKycService_ListerDossiersEnAttente(t *testing.T) {
 	assert.Len(t, liste, 1)
 }
 
+func TestAdminKycService_ListerTousDossiers_InclutTraites(t *testing.T) {
+	service, utilisateurs, dossiers, _, _ := setupAdminKycService()
+	_, dEnAttente := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
+	_, dApprouve := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)
+	require.NoError(t, service.ApprouverDossier(context.Background(), "admin-1", dApprouve.ID))
+
+	// Contrairement à ListerDossiersEnAttente, doit inclure le dossier
+	// déjà traité.
+	toutes, err := service.ListerTousDossiers(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, toutes, 2)
+
+	enAttente, err := service.ListerDossiersEnAttente(context.Background())
+	require.NoError(t, err)
+	require.Len(t, enAttente, 1)
+	assert.Equal(t, dEnAttente.ID, enAttente[0].ID)
+}
+
 func TestAdminKycService_ApprouverDossier(t *testing.T) {
 	service, utilisateurs, dossiers, _, auditLog := setupAdminKycService()
 	u, d := utilisateurTier1AvecDossier(t, utilisateurs, dossiers)

@@ -16,6 +16,10 @@ type DossierKycRepository interface {
 	FindEnAttenteByUtilisateurID(ctx context.Context, utilisateurID string) (*kyc.DossierKyc, error)
 	FindDernierByUtilisateurID(ctx context.Context, utilisateurID string) (*kyc.DossierKyc, error)
 	ListEnAttente(ctx context.Context) ([]*kyc.DossierKyc, error)
+
+	// ListAll renvoie tous les dossiers quel que soit leur statut — pour
+	// les KPI back-office, jamais pour la file de revue (ListEnAttente).
+	ListAll(ctx context.Context) ([]*kyc.DossierKyc, error)
 	Update(ctx context.Context, d *kyc.DossierKyc) error
 }
 

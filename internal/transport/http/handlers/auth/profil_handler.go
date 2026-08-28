@@ -13,7 +13,7 @@ import (
 // ObtenirProfil gère GET /api/v1/auth/profil (route protégée).
 //
 //	@Summary		Consultation du profil
-//	@Description	Renvoie les informations de profil de l'utilisateur authentifié.
+//	@Description	Retourne le profil de l'utilisateur authentifié (nom, prénom, email, téléphone, palier KYC...) sans le modifier.
 //	@Tags			"1. Client - Auth"
 //	@Produce		json
 //	@Security		BearerAuth
@@ -107,6 +107,31 @@ func (h *AuthHandler) ModifierPhotoProfil(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(authdto.FromUtilisateur(utilisateur))
+}
+
+// ObtenirPhotoProfil gère GET /api/v1/auth/profil/photo (route
+// protégée).
+//
+//	@Summary		Consultation de la photo de profil
+//	@Description	Retourne le contenu brut (image) de la photo de profil de l'utilisateur authentifié.
+//	@Tags			"1. Client - Auth"
+//	@Produce		image/jpeg
+//	@Security		BearerAuth
+//	@Success		200
+//	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		404	{object}	commun.ErreurDTO	"aucune photo de profil"
+//	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/auth/profil/photo [get]
+func (h *AuthHandler) ObtenirPhotoProfil(c *fiber.Ctx) error {
+	utilisateurID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+
+	contenu, contentType, err := h.authUseCase.ObtenirPhotoProfil(c.Context(), utilisateurID)
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	c.Set(fiber.HeaderContentType, contentType)
+	return c.Send(contenu)
 }
 
 // ChangerMotDePasse gère POST /api/v1/auth/profil/mot-de-passe (route

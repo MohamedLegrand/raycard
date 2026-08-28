@@ -18,6 +18,11 @@ var (
 	ErrPaysNonSupporte        = errors.New("pays non supporté")
 	ErrTransitionKycInvalide  = errors.New("transition de statut kyc invalide")
 	ErrDonneesInvalides       = errors.New("données invalides")
+	ErrPhotoProfilAbsente     = errors.New("aucune photo de profil")
+	// ErrAutoModificationRole protège un super_admin contre un
+	// verrouillage accidentel : il ne peut jamais changer son propre
+	// rôle (voir admin.AdminUseCase.ChangerRoleUtilisateur).
+	ErrAutoModificationRole = errors.New("impossible de modifier son propre rôle")
 
 	// Wallet
 	ErrWalletIntrouvable        = errors.New("wallet introuvable")

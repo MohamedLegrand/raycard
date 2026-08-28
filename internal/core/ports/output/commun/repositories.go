@@ -31,6 +31,10 @@ type UtilisateurRepository interface {
 	// UpdateEmail change l'adresse email, une fois sa propriété vérifiée.
 	UpdateEmail(ctx context.Context, u *commun.Utilisateur) error
 
+	// UpdateRole change le rôle d'un utilisateur (back-office, voir
+	// admin.AdminUseCase.ChangerRoleUtilisateur).
+	UpdateRole(ctx context.Context, u *commun.Utilisateur) error
+
 	// ListAll liste les utilisateurs, pour le back-office — jamais utilisé
 	// par un flux client. Les plus récents d'abord.
 	ListAll(ctx context.Context, filtre FiltreUtilisateurs) ([]*commun.Utilisateur, error)

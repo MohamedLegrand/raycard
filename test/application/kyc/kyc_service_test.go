@@ -76,6 +76,14 @@ func (r *dossierKycRepoFake) ListEnAttente(_ context.Context) ([]*kyc.DossierKyc
 	return resultat, nil
 }
 
+func (r *dossierKycRepoFake) ListAll(_ context.Context) ([]*kyc.DossierKyc, error) {
+	var resultat []*kyc.DossierKyc
+	for _, d := range r.parID {
+		resultat = append(resultat, d)
+	}
+	return resultat, nil
+}
+
 func (r *dossierKycRepoFake) Update(_ context.Context, d *kyc.DossierKyc) error {
 	if _, ok := r.parID[d.ID]; !ok {
 		return kyc.ErrDossierKycIntrouvable

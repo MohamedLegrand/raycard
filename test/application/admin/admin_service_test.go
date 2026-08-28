@@ -78,7 +78,7 @@ func TestAdminService_ObtenirUtilisateur_SansWallet(t *testing.T) {
 	// Un compte administrateur n'a pas de wallet (voir
 	// commun.NouvelAdministrateur) : son absence ne doit jamais faire
 	// échouer la consultation de la fiche.
-	admin, err := domaincommun.NouvelAdministrateur("Admin", "RAYCARD", "admin@example.com", "+2250700000099", "CI", "hash")
+	admin, err := domaincommun.NouvelAdministrateur("Admin", "RAYCARD", "admin@example.com", "+2250700000099", "CI", "hash", domaincommun.RoleAdmin)
 	require.NoError(t, err)
 	require.NoError(t, utilisateurs.Create(context.Background(), admin))
 
@@ -114,4 +114,37 @@ func TestAdminService_ListerAuditLogs_Filtres(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, filtrees, 1)
 	assert.Equal(t, "carte_gelee_admin", filtrees[0].Action)
+}
+
+func TestAdminService_ChangerRoleUtilisateur_Succes(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	auditLog := &testcommun.AuditLogRepoFake{}
+	service := nouveauService(utilisateurs, testcommun.NewWalletRepoFake(), testcarte.NewCarteRepoFake(), auditLog)
+
+	superAdmin, err := domaincommun.NouvelAdministrateur("Legrand", "Mohamed", "super@example.com", "+2250700000098", "CI", "hash", domaincommun.RoleSuperAdmin)
+	require.NoError(t, err)
+	require.NoError(t, utilisateurs.Create(context.Background(), superAdmin))
+	client := nouvelUtilisateurTest(t, utilisateurs, "awa@example.com", "+2250700000000")
+
+	maj, err := service.ChangerRoleUtilisateur(context.Background(), superAdmin.ID, client.ID, domaincommun.RoleAdmin)
+	require.NoError(t, err)
+	assert.Equal(t, domaincommun.RoleAdmin, maj.Role)
+
+	entrees, err := service.ListerAuditLogs(context.Background(), outputcommun.FiltreAuditLog{})
+	require.NoError(t, err)
+	require.Len(t, entrees, 1)
+	assert.Equal(t, "role_utilisateur_modifie", entrees[0].Action)
+	assert.Equal(t, superAdmin.ID, entrees[0].AdminID)
+}
+
+func TestAdminService_ChangerRoleUtilisateur_RefusePourSoiMeme(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	service := nouveauService(utilisateurs, testcommun.NewWalletRepoFake(), testcarte.NewCarteRepoFake(), &testcommun.AuditLogRepoFake{})
+
+	superAdmin, err := domaincommun.NouvelAdministrateur("Legrand", "Mohamed", "super@example.com", "+2250700000098", "CI", "hash", domaincommun.RoleSuperAdmin)
+	require.NoError(t, err)
+	require.NoError(t, utilisateurs.Create(context.Background(), superAdmin))
+
+	_, err = service.ChangerRoleUtilisateur(context.Background(), superAdmin.ID, superAdmin.ID, domaincommun.RoleAdmin)
+	assert.ErrorIs(t, err, domaincommun.ErrAutoModificationRole)
 }

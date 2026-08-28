@@ -184,6 +184,30 @@ func (r *verrouConnexionRepoFake) Sauvegarder(_ context.Context, v *authdomain.V
 	return nil
 }
 
+type verrouReinitialisationRepoFake struct {
+	parAdresseIP map[string]*authdomain.VerrouReinitialisation
+}
+
+func nouveauVerrouReinitialisationRepoFake() *verrouReinitialisationRepoFake {
+	return &verrouReinitialisationRepoFake{parAdresseIP: make(map[string]*authdomain.VerrouReinitialisation)}
+}
+
+func (r *verrouReinitialisationRepoFake) FindByAdresseIP(_ context.Context, adresseIP string) (*authdomain.VerrouReinitialisation, error) {
+	v, ok := r.parAdresseIP[adresseIP]
+	if !ok {
+		return nil, authdomain.ErrVerrouReinitialisationIntrouvable
+	}
+	// Copie défensive, comme les autres fakes de ce fichier.
+	copie := *v
+	return &copie, nil
+}
+
+func (r *verrouReinitialisationRepoFake) Sauvegarder(_ context.Context, v *authdomain.VerrouReinitialisation) error {
+	copie := *v
+	r.parAdresseIP[v.AdresseIP] = &copie
+	return nil
+}
+
 type ticketConnexionRepoFake struct {
 	parHash map[string]*authdomain.TicketConnexion
 	parID   map[string]*authdomain.TicketConnexion
@@ -329,29 +353,31 @@ type authServiceFakes struct {
 	clesAppareil           *cleAppareilRepoFake
 	challengesEmpreinte    *challengeEmpreinteRepoFake
 	tokensChangementEmail  *tokenChangementEmailRepoFake
-	verrousConnexion       *verrouConnexionRepoFake
-	notifieur              *notifieurFake
-	googleAuthProvider     *googleAuthProviderFake
+	verrousConnexion        *verrouConnexionRepoFake
+	verrousReinitialisation *verrouReinitialisationRepoFake
+	notifieur               *notifieurFake
+	googleAuthProvider      *googleAuthProviderFake
 }
 
 func setupAuthService() (authinput.AuthUseCase, *authServiceFakes) {
 	fakes := &authServiceFakes{
-		utilisateurs:           testcommun.NewUtilisateurRepoFake(),
-		wallets:                testcommun.NewWalletRepoFake(),
-		refreshTokens:          nouveauRefreshTokenRepoFake(),
-		tokensReinitialisation: nouveauTokenReinitialisationRepoFake(),
-		ticketsConnexion:       nouveauTicketConnexionRepoFake(),
-		clesAppareil:           nouveauCleAppareilRepoFake(),
-		challengesEmpreinte:    nouveauChallengeEmpreinteRepoFake(),
-		tokensChangementEmail:  nouveauTokenChangementEmailRepoFake(),
-		verrousConnexion:       nouveauVerrouConnexionRepoFake(),
-		notifieur:              &notifieurFake{},
+		utilisateurs:            testcommun.NewUtilisateurRepoFake(),
+		wallets:                 testcommun.NewWalletRepoFake(),
+		refreshTokens:           nouveauRefreshTokenRepoFake(),
+		tokensReinitialisation:  nouveauTokenReinitialisationRepoFake(),
+		ticketsConnexion:        nouveauTicketConnexionRepoFake(),
+		clesAppareil:            nouveauCleAppareilRepoFake(),
+		challengesEmpreinte:     nouveauChallengeEmpreinteRepoFake(),
+		tokensChangementEmail:   nouveauTokenChangementEmailRepoFake(),
+		verrousConnexion:        nouveauVerrouConnexionRepoFake(),
+		verrousReinitialisation: nouveauVerrouReinitialisationRepoFake(),
+		notifieur:               &notifieurFake{},
 		googleAuthProvider:     &googleAuthProviderFake{},
 	}
 	service := appauth.NewAuthService(
 		fakes.utilisateurs, fakes.wallets, testcommun.NewReglesKycRepoFake(),
 		fakes.refreshTokens, fakes.tokensReinitialisation, fakes.ticketsConnexion,
-		fakes.clesAppareil, fakes.challengesEmpreinte, fakes.tokensChangementEmail, fakes.verrousConnexion, testcommun.StockageFichierFake{},
+		fakes.clesAppareil, fakes.challengesEmpreinte, fakes.tokensChangementEmail, fakes.verrousConnexion, fakes.verrousReinitialisation, testcommun.StockageFichierFake{},
 		tokenGeneratorFake{}, fakes.notifieur, fakes.googleAuthProvider, testcommun.TxManagerFake{},
 	)
 	return service, fakes
@@ -384,6 +410,17 @@ func creerUtilisateurTest(t *testing.T, repo *testcommun.UtilisateurRepoFake, em
 	require.NoError(t, err)
 	require.NoError(t, repo.Create(context.Background(), u))
 	return u
+}
+
+func creerAdminTest(t *testing.T, repo *testcommun.UtilisateurRepoFake, email, motDePasse string) *commun.Utilisateur {
+	t.Helper()
+	hash, err := bcrypt.GenerateFromPassword([]byte(motDePasse), bcrypt.DefaultCost)
+	require.NoError(t, err)
+
+	admin, err := commun.NouvelAdministrateur("Legrand", "Mohamed", email, "+2250711111111", "CI", string(hash), commun.RoleAdmin)
+	require.NoError(t, err)
+	require.NoError(t, repo.Create(context.Background(), admin))
+	return admin
 }
 
 func extraireCodeOTP(t *testing.T, corps string) string {
@@ -423,11 +460,34 @@ func TestAuthService_Connexion_Succes(t *testing.T) {
 	// Aucun token de session à cette étape : juste un ticket, la 2FA
 	// n'est pas encore validée.
 	assert.NotEmpty(t, resultat.Ticket)
-	assert.Equal(t, 600, resultat.ExpireDansSec)
+	assert.Equal(t, 900, resultat.ExpireDansSec)
 
 	require.Len(t, fakes.notifieur.emailsEnvoyes, 1)
 	assert.Equal(t, "awa@example.com", fakes.notifieur.emailsEnvoyes[0].destinataire)
 	assert.Len(t, fakes.ticketsConnexion.parHash, 1)
+}
+
+// TestAuthService_Connexion_AdminContourne2FA vérifie le comportement
+// ajouté pour les comptes admin : pas de ticket, pas de code envoyé par
+// email — une session complète est délivrée directement dès le mot de
+// passe vérifié (voir authService.Connexion).
+func TestAuthService_Connexion_AdminContourne2FA(t *testing.T) {
+	service, fakes := setupAuthService()
+	creerAdminTest(t, fakes.utilisateurs, "admin@raycard.com", "motdepasseadmin123")
+
+	resultat, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "admin@raycard.com", MotDePasse: "motdepasseadmin123"})
+	require.NoError(t, err)
+
+	assert.Empty(t, resultat.Ticket, "un admin ne doit jamais recevoir de ticket 2FA")
+	require.NotNil(t, resultat.Session)
+	assert.NotEmpty(t, resultat.Session.AccessToken)
+	assert.NotEmpty(t, resultat.Session.RefreshToken)
+
+	// Une notification de connexion est bien envoyée (comme pour les
+	// autres méthodes qui contournent la 2FA, ex: empreinte) — mais
+	// jamais de code à saisir.
+	require.Len(t, fakes.notifieur.emailsEnvoyes, 1)
+	assert.Empty(t, fakes.ticketsConnexion.parHash, "aucun ticket ne doit être créé pour un admin")
 }
 
 func TestAuthService_Connexion_MotDePasseIncorrect(t *testing.T) {
@@ -782,7 +842,7 @@ func TestAuthService_Reinitialiser_Succes(t *testing.T) {
 	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
 	code := extraireCodeOTP(t, dernierEmail.corps)
 
-	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456"))
+	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456", "1.2.3.4"))
 
 	_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "ancienmotdepasse123"})
 	assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides, "l'ancien mot de passe ne doit plus fonctionner")
@@ -796,15 +856,44 @@ func TestAuthService_Reinitialiser_Succes(t *testing.T) {
 	assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
 
 	// Le code est à usage unique.
-	err = service.Reinitialiser(context.Background(), code, "autremotdepasse789")
+	err = service.Reinitialiser(context.Background(), code, "autremotdepasse789", "1.2.3.4")
 	assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
 }
 
 func TestAuthService_Reinitialiser_TokenInvalide(t *testing.T) {
 	service, _ := setupAuthService()
 
-	err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456")
+	err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456", "1.2.3.4")
 	assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
+}
+
+// TestAuthService_Reinitialiser_VerrouApresTropDechecs vérifie la
+// protection ajoutée contre le bourrage du code à 6 chiffres (voir
+// domain/auth.VerrouReinitialisation) : après seuilEchecsReinitialisation
+// codes invalides soumis depuis la même IP, les tentatives suivantes
+// sont bloquées AVANT même d'être vérifiées, y compris avec un code
+// par ailleurs correct.
+func TestAuthService_Reinitialiser_VerrouApresTropDechecs(t *testing.T) {
+	service, fakes := setupAuthService()
+	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "ancienmotdepasse123")
+	require.NoError(t, service.DemanderReinitialisation(context.Background(), "awa@example.com"))
+	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
+	codeValide := extraireCodeOTP(t, dernierEmail.corps)
+
+	const adresseIP = "9.9.9.9"
+	for i := 0; i < 5; i++ {
+		err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456", adresseIP)
+		assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
+	}
+
+	// Le verrou est maintenant posé pour cette IP : même le vrai code
+	// est refusé, sans même être vérifié.
+	err := service.Reinitialiser(context.Background(), codeValide, "nouveaumotdepasse456", adresseIP)
+	assert.ErrorIs(t, err, authdomain.ErrTropDeTentativesReinitialisation)
+
+	// Une autre IP n'est pas affectée par le verrou de la première.
+	err = service.Reinitialiser(context.Background(), codeValide, "nouveaumotdepasse456", "1.2.3.4")
+	assert.NoError(t, err)
 }
 
 func TestAuthService_Reinitialiser_RevoqueAussiLesAppareilsEmpreinte(t *testing.T) {
@@ -815,7 +904,7 @@ func TestAuthService_Reinitialiser_RevoqueAussiLesAppareilsEmpreinte(t *testing.
 	require.NoError(t, service.DemanderReinitialisation(context.Background(), "awa@example.com"))
 	dernierEmail := fakes.notifieur.emailsEnvoyes[len(fakes.notifieur.emailsEnvoyes)-1]
 	code := extraireCodeOTP(t, dernierEmail.corps)
-	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456"))
+	require.NoError(t, service.Reinitialiser(context.Background(), code, "nouveaumotdepasse456", "1.2.3.4"))
 
 	cleMaj, err := fakes.clesAppareil.FindByID(context.Background(), appareilID)
 	require.NoError(t, err)
@@ -958,6 +1047,23 @@ func TestAuthService_RevoquerAppareil_DunAutreUtilisateur(t *testing.T) {
 // reconnaisse un JPEG (FF D8 FF), sans avoir besoin d'une vraie image.
 var jpegFactice = []byte{0xFF, 0xD8, 0xFF, 0x00}
 
+func TestAuthService_ObtenirProfil_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	utilisateur, err := service.ObtenirProfil(context.Background(), u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, utilisateur.ID)
+	assert.Equal(t, "awa@example.com", utilisateur.Email)
+}
+
+func TestAuthService_ObtenirProfil_UtilisateurIntrouvable(t *testing.T) {
+	service, _ := setupAuthService()
+
+	_, err := service.ObtenirProfil(context.Background(), "id-inexistant")
+	assert.Error(t, err)
+}
+
 func TestAuthService_ModifierProfil_Succes(t *testing.T) {
 	service, fakes := setupAuthService()
 	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
@@ -983,6 +1089,29 @@ func TestAuthService_ModifierPhotoProfil_FormatInvalide(t *testing.T) {
 
 	_, err := service.ModifierPhotoProfil(context.Background(), u.ID, "photo.txt", []byte("pas une image"))
 	assert.ErrorIs(t, err, commun.ErrDonneesInvalides)
+}
+
+func TestAuthService_ObtenirPhotoProfil_Succes(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+	_, err := service.ModifierPhotoProfil(context.Background(), u.ID, "photo.jpg", jpegFactice)
+	require.NoError(t, err)
+
+	// StockageFichierFake.Lire renvoie un contenu factice fixe, pas le
+	// contenu réellement sauvegardé (voir test/application/commun/fakes.go)
+	// — ce test vérifie donc seulement que le chemin utilisateur→stockage
+	// est bien emprunté, pas un aller-retour de données réel.
+	contenu, _, err := service.ObtenirPhotoProfil(context.Background(), u.ID)
+	require.NoError(t, err)
+	assert.NotEmpty(t, contenu)
+}
+
+func TestAuthService_ObtenirPhotoProfil_Absente(t *testing.T) {
+	service, fakes := setupAuthService()
+	u := creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
+
+	_, _, err := service.ObtenirPhotoProfil(context.Background(), u.ID)
+	assert.ErrorIs(t, err, commun.ErrPhotoProfilAbsente)
 }
 
 func TestAuthService_ChangerMotDePasse_Succes(t *testing.T) {

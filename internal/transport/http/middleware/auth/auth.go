@@ -35,16 +35,37 @@ func RequireAuth(tokenGenerator authoutput.TokenGenerator) fiber.Handler {
 }
 
 // RequireAdmin est équivalent à RequireAuth, en exigeant en plus que
-// l'utilisateur ait le rôle admin. Utilisé pour toutes les routes
-// back-office.
+// l'utilisateur ait le rôle admin OU super_admin — les deux ont les
+// mêmes droits sur tout le back-office (utilisateurs, wallets, cartes,
+// KYC). Utilisé pour toutes les routes back-office.
 func RequireAdmin(tokenGenerator authoutput.TokenGenerator) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		claims, err := validerEntete(c, tokenGenerator)
 		if err != nil {
 			return err
 		}
-		if claims.Role != commun.RoleAdmin {
+		if claims.Role != commun.RoleAdmin && claims.Role != commun.RoleSuperAdmin {
 			return fiber.NewError(fiber.StatusForbidden, "accès réservé aux administrateurs")
+		}
+
+		c.Locals(CleContextUtilisateurID, claims.UtilisateurID)
+		c.Locals(CleContextRole, claims.Role)
+		return c.Next()
+	}
+}
+
+// RequireSuperAdmin est équivalent à RequireAdmin, en exigeant en plus
+// le rôle super_admin précisément — réservé aux routes qui gèrent les
+// autres administrateurs (changer un rôle est une élévation de
+// privilège, ça ne doit pas être à la portée d'un admin ordinaire).
+func RequireSuperAdmin(tokenGenerator authoutput.TokenGenerator) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		claims, err := validerEntete(c, tokenGenerator)
+		if err != nil {
+			return err
+		}
+		if claims.Role != commun.RoleSuperAdmin {
+			return fiber.NewError(fiber.StatusForbidden, "accès réservé aux super-administrateurs")
 		}
 
 		c.Locals(CleContextUtilisateurID, claims.UtilisateurID)

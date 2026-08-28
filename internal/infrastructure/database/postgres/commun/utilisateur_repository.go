@@ -119,6 +119,19 @@ func (r *UtilisateurRepository) UpdateStatutKyc(ctx context.Context, u *commun.U
 	return nil
 }
 
+func (r *UtilisateurRepository) UpdateRole(ctx context.Context, u *commun.Utilisateur) error {
+	const query = `UPDATE utilisateurs SET role = $1, updated_at = $2 WHERE id = $3`
+
+	tag, err := DbFromContext(ctx, r.pool).Exec(ctx, query, u.Role, u.UpdatedAt, u.ID)
+	if err != nil {
+		return fmt.Errorf("mise à jour rôle: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return commun.ErrUtilisateurIntrouvable
+	}
+	return nil
+}
+
 func (r *UtilisateurRepository) UpdateMotDePasse(ctx context.Context, u *commun.Utilisateur) error {
 	const query = `UPDATE utilisateurs SET mot_de_passe_hash = $1, updated_at = now() WHERE id = $2`
 

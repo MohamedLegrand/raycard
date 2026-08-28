@@ -26,14 +26,17 @@ type SessionResultat struct {
 	RefreshTokenExpireAt time.Time
 }
 
-// ConnexionResultat est émis après vérification du mot de passe, mais
-// avant l'obtention de la session : la 2FA étant obligatoire, aucun
-// access/refresh token n'est encore délivré à ce stade. Ticket doit être
-// présenté avec le code reçu par email pour obtenir une SessionResultat
-// (voir AuthUseCase.VerifierCode2FA).
+// ConnexionResultat est émis après vérification du mot de passe. Deux
+// formes possibles : Ticket non vide (cas normal — la 2FA étant
+// obligatoire, aucun access/refresh token n'est encore délivré ; Ticket
+// doit être présenté avec le code reçu par email, voir
+// AuthUseCase.VerifierCode2FA), ou Session non nil (compte admin — la
+// 2FA par email est volontairement contournée pour ce rôle, voir
+// authService.Connexion ; jamais les deux à la fois).
 type ConnexionResultat struct {
 	Ticket        string
 	ExpireDansSec int
+	Session       *SessionResultat
 }
 
 // ConnexionGoogleRequest transporte l'ID token émis par Google, ainsi
@@ -128,7 +131,11 @@ type AuthUseCase interface {
 	// Reinitialiser change le mot de passe si le code fourni est valide,
 	// et révoque toutes les sessions actives de l'utilisateur, y compris
 	// les appareils enregistrés pour la connexion par empreinte.
-	Reinitialiser(ctx context.Context, token, nouveauMotDePasse string) error
+	// adresseIP alimente VerrouReinitialisation : contrairement à
+	// MetadonneesConnexion (purement informatif), elle influence ici
+	// directement une décision de sécurité (blocage après trop
+	// d'échecs) — voir domain/auth.VerrouReinitialisation.
+	Reinitialiser(ctx context.Context, token, nouveauMotDePasse, adresseIP string) error
 
 	// EnregistrerAppareil associe une clé publique d'appareil à
 	// l'utilisateur authentifié donné, pour une future connexion par
@@ -151,8 +158,12 @@ type AuthUseCase interface {
 	// déjà deux facteurs.
 	ConnexionEmpreinte(ctx context.Context, req VerifierEmpreinteRequest, metadonnees MetadonneesConnexion) (*SessionResultat, error)
 
-	// ObtenirProfil renvoie les informations de profil de l'utilisateur
-	// authentifié donné.
+	// ObtenirProfil retourne le profil de l'utilisateur authentifié, sans
+	// le modifier — contrairement à ModifierProfil ci-dessous, aucun
+	// endpoint de lecture seule n'existait avant : le client n'avait
+	// aucun moyen de connaître nom/prénom/email/kyc_tier après une
+	// simple connexion (les flux de connexion ne renvoient qu'une
+	// session, jamais le profil).
 	ObtenirProfil(ctx context.Context, utilisateurID string) (*commun.Utilisateur, error)
 
 	// ModifierProfil met à jour le nom et le prénom de l'utilisateur
@@ -162,6 +173,13 @@ type AuthUseCase interface {
 	// ModifierPhotoProfil stocke la nouvelle photo de profil de
 	// l'utilisateur authentifié.
 	ModifierPhotoProfil(ctx context.Context, utilisateurID, nomFichier string, contenu []byte) (*commun.Utilisateur, error)
+
+	// ObtenirPhotoProfil relit la photo de profil stockée (voir
+	// StockageFichier.Lire) — sans cet endpoint, PhotoProfil n'était
+	// qu'un chemin de fichier sur le disque du serveur, jamais
+	// accessible par le client (aucune route statique ne l'exposait).
+	// commun.ErrPhotoProfilAbsente si l'utilisateur n'en a pas encore.
+	ObtenirPhotoProfil(ctx context.Context, utilisateurID string) (contenu []byte, contentType string, err error)
 
 	// ChangerMotDePasse change le mot de passe de l'utilisateur
 	// authentifié, après vérification du mot de passe actuel, et révoque

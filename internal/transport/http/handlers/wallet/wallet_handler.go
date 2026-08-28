@@ -84,6 +84,7 @@ func (h *WalletHandler) ListerTransactions(c *fiber.Ctx) error {
 //	@Failure		404			{object}	commun.ErreurDTO	"wallet introuvable"
 //	@Failure		409			{object}	commun.ErreurDTO	"une recharge est déjà en cours"
 //	@Failure		422			{object}	commun.ErreurDTO	"wallet gelé, montant invalide, plafond dépassé ou opérateur non supporté"
+//	@Failure		429			{object}	commun.ErreurDTO	"trop de tentatives, réessayer plus tard"
 //	@Failure		500			{object}	commun.ErreurDTO	"erreur interne"
 //	@Router			/wallet/topup [post]
 func (h *WalletHandler) InitierRecharge(c *fiber.Ctx) error {
@@ -120,6 +121,7 @@ func (h *WalletHandler) InitierRecharge(c *fiber.Ctx) error {
 //	@Failure		404		{object}	commun.ErreurDTO	"wallet introuvable"
 //	@Failure		409		{object}	commun.ErreurDTO	"un retrait est déjà en cours"
 //	@Failure		422		{object}	commun.ErreurDTO	"wallet gelé, solde insuffisant, montant invalide ou opérateur non supporté"
+//	@Failure		429		{object}	commun.ErreurDTO	"trop de tentatives, réessayer plus tard"
 //	@Failure		500		{object}	commun.ErreurDTO	"erreur interne"
 //	@Router			/wallet/cashout [post]
 func (h *WalletHandler) InitierRetrait(c *fiber.Ctx) error {

@@ -44,6 +44,10 @@ func (s *adminKycService) ListerDossiersEnAttente(ctx context.Context) ([]*domai
 	return s.dossiersKyc.ListEnAttente(ctx)
 }
 
+func (s *adminKycService) ListerTousDossiers(ctx context.Context) ([]*domainkyc.DossierKyc, error) {
+	return s.dossiersKyc.ListAll(ctx)
+}
+
 // ListerDocuments renvoie les documents téléversés pour une demande
 // précise, pour aider l'administrateur à la traiter.
 func (s *adminKycService) ListerDocuments(ctx context.Context, dossierKycID string) ([]*domainkyc.DocumentKyc, error) {

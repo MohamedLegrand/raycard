@@ -89,6 +89,7 @@ func main() {
 	challengeEmpreinteRepo := pgauth.NewChallengeEmpreinteRepository(pool)
 	tokenChangementEmailRepo := pgauth.NewTokenChangementEmailRepository(pool)
 	verrouConnexionRepo := pgauth.NewVerrouConnexionRepository(pool)
+	verrouReinitialisationRepo := pgauth.NewVerrouReinitialisationRepository(pool)
 	dossierKycRepo := pgkyc.NewDossierKycRepository(pool)
 	documentKycRepo := pgkyc.NewDocumentKycRepository(pool)
 	transactionWalletRepo := pgwallet.NewTransactionRepository(pool)
@@ -123,7 +124,7 @@ func main() {
 	)
 	authUseCase := appauth.NewAuthService(
 		utilisateurRepo, walletRepo, reglesKycRepo, refreshTokenRepo, tokenReinitialisationRepo, ticketConnexionRepo,
-		cleAppareilRepo, challengeEmpreinteRepo, tokenChangementEmailRepo, verrouConnexionRepo, stockageFichiers,
+		cleAppareilRepo, challengeEmpreinteRepo, tokenChangementEmailRepo, verrouConnexionRepo, verrouReinitialisationRepo, stockageFichiers,
 		tokenGenerator, notifieur, googleAuthProvider, txManager,
 	)
 	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, documentKycRepo, stockageFichiers, auditLogRepo, txManager)
@@ -145,7 +146,7 @@ func main() {
 	adminKycHandler := handlerskyc.NewAdminKycHandler(adminKycUseCase, validate)
 	walletHandler := handlerswallet.NewWalletHandler(walletUseCase, validate)
 	carteHandler := handlerscarte.NewCarteHandler(carteUseCase, validate)
-	adminHandler := handlersadmin.NewAdminHandler(adminUseCase)
+	adminHandler := handlersadmin.NewAdminHandler(adminUseCase, validate)
 	adminWalletHandler := handlerswallet.NewAdminWalletHandler(adminWalletUseCase)
 	adminCarteHandler := handlerscarte.NewAdminCarteHandler(adminCarteUseCase)
 

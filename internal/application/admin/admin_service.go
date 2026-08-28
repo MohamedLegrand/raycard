@@ -7,6 +7,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	domaincommun "raycard/internal/core/domain/commun"
 	inputadmin "raycard/internal/core/ports/input/admin"
@@ -64,4 +65,35 @@ func (s *adminService) ObtenirUtilisateur(ctx context.Context, utilisateurID str
 
 func (s *adminService) ListerAuditLogs(ctx context.Context, filtre outputcommun.FiltreAuditLog) ([]*domaincommun.AuditLog, error) {
 	return s.auditLog.List(ctx, filtre)
+}
+
+func (s *adminService) ChangerRoleUtilisateur(ctx context.Context, adminID, utilisateurID string, nouveauRole domaincommun.RoleUtilisateur) (*domaincommun.Utilisateur, error) {
+	if adminID == utilisateurID {
+		return nil, domaincommun.ErrAutoModificationRole
+	}
+
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return nil, err
+	}
+
+	ancienRole := utilisateur.Role
+	if err := utilisateur.ChangerRole(nouveauRole); err != nil {
+		return nil, err
+	}
+	if err := s.utilisateurs.UpdateRole(ctx, utilisateur); err != nil {
+		return nil, err
+	}
+
+	entree, err := domaincommun.NouvelleEntreeAuditLog(
+		adminID, "role_utilisateur_modifie", "utilisateur", utilisateurID,
+		fmt.Sprintf(`{"ancien_role":%q,"nouveau_role":%q}`, ancienRole, nouveauRole),
+	)
+	if err == nil {
+		// Best-effort : l'action a déjà réussi, un échec de traçabilité ne
+		// doit pas la faire échouer rétroactivement pour l'appelant.
+		_ = s.auditLog.Create(ctx, entree)
+	}
+
+	return utilisateur, nil
 }

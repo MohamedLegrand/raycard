@@ -78,6 +78,11 @@ func (r *UtilisateurRepoFake) UpdateMotDePasse(_ context.Context, u *domaincommu
 	return nil
 }
 
+func (r *UtilisateurRepoFake) UpdateRole(_ context.Context, u *domaincommun.Utilisateur) error {
+	r.parEmail[u.Email] = u
+	return nil
+}
+
 func (r *UtilisateurRepoFake) LierGoogleID(_ context.Context, u *domaincommun.Utilisateur) error {
 	r.parEmail[u.Email] = u
 	if u.GoogleID != "" {
