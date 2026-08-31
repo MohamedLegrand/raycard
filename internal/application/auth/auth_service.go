@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"net/http"
 	"os"
@@ -147,7 +148,7 @@ func (s *authService) Connexion(ctx context.Context, req authinput.ConnexionRequ
 
 	maintenant := time.Now().UTC()
 	if verrou.EstVerrouille(maintenant) {
-		return nil, authdomain.ErrCompteVerrouille
+		return nil, erreurCompteVerrouille(verrou.VerrouilleJusqua, maintenant)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(utilisateur.MotDePasseHash), []byte(req.MotDePasse)); err != nil {
@@ -162,7 +163,14 @@ func (s *authService) Connexion(ctx context.Context, req authinput.ConnexionRequ
 				"<p>Plusieurs tentatives de connexion à votre compte RAYCARD ont échoué et le compte a été temporairement verrouillé.</p>"+
 					"<p>Si ce n'est pas vous, quelqu'un connaît peut-être votre mot de passe : réinitialisez-le par précaution.</p>")
 		}
-		return nil, authdomain.ErrIdentifiantsInvalides
+		// EnregistrerEchec ci-dessus vient peut-être de poser le verrou à
+		// l'instant (seuil atteint sur cette tentative précise) : le
+		// signaler tout de suite plutôt que de laisser l'appelant
+		// découvrir le blocage à la prochaine tentative seulement.
+		if verrou.EstVerrouille(maintenant) {
+			return nil, erreurCompteVerrouille(verrou.VerrouilleJusqua, maintenant)
+		}
+		return nil, erreurIdentifiantsInvalidesAvecTentatives(seuilEchecsConnexion - verrou.NombreEchecs)
 	}
 
 	verrou.EnregistrerSucces()
@@ -345,6 +353,56 @@ func valeurOuDefaut(v, defaut string) string {
 		return defaut
 	}
 	return v
+}
+
+// formaterAttente traduit le temps restant avant déblocage en texte prêt
+// pour l'affichage côté client ("1 minute", "3 minutes"...) — toujours
+// arrondi au-dessus (jamais un délai annoncé plus court que le délai
+// réel, ce qui ferait échouer une tentative faite pile à l'heure
+// annoncée) et jamais sous 1 minute même si le blocage se termine dans
+// quelques secondes.
+func formaterAttente(jusqua *time.Time, maintenant time.Time) string {
+	minutes := 1
+	if jusqua != nil {
+		if m := int(math.Ceil(jusqua.Sub(maintenant).Minutes())); m > minutes {
+			minutes = m
+		}
+	}
+	if minutes == 1 {
+		return "1 minute"
+	}
+	return fmt.Sprintf("%d minutes", minutes)
+}
+
+// erreurCompteVerrouille enrichit authdomain.ErrCompteVerrouille avec le
+// délai d'attente réel — errors.Is continue de fonctionner (le sentinel
+// reste dans la chaîne %w), seul le texte affiché change.
+func erreurCompteVerrouille(jusqua *time.Time, maintenant time.Time) error {
+	return fmt.Errorf("%w — réessayez dans %s", authdomain.ErrCompteVerrouille, formaterAttente(jusqua, maintenant))
+}
+
+// erreurIdentifiantsInvalidesAvecTentatives précise, tant que le compte
+// n'est pas encore verrouillé, combien d'échecs supplémentaires
+// déclencheront le blocage — sur le même principe que la mise en garde
+// bancaire classique. N'introduit pas de nouvelle fuite d'existence de
+// compte : /auth/inscription révèle déjà qu'un email est pris (409),
+// l'énumération n'est pas un objectif de confidentialité de ce système,
+// seul le débit de tentatives est limité (voir limiteurConnexion).
+// erreurTropDeTentativesReinitialisation : même principe qu'erreurCompteVerrouille,
+// appliqué au verrou par IP de /reinitialiser-mot-de-passe.
+func erreurTropDeTentativesReinitialisation(jusqua *time.Time, maintenant time.Time) error {
+	return fmt.Errorf("%w — réessayez dans %s", authdomain.ErrTropDeTentativesReinitialisation, formaterAttente(jusqua, maintenant))
+}
+
+func erreurIdentifiantsInvalidesAvecTentatives(tentativesRestantes int) error {
+	if tentativesRestantes <= 0 {
+		return authdomain.ErrIdentifiantsInvalides
+	}
+	mot := "tentative restante"
+	if tentativesRestantes > 1 {
+		mot = "tentatives restantes"
+	}
+	return fmt.Errorf("%w — %d %s avant blocage temporaire du compte", authdomain.ErrIdentifiantsInvalides, tentativesRestantes, mot)
 }
 
 // ConnexionGoogle authentifie ou crée un utilisateur à partir d'un ID
@@ -532,7 +590,7 @@ func (s *authService) Reinitialiser(ctx context.Context, token, nouveauMotDePass
 
 	maintenant := time.Now().UTC()
 	if verrou.EstVerrouille(maintenant) {
-		return authdomain.ErrTropDeTentativesReinitialisation
+		return erreurTropDeTentativesReinitialisation(verrou.VerrouilleJusqua, maintenant)
 	}
 
 	tr, err := s.tokensReinitialisation.FindByHash(ctx, hacherToken(token))
@@ -547,6 +605,11 @@ func (s *authService) Reinitialiser(ctx context.Context, token, nouveauMotDePass
 		verrou.EnregistrerEchec(maintenant, seuilEchecsReinitialisation, dureeBaseVerrouReinitialisation, dureeMaxVerrouReinitialisation, dureeResetEscaladeReinit)
 		if err := s.verrousReinitialisation.Sauvegarder(ctx, verrou); err != nil {
 			return fmt.Errorf("mise à jour verrou réinitialisation: %w", err)
+		}
+		// Même logique qu'en connexion : le verrou vient peut-être d'être
+		// posé sur cette tentative précise, à signaler tout de suite.
+		if verrou.EstVerrouille(maintenant) {
+			return erreurTropDeTentativesReinitialisation(verrou.VerrouilleJusqua, maintenant)
 		}
 		return authdomain.ErrTokenInvalide
 	}

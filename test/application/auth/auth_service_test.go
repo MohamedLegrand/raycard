@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -511,14 +512,25 @@ func TestAuthService_Connexion_VerrouApresEchecsRepetes(t *testing.T) {
 	service, fakes := setupAuthService()
 	creerUtilisateurTest(t, fakes.utilisateurs, "awa@example.com", "motdepasse123")
 
-	for i := 0; i < seuilEchecsConnexionTest; i++ {
+	// Chaque échec avant le seuil précise combien il en reste avant
+	// blocage — décroissant à chaque tentative.
+	for i := 0; i < seuilEchecsConnexionTest-1; i++ {
 		_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "mauvais-mot-de-passe"})
-		assert.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides)
+		require.ErrorIs(t, err, authdomain.ErrIdentifiantsInvalides)
+		tentativesRestantesAttendues := seuilEchecsConnexionTest - 1 - i
+		assert.Contains(t, err.Error(), fmt.Sprintf("%d tentative", tentativesRestantesAttendues))
 	}
+
+	// La tentative qui fait atteindre le seuil bloque immédiatement — pas
+	// besoin d'un appel de plus pour que l'appelant l'apprenne — et
+	// précise le délai d'attente.
+	_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "mauvais-mot-de-passe"})
+	require.ErrorIs(t, err, authdomain.ErrCompteVerrouille)
+	assert.Contains(t, err.Error(), "réessayez dans")
 
 	// Même avec le bon mot de passe, le compte reste bloqué jusqu'à
 	// expiration du verrou.
-	_, err := service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
+	_, err = service.Connexion(context.Background(), authinput.ConnexionRequest{Email: "awa@example.com", MotDePasse: "motdepasse123"})
 	assert.ErrorIs(t, err, authdomain.ErrCompteVerrouille)
 
 	// Pas d'alerte email dès le premier verrouillage (peut être une
@@ -876,14 +888,20 @@ func TestAuthService_Reinitialiser_VerrouApresTropDechecs(t *testing.T) {
 	codeValide := extraireCodeOTP(t, dernierEmail.corps)
 
 	const adresseIP = "9.9.9.9"
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 4; i++ {
 		err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456", adresseIP)
 		assert.ErrorIs(t, err, authdomain.ErrTokenInvalide)
 	}
 
+	// La tentative qui fait atteindre le seuil bloque immédiatement, avec
+	// le délai d'attente — pas besoin d'un appel de plus pour l'apprendre.
+	err := service.Reinitialiser(context.Background(), "000000", "nouveaumotdepasse456", adresseIP)
+	require.ErrorIs(t, err, authdomain.ErrTropDeTentativesReinitialisation)
+	assert.Contains(t, err.Error(), "réessayez dans")
+
 	// Le verrou est maintenant posé pour cette IP : même le vrai code
 	// est refusé, sans même être vérifié.
-	err := service.Reinitialiser(context.Background(), codeValide, "nouveaumotdepasse456", adresseIP)
+	err = service.Reinitialiser(context.Background(), codeValide, "nouveaumotdepasse456", adresseIP)
 	assert.ErrorIs(t, err, authdomain.ErrTropDeTentativesReinitialisation)
 
 	// Une autre IP n'est pas affectée par le verrou de la première.
