@@ -21,6 +21,64 @@ func NewCarteHandler(carteUseCase inputcarte.CarteUseCase, validate *validator.V
 	return &CarteHandler{carteUseCase: carteUseCase, validate: validate}
 }
 
+// SoumettrePorteurCarte gère POST /api/v1/cartes/porteur (route protégée).
+//
+//	@Summary		Enrôlement comme porteur de carte
+//	@Description	Soumet le KYC porteur de carte exigé par l'agrégateur avant de pouvoir émettre une carte (voir GET /cartes/porteur pour suivre le statut). Réutilise les pièces d'identité du dossier KYC Tier 2 déjà approuvé — jamais redemandées ici.
+//	@Tags			"1. Client - Carte"
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			porteur	body		carte.SoumettrePorteurCarteRequestDTO	true	"Profil du porteur"
+//	@Success		201		{object}	carte.CardCustomerDTO
+//	@Failure		400		{object}	commun.ErreurDTO	"corps de requête invalide"
+//	@Failure		401		{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		409		{object}	commun.ErreurDTO	"un dossier de porteur de carte existe déjà"
+//	@Failure		422		{object}	commun.ErreurDTO	"palier KYC insuffisant, ou aucun document d'identité approuvé disponible"
+//	@Failure		500		{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/cartes/porteur [post]
+func (h *CarteHandler) SoumettrePorteurCarte(c *fiber.Ctx) error {
+	utilisateurID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+
+	var req cartedto.SoumettrePorteurCarteRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	porteur, err := h.carteUseCase.SoumettrePorteurCarte(c.Context(), utilisateurID, req.ToUseCaseRequest())
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(cartedto.FromCardCustomer(porteur))
+}
+
+// ObtenirStatutPorteurCarte gère GET /api/v1/cartes/porteur (route protégée).
+//
+//	@Summary		Statut du porteur de carte
+//	@Description	Retourne le dossier de porteur de carte de l'utilisateur authentifié (404 si jamais soumis — voir POST /cartes/porteur).
+//	@Tags			"1. Client - Carte"
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	carte.CardCustomerDTO
+//	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		404	{object}	commun.ErreurDTO	"aucun dossier de porteur de carte"
+//	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/cartes/porteur [get]
+func (h *CarteHandler) ObtenirStatutPorteurCarte(c *fiber.Ctx) error {
+	utilisateurID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+
+	porteur, err := h.carteUseCase.ObtenirStatutPorteurCarte(c.Context(), utilisateurID)
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(cartedto.FromCardCustomer(porteur))
+}
+
 // CreerCarte gère POST /api/v1/cartes (route protégée).
 //
 //	@Summary		Émission d'une carte virtuelle

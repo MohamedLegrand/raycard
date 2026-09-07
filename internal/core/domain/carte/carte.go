@@ -37,6 +37,13 @@ const (
 // auth.VerrouConnexion, appliqué ici pour éviter de solliciter
 // l'agrégateur au même rythme pour une carte dormante que pour une carte
 // activement utilisée.
+// Devise vaut toujours "USD" : l'agrégateur émet exclusivement des
+// cartes en dollars, quelle que soit la devise du wallet RAYCARD qui a
+// financé l'opération (voir carte.CarteService.CreerCarte, qui convertit
+// le montant XAF débité en USD avant l'appel à l'agrégateur). Le champ
+// reste un string plutôt qu'une constante : signature inchangée pour ne
+// pas bouleverser NouvelleCarte, mais sa valeur n'est plus dérivée de
+// wallet.Devise depuis l'introduction du portefeuille cartes USD dédié.
 type Carte struct {
 	ID                      string
 	UtilisateurID           string

@@ -95,6 +95,7 @@ func main() {
 	transactionWalletRepo := pgwallet.NewTransactionRepository(pool)
 	carteRepo := pgcarte.NewCarteRepository(pool)
 	depenseCarteRepo := pgcarte.NewDepenseCarteRepository(pool)
+	cardCustomerRepo := pgcarte.NewCardCustomerRepository(pool)
 	auditLogRepo := pgcommun.NewAuditLogRepository(pool)
 	txManager := pgcommun.NewTxManager(pool)
 
@@ -129,7 +130,11 @@ func main() {
 	)
 	adminKycUseCase := appkyc.NewAdminKycService(utilisateurRepo, dossierKycRepo, documentKycRepo, stockageFichiers, auditLogRepo, txManager)
 	walletUseCase := appwallet.NewWalletService(utilisateurRepo, walletRepo, transactionWalletRepo, agregateurPaiement, notifieur, auditLogRepo, txManager)
-	carteUseCase := appcarte.NewCarteService(utilisateurRepo, walletRepo, transactionWalletRepo, carteRepo, depenseCarteRepo, agregateurPaiement, notifieur, auditLogRepo, txManager)
+	carteUseCase := appcarte.NewCarteService(
+		utilisateurRepo, walletRepo, transactionWalletRepo, carteRepo, depenseCarteRepo, cardCustomerRepo,
+		dossierKycRepo, documentKycRepo, stockageFichiers,
+		agregateurPaiement, notifieur, auditLogRepo, txManager,
+	)
 	adminUseCase := appadmin.NewAdminService(utilisateurRepo, walletRepo, carteRepo, auditLogRepo)
 
 	// walletUseCase et carteUseCase implémentent chacun deux interfaces

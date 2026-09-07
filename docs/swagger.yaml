@@ -323,6 +323,15 @@ definitions:
     - challenge_id
     - signature
     type: object
+  carte.CardCustomerDTO:
+    properties:
+      id:
+        type: string
+      motif_rejet:
+        type: string
+      statut:
+        type: string
+    type: object
   carte.CarteDTO:
     properties:
       devise:
@@ -380,6 +389,62 @@ definitions:
         type: integer
     required:
     - montant_centimes
+    type: object
+  carte.SoumettrePorteurCarteRequestDTO:
+    properties:
+      code_postal:
+        example: "00237"
+        type: string
+      date_naissance:
+        example: "1990-04-12"
+        type: string
+      indicatif_pays:
+        example: "+237"
+        type: string
+      numero_identification:
+        example: "123456789"
+        type: string
+      pays_code_iso:
+        example: CM
+        type: string
+      pays_nom_complet:
+        example: Cameroon
+        type: string
+      region:
+        example: Littoral
+        type: string
+      rue:
+        example: Rue 1.234, Bonanjo
+        type: string
+      telephone_local:
+        example: "690001234"
+        type: string
+      type_document:
+        description: |-
+          TypeDocument : NIN, PASSPORT, VOTERS_CARD ou DRIVERS_LICENSE (voir la
+          documentation de l'agrégateur).
+        enum:
+        - NIN
+        - PASSPORT
+        - VOTERS_CARD
+        - DRIVERS_LICENSE
+        example: NIN
+        type: string
+      ville:
+        example: Douala
+        type: string
+    required:
+    - code_postal
+    - date_naissance
+    - indicatif_pays
+    - numero_identification
+    - pays_code_iso
+    - pays_nom_complet
+    - region
+    - rue
+    - telephone_local
+    - type_document
+    - ville
     type: object
   commun.ErreurDTO:
     properties:
@@ -2318,6 +2383,81 @@ paths:
       security:
       - BearerAuth: []
       summary: Recharge d'une carte virtuelle existante
+      tags:
+      - '"1. Client - Carte"'
+  /cartes/porteur:
+    get:
+      description: Retourne le dossier de porteur de carte de l'utilisateur authentifié
+        (404 si jamais soumis — voir POST /cartes/porteur).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CardCustomerDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: aucun dossier de porteur de carte
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Statut du porteur de carte
+      tags:
+      - '"1. Client - Carte"'
+    post:
+      consumes:
+      - application/json
+      description: Soumet le KYC porteur de carte exigé par l'agrégateur avant de
+        pouvoir émettre une carte (voir GET /cartes/porteur pour suivre le statut).
+        Réutilise les pièces d'identité du dossier KYC Tier 2 déjà approuvé — jamais
+        redemandées ici.
+      parameters:
+      - description: Profil du porteur
+        in: body
+        name: porteur
+        required: true
+        schema:
+          $ref: '#/definitions/carte.SoumettrePorteurCarteRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/carte.CardCustomerDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: un dossier de porteur de carte existe déjà
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: palier KYC insuffisant, ou aucun document d'identité approuvé
+            disponible
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Enrôlement comme porteur de carte
       tags:
       - '"1. Client - Carte"'
   /kyc/demande-tier2:

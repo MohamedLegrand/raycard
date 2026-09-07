@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -19,7 +20,9 @@ import (
 
 type Adapter struct {
 	client        *sdk.Client
+	publicKey     string
 	webhookSecret string
+	httpClient    *http.Client
 }
 
 // delaiMinEntreAppels impose un espacement minimal entre deux appels au
@@ -42,7 +45,17 @@ func NewAdapter(publicKey, secretKey, webhookSecret string) (*Adapter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialisation client hrpay: %w", err)
 	}
-	return &Adapter{client: client, webhookSecret: webhookSecret}, nil
+	return &Adapter{
+		client:        client,
+		publicKey:     publicKey,
+		webhookSecret: webhookSecret,
+		// Distinct du transport interne du SDK (non exposé) : nécessaire
+		// pour les routes que la version vendorisée du SDK ne connaît pas
+		// encore (porteurs de carte, portefeuille USD cartes — voir
+		// cardcustomer.go). Réutilise l'authentification du SDK
+		// (client.Auth.GetToken, exporté) plutôt que de la redupliquer.
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+	}, nil
 }
 
 // telephoneSansPlus retire le "+" du format E.164 utilisé partout côté

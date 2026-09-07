@@ -21,12 +21,43 @@ type RechargerCarteRequest struct {
 	MontantCentimes int64
 }
 
+// SoumettrePorteurCarteRequest transporte les données du KYC porteur de
+// carte exigé par l'agrégateur — distinct du KYC Tier 2 de RAYCARD (voir
+// carte.CardCustomer). Les pièces d'identité recto/verso ne sont pas
+// redemandées ici : le service les récupère du dossier KYC Tier 2 déjà
+// approuvé de l'utilisateur.
+type SoumettrePorteurCarteRequest struct {
+	PaysNomComplet       string
+	PaysCodeISO          string
+	IndicatifPays        string
+	TelephoneLocal       string
+	Rue, Ville, Region   string
+	CodePostal           string
+	NumeroIdentification string
+	TypeDocument         string // NIN | PASSPORT | VOTERS_CARD | DRIVERS_LICENSE
+	DateNaissance        string // YYYY-MM-DD
+}
+
 // CarteUseCase orchestre l'émission et la consultation des cartes
 // virtuelles.
 type CarteUseCase interface {
+	// SoumettrePorteurCarte enrôle l'utilisateur comme porteur de carte
+	// auprès de l'agrégateur — préalable obligatoire à CreerCarte (voir
+	// carte.CardCustomer). Réservé aux utilisateurs Tier 2
+	// (carte.ErrKycTierInsuffisant sinon) ; carte.ErrCardCustomerDejaSoumis
+	// si un dossier existe déjà pour cet utilisateur.
+	SoumettrePorteurCarte(ctx context.Context, utilisateurID string, req SoumettrePorteurCarteRequest) (*carte.CardCustomer, error)
+
+	// ObtenirStatutPorteurCarte renvoie le dossier de porteur de carte de
+	// l'utilisateur (carte.ErrCardCustomerIntrouvable si aucun n'a encore
+	// été soumis — un état normal, pas une erreur à afficher tel quel).
+	ObtenirStatutPorteurCarte(ctx context.Context, utilisateurID string) (*carte.CardCustomer, error)
+
 	// CreerCarte débite immédiatement le solde disponible du wallet puis
 	// déclenche l'émission auprès de l'agrégateur. Réservé aux
-	// utilisateurs au palier KYC Tier 2 (carte.ErrKycTierInsuffisant sinon).
+	// utilisateurs au palier KYC Tier 2 (carte.ErrKycTierInsuffisant sinon)
+	// dont le porteur de carte est enrole (carte.ErrCardCustomerNonEnrole
+	// ou carte.ErrCardCustomerRejete sinon — voir SoumettrePorteurCarte).
 	CreerCarte(ctx context.Context, utilisateurID string, req CreerCarteRequest) (*carte.Carte, error)
 
 	ListerCartes(ctx context.Context, utilisateurID string) ([]*carte.Carte, error)

@@ -8,14 +8,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	domaincarte "raycard/internal/core/domain/carte"
 	"raycard/internal/core/domain/commun"
+	domainkyc "raycard/internal/core/domain/kyc"
 	domainwallet "raycard/internal/core/domain/wallet"
 	inputcarte "raycard/internal/core/ports/input/carte"
 	outputcarte "raycard/internal/core/ports/output/carte"
 	outputcommun "raycard/internal/core/ports/output/commun"
+	outputkyc "raycard/internal/core/ports/output/kyc"
 	outputwallet "raycard/internal/core/ports/output/wallet"
 )
 
@@ -38,15 +41,19 @@ const (
 )
 
 type carteService struct {
-	utilisateurs outputcommun.UtilisateurRepository
-	wallets      outputcommun.WalletRepository
-	transactions outputwallet.TransactionRepository
-	cartes       outputcarte.CarteRepository
-	depenses     outputcarte.DepenseCarteRepository
-	agregateur   outputcarte.AgregateurCarte
-	notifieur    outputcommun.Notifieur
-	auditLog     outputcommun.AuditLogRepository
-	txManager    outputcommun.TxManager
+	utilisateurs  outputcommun.UtilisateurRepository
+	wallets       outputcommun.WalletRepository
+	transactions  outputwallet.TransactionRepository
+	cartes        outputcarte.CarteRepository
+	depenses      outputcarte.DepenseCarteRepository
+	cardCustomers outputcarte.CardCustomerRepository
+	dossiersKyc   outputkyc.DossierKycRepository
+	documentsKyc  outputkyc.DocumentKycRepository
+	stockage      outputcommun.StockageFichier
+	agregateur    outputcarte.AgregateurCarte
+	notifieur     outputcommun.Notifieur
+	auditLog      outputcommun.AuditLogRepository
+	txManager     outputcommun.TxManager
 }
 
 // NewCarteService construit l'implémentation de inputcarte.CarteUseCase et
@@ -58,22 +65,133 @@ func NewCarteService(
 	transactions outputwallet.TransactionRepository,
 	cartes outputcarte.CarteRepository,
 	depenses outputcarte.DepenseCarteRepository,
+	cardCustomers outputcarte.CardCustomerRepository,
+	dossiersKyc outputkyc.DossierKycRepository,
+	documentsKyc outputkyc.DocumentKycRepository,
+	stockage outputcommun.StockageFichier,
 	agregateur outputcarte.AgregateurCarte,
 	notifieur outputcommun.Notifieur,
 	auditLog outputcommun.AuditLogRepository,
 	txManager outputcommun.TxManager,
 ) inputcarte.CarteUseCase {
 	return &carteService{
-		utilisateurs: utilisateurs,
-		wallets:      wallets,
-		transactions: transactions,
-		cartes:       cartes,
-		depenses:     depenses,
-		agregateur:   agregateur,
-		notifieur:    notifieur,
-		auditLog:     auditLog,
-		txManager:    txManager,
+		utilisateurs:  utilisateurs,
+		wallets:       wallets,
+		transactions:  transactions,
+		cartes:        cartes,
+		depenses:      depenses,
+		cardCustomers: cardCustomers,
+		dossiersKyc:   dossiersKyc,
+		documentsKyc:  documentsKyc,
+		stockage:      stockage,
+		agregateur:    agregateur,
+		notifieur:     notifieur,
+		auditLog:      auditLog,
+		txManager:     txManager,
 	}
+}
+
+// SoumettrePorteurCarte enrôle l'utilisateur comme porteur de carte
+// auprès de l'agrégateur, en réutilisant les pièces recto/verso de son
+// dossier KYC Tier 2 déjà approuvé — jamais redemandées à l'utilisateur
+// pour cette étape.
+func (s *carteService) SoumettrePorteurCarte(ctx context.Context, utilisateurID string, req inputcarte.SoumettrePorteurCarteRequest) (*domaincarte.CardCustomer, error) {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, utilisateurID)
+	if err != nil {
+		return nil, err
+	}
+	if utilisateur.KycTier < commun.KycTier2 {
+		return nil, domaincarte.ErrKycTierInsuffisant
+	}
+
+	if _, err := s.cardCustomers.FindByUtilisateurID(ctx, utilisateurID); !errors.Is(err, domaincarte.ErrCardCustomerIntrouvable) {
+		if err == nil {
+			return nil, domaincarte.ErrCardCustomerDejaSoumis
+		}
+		return nil, fmt.Errorf("vérification porteur de carte existant: %w", err)
+	}
+
+	recto, verso, err := s.recuperationPiecesIdentiteApprouvees(ctx, utilisateurID)
+	if err != nil {
+		return nil, err
+	}
+
+	resultat, err := s.agregateur.SoumettreCardCustomer(ctx, outputcarte.SoumettreCardCustomerParams{
+		Prenom: utilisateur.Prenom, Nom: utilisateur.Nom, Email: utilisateur.Email,
+		PaysNomComplet: req.PaysNomComplet, PaysCodeISO: req.PaysCodeISO, IndicatifPays: req.IndicatifPays,
+		TelephoneLocal: req.TelephoneLocal, Rue: req.Rue, Ville: req.Ville, Region: req.Region, CodePostal: req.CodePostal,
+		NumeroIdentification: req.NumeroIdentification, TypeDocument: req.TypeDocument, DateNaissance: req.DateNaissance,
+		DocumentRecto: recto.contenu, DocumentRectoMimeType: recto.mimeType,
+		DocumentVerso: verso.contenu, DocumentVersoMimeType: verso.mimeType,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domaincarte.ErrEmissionEchouee, err)
+	}
+
+	porteur, err := domaincarte.NouveauCardCustomer(utilisateurID)
+	if err != nil {
+		return nil, err
+	}
+	porteur.IDExterne = resultat.IDExterne
+	if err := s.cardCustomers.Create(ctx, porteur); err != nil {
+		return nil, fmt.Errorf("création porteur de carte: %w", err)
+	}
+	return porteur, nil
+}
+
+// ObtenirStatutPorteurCarte implémente inputcarte.CarteUseCase.
+func (s *carteService) ObtenirStatutPorteurCarte(ctx context.Context, utilisateurID string) (*domaincarte.CardCustomer, error) {
+	return s.cardCustomers.FindByUtilisateurID(ctx, utilisateurID)
+}
+
+type pieceIdentite struct {
+	contenu  []byte
+	mimeType string
+}
+
+// recuperationPiecesIdentiteApprouvees relit le recto et le verso de la
+// pièce d'identité du dernier dossier KYC de l'utilisateur — ne les
+// accepte que si ce dossier est bien approuve : un dossier plus récent
+// mais rejeté ne doit jamais fournir les pièces d'un enrôlement carte
+// (voir domaincarte.ErrDocumentsIdentiteAbsents).
+func (s *carteService) recuperationPiecesIdentiteApprouvees(ctx context.Context, utilisateurID string) (recto, verso pieceIdentite, err error) {
+	dossier, err := s.dossiersKyc.FindDernierByUtilisateurID(ctx, utilisateurID)
+	if err != nil {
+		return pieceIdentite{}, pieceIdentite{}, fmt.Errorf("recherche dossier kyc: %w", err)
+	}
+	if dossier.Statut != domainkyc.StatutDossierApprouve {
+		return pieceIdentite{}, pieceIdentite{}, domaincarte.ErrDocumentsIdentiteAbsents
+	}
+
+	documents, err := s.documentsKyc.ListByDossierKycID(ctx, dossier.ID)
+	if err != nil {
+		return pieceIdentite{}, pieceIdentite{}, fmt.Errorf("liste documents kyc: %w", err)
+	}
+
+	var cheminRecto, cheminVerso string
+	for _, d := range documents {
+		switch d.TypeDocument {
+		case domainkyc.TypeDocumentRectoPieceIdentite:
+			cheminRecto = d.CheminFichier
+		case domainkyc.TypeDocumentVersoPieceIdentite:
+			cheminVerso = d.CheminFichier
+		}
+	}
+	if cheminRecto == "" || cheminVerso == "" {
+		return pieceIdentite{}, pieceIdentite{}, domaincarte.ErrDocumentsIdentiteAbsents
+	}
+
+	contenuRecto, err := s.stockage.Lire(ctx, cheminRecto)
+	if err != nil {
+		return pieceIdentite{}, pieceIdentite{}, fmt.Errorf("lecture recto pièce identité: %w", err)
+	}
+	contenuVerso, err := s.stockage.Lire(ctx, cheminVerso)
+	if err != nil {
+		return pieceIdentite{}, pieceIdentite{}, fmt.Errorf("lecture verso pièce identité: %w", err)
+	}
+
+	return pieceIdentite{contenu: contenuRecto, mimeType: http.DetectContentType(contenuRecto)},
+		pieceIdentite{contenu: contenuVerso, mimeType: http.DetectContentType(contenuVerso)}, nil
 }
 
 func (s *carteService) CreerCarte(ctx context.Context, utilisateurID string, req inputcarte.CreerCarteRequest) (*domaincarte.Carte, error) {
@@ -83,6 +201,20 @@ func (s *carteService) CreerCarte(ctx context.Context, utilisateurID string, req
 	}
 	if utilisateur.KycTier < commun.KycTier2 {
 		return nil, domaincarte.ErrKycTierInsuffisant
+	}
+
+	porteur, err := s.cardCustomers.FindByUtilisateurID(ctx, utilisateurID)
+	if err != nil {
+		if errors.Is(err, domaincarte.ErrCardCustomerIntrouvable) {
+			return nil, domaincarte.ErrCardCustomerNonEnrole
+		}
+		return nil, fmt.Errorf("vérification porteur de carte: %w", err)
+	}
+	switch {
+	case porteur.Statut.EstRejete():
+		return nil, fmt.Errorf("%w: %s", domaincarte.ErrCardCustomerRejete, porteur.MotifRejet)
+	case porteur.Statut != domaincarte.StatutCardCustomerEnrole:
+		return nil, domaincarte.ErrCardCustomerNonEnrole
 	}
 
 	w, err := s.wallets.FindByUtilisateurID(ctx, utilisateurID)
@@ -98,6 +230,14 @@ func (s *carteService) CreerCarte(ctx context.Context, utilisateurID string, req
 			return nil, domainwallet.ErrTransactionDejaEnCours
 		}
 		return nil, fmt.Errorf("vérification transaction en cours: %w", err)
+	}
+
+	// Cotée avant tout débit : si l'agrégateur ne peut pas convertir (taux
+	// indisponible...), inutile d'avoir déjà touché au wallet de
+	// l'utilisateur.
+	montantUSDCentimes, err := s.agregateur.CoterConversion(ctx, req.MontantCentimes)
+	if err != nil {
+		return nil, fmt.Errorf("cotation conversion vers usd: %w", err)
 	}
 
 	transaction, err := domainwallet.NouvelleTransactionFinancementCarte(w.ID, utilisateurID, w.Devise, req.MontantCentimes)
@@ -123,10 +263,13 @@ func (s *carteService) CreerCarte(ctx context.Context, utilisateurID string, req
 		return nil, err
 	}
 
-	resultat, err := s.agregateur.CreerCarte(ctx, outputcarte.CreerCarteParams{
-		Label:           req.Label,
-		Devise:          w.Devise,
-		MontantCentimes: req.MontantCentimes,
+	nomSurCarte := utilisateur.Prenom + " " + utilisateur.Nom
+	resultat, err := s.creerCarteAvecFinancementAutomatique(ctx, outputcarte.CreerCarteParams{
+		CustomerIDExterne: porteur.IDExterne,
+		Brand:             "VISA",
+		NomSurCarte:       nomSurCarte,
+		Label:             req.Label,
+		MontantUSDCentimes: montantUSDCentimes,
 	})
 	if err != nil {
 		// Le débit reste appliqué : on ne sait pas avec certitude si la
@@ -141,15 +284,20 @@ func (s *carteService) CreerCarte(ctx context.Context, utilisateurID string, req
 	if err := transaction.MarquerEnvoyee(resultat.IDExterne); err != nil {
 		return nil, err
 	}
-	// Émission synchrone : contrairement au cash-in/cash-out, aucun
-	// webhook ne viendra confirmer plus tard — la transaction est close
-	// immédiatement. Les frais ne sont pas exposés par le SDK à la
-	// création (0 par défaut).
-	if err := transaction.MarquerSucces(0, nil); err != nil {
-		return nil, err
+	// Statut provisoire (202, voir CreerCarteResultat.StatutProvisoire) :
+	// la transaction locale reste "envoyée", jamais marquée en succès —
+	// SynchroniserSoldes confirmera l'état réel au prochain sondage.
+	// Sinon, émission confirmée : contrairement au cash-in/cash-out,
+	// aucun webhook ne vient confirmer plus tard dans ce cas, la
+	// transaction est close immédiatement (frais de change/émission
+	// prélevés côté portefeuille cartes, jamais répercutés ici).
+	if !resultat.StatutProvisoire {
+		if err := transaction.MarquerSucces(0, nil); err != nil {
+			return nil, err
+		}
 	}
 
-	carteCreee, err := domaincarte.NouvelleCarte(utilisateurID, w.ID, resultat.IDExterne, req.Label, w.Devise, req.MontantCentimes)
+	carteCreee, err := domaincarte.NouvelleCarte(utilisateurID, w.ID, resultat.IDExterne, req.Label, "USD", montantUSDCentimes)
 	if err != nil {
 		return nil, err
 	}
@@ -168,13 +316,45 @@ func (s *carteService) CreerCarte(ctx context.Context, utilisateurID string, req
 	}
 
 	// utilisateur déjà chargé plus haut pour la vérification du palier KYC.
+	// Carte toujours en USD (voir domaincarte.Carte.Devise) : contrairement
+	// au XAF/XOF, cette devise a des décimales — %.2f, jamais un entier
+	// brut de centimes comme pour les montants XAF ailleurs dans ce fichier.
 	corps := fmt.Sprintf(
-		"<p>Votre carte « %s » est prête, chargée avec %d %s.</p>",
-		carteCreee.Label, carteCreee.MontantChargeCentimes, carteCreee.Devise,
+		"<p>Votre carte « %s » est prête, chargée avec %.2f %s.</p>",
+		carteCreee.Label, float64(carteCreee.MontantChargeCentimes)/100, carteCreee.Devise,
 	)
+	if resultat.StatutProvisoire {
+		corps += "<p>Sa confirmation finale est en cours — vous serez notifié si elle devait échouer.</p>"
+	}
 	_ = s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailCarteCreee, corps)
 
 	return carteCreee, nil
+}
+
+// creerCarteAvecFinancementAutomatique tente l'émission ; si le
+// portefeuille USD cartes du marchand est insuffisant (jamais le wallet
+// XAF de l'utilisateur, déjà débité avant cet appel), l'alimente
+// exactement du montant demandé pour cette carte et retente une seule
+// fois — jamais de boucle, jamais de financement au-delà de ce qu'exige
+// cette création précise. Toute conversion réelle est tracée en audit
+// log, best-effort (voir ecrireAuditLog).
+func (s *carteService) creerCarteAvecFinancementAutomatique(ctx context.Context, params outputcarte.CreerCarteParams) (*outputcarte.CreerCarteResultat, error) {
+	resultat, err := s.agregateur.CreerCarte(ctx, params)
+	if err == nil {
+		return resultat, nil
+	}
+	if !errors.Is(err, domaincarte.ErrCardWalletInsuffisant) {
+		return nil, err
+	}
+
+	nouveauSolde, errFund := s.agregateur.AlimenterCardWallet(ctx, params.MontantUSDCentimes)
+	if errFund != nil {
+		return nil, fmt.Errorf("financement automatique du portefeuille cartes après solde insuffisant: %w", errFund)
+	}
+	_ = s.ecrireAuditLog(ctx, "systeme", "portefeuille_cartes_alimente_auto", "portefeuille_cartes", "",
+		fmt.Sprintf(`{"montant_usd_centimes":%d,"nouveau_solde_usd_centimes":%d,"motif":"solde_insuffisant_creation_carte"}`, params.MontantUSDCentimes, nouveauSolde))
+
+	return s.agregateur.CreerCarte(ctx, params)
 }
 
 func (s *carteService) ListerCartes(ctx context.Context, utilisateurID string) ([]*domaincarte.Carte, error) {
@@ -190,8 +370,8 @@ func (s *carteService) ListerCartesAdmin(ctx context.Context, filtre outputcarte
 // ecrireAuditLog trace une action administrateur sensible. Best-effort :
 // un échec d'écriture ne doit jamais faire échouer l'action elle-même,
 // déjà actée à ce stade (même principe que les notifications email).
-func (s *carteService) ecrireAuditLog(ctx context.Context, adminID, action, cibleType, cibleID string) error {
-	entree, err := commun.NouvelleEntreeAuditLog(adminID, action, cibleType, cibleID, "")
+func (s *carteService) ecrireAuditLog(ctx context.Context, adminID, action, cibleType, cibleID, detailsJSON string) error {
+	entree, err := commun.NouvelleEntreeAuditLog(adminID, action, cibleType, cibleID, detailsJSON)
 	if err != nil {
 		return err
 	}
@@ -237,7 +417,7 @@ func (s *carteService) GelerCarteAdmin(ctx context.Context, adminID, carteID str
 	if err != nil {
 		return nil, err
 	}
-	_ = s.ecrireAuditLog(ctx, adminID, "carte_gelee_admin", "carte", c.ID)
+	_ = s.ecrireAuditLog(ctx, adminID, "carte_gelee_admin", "carte", c.ID, "")
 	return c, nil
 }
 
@@ -275,7 +455,7 @@ func (s *carteService) DegelerCarteAdmin(ctx context.Context, adminID, carteID s
 	if err != nil {
 		return nil, err
 	}
-	_ = s.ecrireAuditLog(ctx, adminID, "carte_degelee_admin", "carte", c.ID)
+	_ = s.ecrireAuditLog(ctx, adminID, "carte_degelee_admin", "carte", c.ID, "")
 	return c, nil
 }
 
@@ -398,7 +578,7 @@ func (s *carteService) AnnulerCarteAdmin(ctx context.Context, adminID, carteID s
 	if err != nil {
 		return nil, err
 	}
-	_ = s.ecrireAuditLog(ctx, adminID, "carte_annulee_admin", "carte", c.ID)
+	_ = s.ecrireAuditLog(ctx, adminID, "carte_annulee_admin", "carte", c.ID, "")
 	return c, nil
 }
 

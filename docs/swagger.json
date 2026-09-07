@@ -2234,6 +2234,116 @@
                 }
             }
         },
+        "/cartes/porteur": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retourne le dossier de porteur de carte de l'utilisateur authentifié (404 si jamais soumis — voir POST /cartes/porteur).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "\"1. Client - Carte\""
+                ],
+                "summary": "Statut du porteur de carte",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CardCustomerDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "aucun dossier de porteur de carte",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soumet le KYC porteur de carte exigé par l'agrégateur avant de pouvoir émettre une carte (voir GET /cartes/porteur pour suivre le statut). Réutilise les pièces d'identité du dossier KYC Tier 2 déjà approuvé — jamais redemandées ici.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "\"1. Client - Carte\""
+                ],
+                "summary": "Enrôlement comme porteur de carte",
+                "parameters": [
+                    {
+                        "description": "Profil du porteur",
+                        "name": "porteur",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/carte.SoumettrePorteurCarteRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CardCustomerDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "un dossier de porteur de carte existe déjà",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "palier KYC insuffisant, ou aucun document d'identité approuvé disponible",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/cartes/{id}": {
             "get": {
                 "security": [
@@ -3534,6 +3644,20 @@
                 }
             }
         },
+        "carte.CardCustomerDTO": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "motif_rejet": {
+                    "type": "string"
+                },
+                "statut": {
+                    "type": "string"
+                }
+            }
+        },
         "carte.CarteDTO": {
             "type": "object",
             "properties": {
@@ -3609,6 +3733,75 @@
                 "montant_centimes": {
                     "type": "integer",
                     "example": 5000
+                }
+            }
+        },
+        "carte.SoumettrePorteurCarteRequestDTO": {
+            "type": "object",
+            "required": [
+                "code_postal",
+                "date_naissance",
+                "indicatif_pays",
+                "numero_identification",
+                "pays_code_iso",
+                "pays_nom_complet",
+                "region",
+                "rue",
+                "telephone_local",
+                "type_document",
+                "ville"
+            ],
+            "properties": {
+                "code_postal": {
+                    "type": "string",
+                    "example": "00237"
+                },
+                "date_naissance": {
+                    "type": "string",
+                    "example": "1990-04-12"
+                },
+                "indicatif_pays": {
+                    "type": "string",
+                    "example": "+237"
+                },
+                "numero_identification": {
+                    "type": "string",
+                    "example": "123456789"
+                },
+                "pays_code_iso": {
+                    "type": "string",
+                    "example": "CM"
+                },
+                "pays_nom_complet": {
+                    "type": "string",
+                    "example": "Cameroon"
+                },
+                "region": {
+                    "type": "string",
+                    "example": "Littoral"
+                },
+                "rue": {
+                    "type": "string",
+                    "example": "Rue 1.234, Bonanjo"
+                },
+                "telephone_local": {
+                    "type": "string",
+                    "example": "690001234"
+                },
+                "type_document": {
+                    "description": "TypeDocument : NIN, PASSPORT, VOTERS_CARD ou DRIVERS_LICENSE (voir la\ndocumentation de l'agrégateur).",
+                    "type": "string",
+                    "enum": [
+                        "NIN",
+                        "PASSPORT",
+                        "VOTERS_CARD",
+                        "DRIVERS_LICENSE"
+                    ],
+                    "example": "NIN"
+                },
+                "ville": {
+                    "type": "string",
+                    "example": "Douala"
                 }
             }
         },

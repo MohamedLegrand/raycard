@@ -122,6 +122,11 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	// signature HMAC vérifiée par le use case (voir wallet.AgregateurPaiement).
 	api.Post("/webhooks/hrpay", h.Wallet.WebhookHrPay)
 
+	// Avant toute route /cartes/:id : "porteur" ne doit jamais matcher le
+	// paramètre :id (même précaution que /backoffice/kyc/dossiers/historique
+	// dans ce fichier).
+	api.Post("/cartes/porteur", authmw.RequireAuth(tokenGenerator), h.Carte.SoumettrePorteurCarte)
+	api.Get("/cartes/porteur", authmw.RequireAuth(tokenGenerator), h.Carte.ObtenirStatutPorteurCarte)
 	api.Post("/cartes", authmw.RequireAuth(tokenGenerator), h.Carte.CreerCarte)
 	api.Get("/cartes", authmw.RequireAuth(tokenGenerator), h.Carte.ListerCartes)
 	api.Get("/cartes/:id", authmw.RequireAuth(tokenGenerator), h.Carte.ObtenirCarte)

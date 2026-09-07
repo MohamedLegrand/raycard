@@ -27,6 +27,46 @@ func (d RechargerCarteRequestDTO) ToUseCaseRequest() inputcarte.RechargerCarteRe
 	return inputcarte.RechargerCarteRequest{MontantCentimes: d.MontantCentimes}
 }
 
+// SoumettrePorteurCarteRequestDTO : les pièces d'identité recto/verso ne
+// sont jamais redemandées ici, voir inputcarte.SoumettrePorteurCarteRequest
+// — seulement les champs que le dossier KYC Tier 2 de RAYCARD ne collecte
+// pas encore (adresse, date de naissance, numéro de pièce...).
+type SoumettrePorteurCarteRequestDTO struct {
+	PaysNomComplet       string `json:"pays_nom_complet" validate:"required" example:"Cameroon"`
+	PaysCodeISO          string `json:"pays_code_iso" validate:"required,len=2" example:"CM"`
+	IndicatifPays        string `json:"indicatif_pays" validate:"required" example:"+237"`
+	TelephoneLocal       string `json:"telephone_local" validate:"required" example:"690001234"`
+	Rue                  string `json:"rue" validate:"required" example:"Rue 1.234, Bonanjo"`
+	Ville                string `json:"ville" validate:"required" example:"Douala"`
+	Region               string `json:"region" validate:"required" example:"Littoral"`
+	CodePostal           string `json:"code_postal" validate:"required" example:"00237"`
+	NumeroIdentification string `json:"numero_identification" validate:"required" example:"123456789"`
+	// TypeDocument : NIN, PASSPORT, VOTERS_CARD ou DRIVERS_LICENSE (voir la
+	// documentation de l'agrégateur).
+	TypeDocument  string `json:"type_document" validate:"required,oneof=NIN PASSPORT VOTERS_CARD DRIVERS_LICENSE" example:"NIN"`
+	DateNaissance string `json:"date_naissance" validate:"required,len=10" example:"1990-04-12"`
+}
+
+func (d SoumettrePorteurCarteRequestDTO) ToUseCaseRequest() inputcarte.SoumettrePorteurCarteRequest {
+	return inputcarte.SoumettrePorteurCarteRequest{
+		PaysNomComplet: d.PaysNomComplet, PaysCodeISO: d.PaysCodeISO, IndicatifPays: d.IndicatifPays,
+		TelephoneLocal: d.TelephoneLocal, Rue: d.Rue, Ville: d.Ville, Region: d.Region, CodePostal: d.CodePostal,
+		NumeroIdentification: d.NumeroIdentification, TypeDocument: d.TypeDocument, DateNaissance: d.DateNaissance,
+	}
+}
+
+// CardCustomerDTO reflète le statut du porteur de carte — jamais les
+// détails d'identité soumis (déjà connus du client qui les a envoyés).
+type CardCustomerDTO struct {
+	ID         string `json:"id"`
+	Statut     string `json:"statut"`
+	MotifRejet string `json:"motif_rejet,omitempty"`
+}
+
+func FromCardCustomer(c *carte.CardCustomer) CardCustomerDTO {
+	return CardCustomerDTO{ID: c.ID, Statut: string(c.Statut), MotifRejet: c.MotifRejet}
+}
+
 // CarteDTO n'expose jamais le PAN ni le CVV : le SDK de l'agrégateur ne
 // les fournit pas au-delà de la création, et le principe général de
 // RAYCARD est de ne jamais les persister côté serveur.
