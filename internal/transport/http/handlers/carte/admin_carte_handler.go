@@ -1,6 +1,7 @@
 package carte
 
 import (
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 
 	inputcarte "raycard/internal/core/ports/input/carte"
@@ -12,10 +13,11 @@ import (
 
 type AdminCarteHandler struct {
 	adminCarteUseCase inputcarte.AdminCarteUseCase
+	validate          *validator.Validate
 }
 
-func NewAdminCarteHandler(adminCarteUseCase inputcarte.AdminCarteUseCase) *AdminCarteHandler {
-	return &AdminCarteHandler{adminCarteUseCase: adminCarteUseCase}
+func NewAdminCarteHandler(adminCarteUseCase inputcarte.AdminCarteUseCase, validate *validator.Validate) *AdminCarteHandler {
+	return &AdminCarteHandler{adminCarteUseCase: adminCarteUseCase, validate: validate}
 }
 
 // ListerCartes gère GET /api/v1/backoffice/cartes.
@@ -126,4 +128,60 @@ func (h *AdminCarteHandler) AnnulerCarte(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(cartedto.FromCarte(carteAnnulee))
+}
+
+// ObtenirCardWallet gère GET /api/v1/backoffice/cartes/portefeuille.
+//
+//	@Summary		Solde du portefeuille USD cartes (back-office)
+//	@Description	Renvoie le solde actuel du portefeuille USD dédié aux cartes chez l'agrégateur — distinct de tout wallet utilisateur RAYCARD. Jusqu'ici sans aucune visibilité back-office : ce portefeuille n'était touché qu'en réactif, par le financement automatique borné à la création/recharge d'une carte.
+//	@Tags			"2. Admin - Carte"
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200	{object}	carte.CardWalletDTO
+//	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		403	{object}	commun.ErreurDTO	"réservé aux administrateurs"
+//	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/backoffice/cartes/portefeuille [get]
+func (h *AdminCarteHandler) ObtenirCardWallet(c *fiber.Ctx) error {
+	soldeUSDCentimes, err := h.adminCarteUseCase.ObtenirCardWalletAdmin(c.Context())
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(cartedto.CardWalletDTO{SoldeUSDCentimes: soldeUSDCentimes})
+}
+
+// AlimenterCardWallet gère POST /api/v1/backoffice/cartes/portefeuille/financer.
+//
+//	@Summary		Financement proactif du portefeuille USD cartes (back-office)
+//	@Description	Convertit des fonds du wallet XAF principal du marchand vers le portefeuille USD cartes, sans attendre un échec de création/recharge de carte. Tracé dans l'audit log.
+//	@Tags			"2. Admin - Carte"
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			financement	body		carte.AlimenterCardWalletRequestDTO	true	"Montant à créditer, en centimes de dollar"
+//	@Success		200			{object}	carte.CardWalletDTO
+//	@Failure		400			{object}	commun.ErreurDTO	"corps de requête invalide"
+//	@Failure		401			{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		403			{object}	commun.ErreurDTO	"réservé aux administrateurs"
+//	@Failure		422			{object}	commun.ErreurDTO	"montant invalide"
+//	@Failure		500			{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/backoffice/cartes/portefeuille/financer [post]
+func (h *AdminCarteHandler) AlimenterCardWallet(c *fiber.Ctx) error {
+	adminID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+
+	var req cartedto.AlimenterCardWalletRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	nouveauSolde, err := h.adminCarteUseCase.AlimenterCardWalletAdmin(c.Context(), adminID, req.MontantUSDCentimes)
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(cartedto.CardWalletDTO{SoldeUSDCentimes: nouveauSolde})
 }

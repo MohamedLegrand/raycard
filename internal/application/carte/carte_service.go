@@ -352,7 +352,11 @@ func (s *carteService) creerCarteAvecFinancementAutomatique(ctx context.Context,
 	if errFund != nil {
 		return nil, fmt.Errorf("financement automatique du portefeuille cartes après solde insuffisant: %w", errFund)
 	}
-	_ = s.ecrireAuditLog(ctx, "systeme", "portefeuille_cartes_alimente_auto", "portefeuille_cartes", "",
+	// commun.IDSysteme, jamais la chaîne libre "systeme" utilisée ici avant
+	// correction : admin_id est une colonne UUID, une valeur qui n'en est
+	// pas un fait échouer l'écriture — silencieusement, faute d'être
+	// remontée par ce _ = (best-effort). Voir le commentaire de IDSysteme.
+	_ = s.ecrireAuditLog(ctx, commun.IDSysteme, "portefeuille_cartes_alimente_auto", "portefeuille_cartes", "",
 		fmt.Sprintf(`{"montant_usd_centimes":%d,"nouveau_solde_usd_centimes":%d,"motif":"solde_insuffisant_creation_carte"}`, params.MontantUSDCentimes, nouveauSolde))
 
 	return s.agregateur.CreerCarte(ctx, params)
@@ -366,6 +370,28 @@ func (s *carteService) ListerCartes(ctx context.Context, utilisateurID string) (
 // back-office (voir middleware.RequireAdmin).
 func (s *carteService) ListerCartesAdmin(ctx context.Context, filtre outputcarte.FiltreCartes) ([]*domaincarte.Carte, error) {
 	return s.cartes.ListToutes(ctx, filtre)
+}
+
+// ObtenirCardWalletAdmin implémente inputcarte.AdminCarteUseCase.
+func (s *carteService) ObtenirCardWalletAdmin(ctx context.Context) (int64, error) {
+	return s.agregateur.ObtenirCardWallet(ctx)
+}
+
+// AlimenterCardWalletAdmin implémente inputcarte.AdminCarteUseCase.
+func (s *carteService) AlimenterCardWalletAdmin(ctx context.Context, adminID string, montantUSDCentimes int64) (int64, error) {
+	if montantUSDCentimes <= 0 {
+		return 0, commun.ErrMontantInvalide
+	}
+
+	nouveauSolde, err := s.agregateur.AlimenterCardWallet(ctx, montantUSDCentimes)
+	if err != nil {
+		return 0, fmt.Errorf("alimentation portefeuille cartes: %w", err)
+	}
+
+	_ = s.ecrireAuditLog(ctx, adminID, "portefeuille_cartes_alimente_admin", "portefeuille_cartes", "",
+		fmt.Sprintf(`{"montant_usd_centimes":%d,"nouveau_solde_usd_centimes":%d}`, montantUSDCentimes, nouveauSolde))
+
+	return nouveauSolde, nil
 }
 
 // ecrireAuditLog trace une action administrateur sensible. Best-effort :

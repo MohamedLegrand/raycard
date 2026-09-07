@@ -323,6 +323,14 @@ definitions:
     - challenge_id
     - signature
     type: object
+  carte.AlimenterCardWalletRequestDTO:
+    properties:
+      montant_usd_centimes:
+        example: 50000
+        type: integer
+    required:
+    - montant_usd_centimes
+    type: object
   carte.CardCustomerDTO:
     properties:
       id:
@@ -331,6 +339,12 @@ definitions:
         type: string
       statut:
         type: string
+    type: object
+  carte.CardWalletDTO:
+    properties:
+      solde_usd_centimes:
+        example: 250000
+        type: integer
     type: object
   carte.CarteDTO:
     properties:
@@ -1558,6 +1572,82 @@ paths:
       security:
       - BearerAuth: []
       summary: Gel d'une carte (back-office)
+      tags:
+      - '"2. Admin - Carte"'
+  /backoffice/cartes/portefeuille:
+    get:
+      description: 'Renvoie le solde actuel du portefeuille USD dédié aux cartes chez
+        l''agrégateur — distinct de tout wallet utilisateur RAYCARD. Jusqu''ici sans
+        aucune visibilité back-office : ce portefeuille n''était touché qu''en réactif,
+        par le financement automatique borné à la création/recharge d''une carte.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CardWalletDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Solde du portefeuille USD cartes (back-office)
+      tags:
+      - '"2. Admin - Carte"'
+  /backoffice/cartes/portefeuille/financer:
+    post:
+      consumes:
+      - application/json
+      description: Convertit des fonds du wallet XAF principal du marchand vers le
+        portefeuille USD cartes, sans attendre un échec de création/recharge de carte.
+        Tracé dans l'audit log.
+      parameters:
+      - description: Montant à créditer, en centimes de dollar
+        in: body
+        name: financement
+        required: true
+        schema:
+          $ref: '#/definitions/carte.AlimenterCardWalletRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CardWalletDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "403":
+          description: réservé aux administrateurs
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: montant invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Financement proactif du portefeuille USD cartes (back-office)
       tags:
       - '"2. Admin - Carte"'
   /backoffice/kyc/documents/{id}:

@@ -20,9 +20,14 @@ func NewAuditLogRepository(pool *pgxpool.Pool) *AuditLogRepository {
 }
 
 func (r *AuditLogRepository) Create(ctx context.Context, entry *commun.AuditLog) error {
+	// cible_id est une colonne UUID : NULLIF($5, '')::uuid évite une erreur
+	// de syntaxe UUID sur les actions qui ne portent pas sur une entité
+	// précise (ex: le portefeuille USD cartes, qui n'a pas d'ID propre —
+	// voir carteService.ecrireAuditLog). Même traitement que details_json,
+	// déjà protégé de la même façon.
 	const query = `
 		INSERT INTO audit_log (id, admin_id, action, cible_type, cible_id, details_json, created_at)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6, '')::jsonb, $7)`
+		VALUES ($1, $2, $3, $4, NULLIF($5, '')::uuid, NULLIF($6, '')::jsonb, $7)`
 
 	_, err := DbFromContext(ctx, r.pool).Exec(ctx, query,
 		entry.ID, entry.AdminID, entry.Action, entry.CibleType, entry.CibleID, entry.DetailsJSON, entry.CreatedAt,

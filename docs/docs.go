@@ -1141,6 +1141,118 @@ const docTemplate = `{
                 }
             }
         },
+        "/backoffice/cartes/portefeuille": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Renvoie le solde actuel du portefeuille USD dédié aux cartes chez l'agrégateur — distinct de tout wallet utilisateur RAYCARD. Jusqu'ici sans aucune visibilité back-office : ce portefeuille n'était touché qu'en réactif, par le financement automatique borné à la création/recharge d'une carte.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "\"2. Admin - Carte\""
+                ],
+                "summary": "Solde du portefeuille USD cartes (back-office)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CardWalletDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/backoffice/cartes/portefeuille/financer": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Convertit des fonds du wallet XAF principal du marchand vers le portefeuille USD cartes, sans attendre un échec de création/recharge de carte. Tracé dans l'audit log.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "\"2. Admin - Carte\""
+                ],
+                "summary": "Financement proactif du portefeuille USD cartes (back-office)",
+                "parameters": [
+                    {
+                        "description": "Montant à créditer, en centimes de dollar",
+                        "name": "financement",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/carte.AlimenterCardWalletRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CardWalletDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "réservé aux administrateurs",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "montant invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/backoffice/cartes/{id}/annuler": {
             "post": {
                 "security": [
@@ -3732,6 +3844,18 @@ const docTemplate = `{
                 }
             }
         },
+        "carte.AlimenterCardWalletRequestDTO": {
+            "type": "object",
+            "required": [
+                "montant_usd_centimes"
+            ],
+            "properties": {
+                "montant_usd_centimes": {
+                    "type": "integer",
+                    "example": 50000
+                }
+            }
+        },
         "carte.CardCustomerDTO": {
             "type": "object",
             "properties": {
@@ -3743,6 +3867,15 @@ const docTemplate = `{
                 },
                 "statut": {
                     "type": "string"
+                }
+            }
+        },
+        "carte.CardWalletDTO": {
+            "type": "object",
+            "properties": {
+                "solde_usd_centimes": {
+                    "type": "integer",
+                    "example": 250000
                 }
             }
         },

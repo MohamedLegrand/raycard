@@ -153,7 +153,7 @@ func main() {
 	carteHandler := handlerscarte.NewCarteHandler(carteUseCase, validate)
 	adminHandler := handlersadmin.NewAdminHandler(adminUseCase, validate)
 	adminWalletHandler := handlerswallet.NewAdminWalletHandler(adminWalletUseCase)
-	adminCarteHandler := handlerscarte.NewAdminCarteHandler(adminCarteUseCase)
+	adminCarteHandler := handlerscarte.NewAdminCarteHandler(adminCarteUseCase, validate)
 
 	app := fiber.New(fiber.Config{
 		BodyLimit: tailleMaxCorpsRequete,

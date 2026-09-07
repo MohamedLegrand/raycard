@@ -65,6 +65,21 @@ func (d SoumettrePorteurCarteRequestDTO) ToUseCaseRequest() inputcarte.Soumettre
 	}
 }
 
+// CardWalletDTO reflète le solde du portefeuille USD dédié aux cartes —
+// le wallet marchand chez l'agrégateur, distinct de tout wallet
+// utilisateur RAYCARD (voir inputcarte.AdminCarteUseCase.ObtenirCardWalletAdmin).
+type CardWalletDTO struct {
+	SoldeUSDCentimes int64 `json:"solde_usd_centimes" example:"250000"`
+}
+
+// AlimenterCardWalletRequestDTO : montant exprimé en centimes de dollar
+// (voir le commentaire sur carte.Carte.Devise) — jamais en XAF, ce
+// financement est une conversion directe côté agrégateur, sans passer par
+// un wallet utilisateur.
+type AlimenterCardWalletRequestDTO struct {
+	MontantUSDCentimes int64 `json:"montant_usd_centimes" validate:"required,gt=0" example:"50000"`
+}
+
 // CardCustomerDTO reflète le statut du porteur de carte — jamais les
 // détails d'identité soumis (déjà connus du client qui les a envoyés).
 type CardCustomerDTO struct {

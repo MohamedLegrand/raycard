@@ -24,4 +24,20 @@ type AdminCarteUseCase interface {
 	GelerCarteAdmin(ctx context.Context, adminID, carteID string) (*carte.Carte, error)
 	DegelerCarteAdmin(ctx context.Context, adminID, carteID string) (*carte.Carte, error)
 	AnnulerCarteAdmin(ctx context.Context, adminID, carteID string) (*carte.Carte, error)
+
+	// ObtenirCardWalletAdmin renvoie le solde actuel du portefeuille USD
+	// dédié aux cartes — le wallet marchand chez l'agrégateur, distinct de
+	// tout wallet utilisateur RAYCARD (voir outputcarte.AgregateurCarte).
+	// Jusqu'ici sans aucune visibilité back-office : ce portefeuille n'était
+	// touché qu'en réactif, dans le financement automatique borné de
+	// CreerCarte/RechargerCarte (voir carteService.creerCarteAvecFinancementAutomatique).
+	ObtenirCardWalletAdmin(ctx context.Context) (soldeUSDCentimes int64, err error)
+
+	// AlimenterCardWalletAdmin alimente proactivement le portefeuille USD
+	// cartes depuis le wallet XAF principal du marchand chez l'agrégateur,
+	// et écrit une entrée d'audit (conversion de fonds réels, action
+	// sensible). Permet d'anticiper une utilisation intensive plutôt que de
+	// subir des échecs clients en attendant que le financement automatique
+	// réagisse carte par carte.
+	AlimenterCardWalletAdmin(ctx context.Context, adminID string, montantUSDCentimes int64) (nouveauSoldeUSDCentimes int64, err error)
 }

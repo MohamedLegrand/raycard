@@ -1481,3 +1481,79 @@ func TestCarteService_ListerCartesAdmin_FiltreParUtilisateur(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, filtrees)
 }
+
+func TestCarteService_ObtenirCardWalletAdmin_Succes(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{SoldeCardWallet: 42000}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	solde, err := service.ObtenirCardWalletAdmin(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(42000), solde)
+}
+
+func TestCarteService_AlimenterCardWalletAdmin_Succes(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{SoldeApresAlimenter: 100000}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouveauSolde, err := service.AlimenterCardWalletAdmin(context.Background(), "admin-1", 50000)
+	require.NoError(t, err)
+	assert.Equal(t, int64(100000), nouveauSolde)
+	assert.Equal(t, 1, agregateur.AppelsAlimenter)
+
+	// L'entrée d'audit s'écrit avec un cible_id vide (le portefeuille
+	// cartes n'a pas d'identifiant propre) : couvre la même correction que
+	// pour le financement automatique (voir commun.IDSysteme et le
+	// NULLIF côté repository) — un cible_id vide ne doit jamais faire
+	// échouer l'écriture.
+	require.Len(t, auditLog.Entrees, 1)
+	assert.Equal(t, "portefeuille_cartes_alimente_admin", auditLog.Entrees[0].Action)
+	assert.Equal(t, "admin-1", auditLog.Entrees[0].AdminID)
+	assert.Empty(t, auditLog.Entrees[0].CibleID)
+}
+
+func TestCarteService_AlimenterCardWalletAdmin_MontantInvalide(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	_, err := service.AlimenterCardWalletAdmin(context.Background(), "admin-1", 0)
+	assert.ErrorIs(t, err, domaincommun.ErrMontantInvalide)
+	assert.Equal(t, 0, agregateur.AppelsAlimenter)
+	assert.Empty(t, auditLog.Entrees)
+}
+
+func TestCarteService_AlimenterCardWalletAdmin_ErreurAgregateur(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{ErreurAlimentation: errors.New("panne réseau")}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	_, err := service.AlimenterCardWalletAdmin(context.Background(), "admin-1", 50000)
+	require.Error(t, err)
+	assert.Empty(t, auditLog.Entrees, "aucune entrée d'audit si le financement a échoué")
+}

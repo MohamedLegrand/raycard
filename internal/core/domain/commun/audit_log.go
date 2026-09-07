@@ -2,6 +2,16 @@ package commun
 
 import "time"
 
+// IDSysteme identifie un acteur non-humain (job planifié, financement
+// automatique déclenché par une erreur agrégateur...) dans une entrée
+// d'audit — jamais une chaîne libre comme "systeme" : admin_id est une
+// colonne UUID (voir la migration audit_log), toute valeur qui n'est pas
+// un UUID syntaxiquement valide fait échouer l'écriture (silencieusement,
+// l'écriture d'audit étant best-effort — voir les appelants de
+// NouvelleEntreeAuditLog). Le nil UUID est réservé à cet usage, jamais
+// généré par NewID() (qui produit un UUID v4, jamais tout-zéro).
+const IDSysteme = "00000000-0000-0000-0000-000000000000"
+
 // AuditLog trace une action administrateur sensible (validation KYC,
 // gel de compte, modification de règle de cashback...), séparément des
 // logs applicatifs — exigence du cahier des charges V1. Partagé par

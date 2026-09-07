@@ -51,6 +51,21 @@ var limiteurOperationWallet = limiter.New(limiter.Config{
 	Expiration: time.Minute,
 })
 
+// limiteurOperationCarte freine le bourrage sur les opérations cartes qui
+// déplacent réellement des fonds ou sollicitent l'agrégateur pour le
+// compte d'un porteur (soumission de porteur, création, recharge,
+// retrait, annulation) — jusqu'ici protégées par l'authentification
+// seule, sans aucune limite de fréquence, alors qu'elles pèsent sur le
+// même débit agrégateur partagé que le wallet (voir
+// hrpay.delaiMinEntreAppels, 200ms entre TOUS les appels agrégateur, tous
+// utilisateurs et tous modules confondus). Même seuil que
+// limiteurOperationWallet, par cohérence ; une instance distincte pour
+// garder chaque budget réglable indépendamment.
+var limiteurOperationCarte = limiter.New(limiter.Config{
+	Max:        10,
+	Expiration: time.Minute,
+})
+
 // Handlers regroupe tous les handlers HTTP câblés par main.go. Un
 // champ est ajouté ici à chaque nouveau module (wallet, cartes...).
 type Handlers struct {
@@ -125,17 +140,17 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	// Avant toute route /cartes/:id : "porteur" ne doit jamais matcher le
 	// paramètre :id (même précaution que /backoffice/kyc/dossiers/historique
 	// dans ce fichier).
-	api.Post("/cartes/porteur", authmw.RequireAuth(tokenGenerator), h.Carte.SoumettrePorteurCarte)
+	api.Post("/cartes/porteur", authmw.RequireAuth(tokenGenerator), limiteurOperationCarte, h.Carte.SoumettrePorteurCarte)
 	api.Get("/cartes/porteur", authmw.RequireAuth(tokenGenerator), h.Carte.ObtenirStatutPorteurCarte)
-	api.Post("/cartes", authmw.RequireAuth(tokenGenerator), h.Carte.CreerCarte)
+	api.Post("/cartes", authmw.RequireAuth(tokenGenerator), limiteurOperationCarte, h.Carte.CreerCarte)
 	api.Get("/cartes", authmw.RequireAuth(tokenGenerator), h.Carte.ListerCartes)
 	api.Get("/cartes/:id", authmw.RequireAuth(tokenGenerator), h.Carte.ObtenirCarte)
 	api.Get("/cartes/:id/depenses", authmw.RequireAuth(tokenGenerator), h.Carte.ListerDepenses)
 	api.Post("/cartes/:id/gel", authmw.RequireAuth(tokenGenerator), h.Carte.GelerCarte)
 	api.Post("/cartes/:id/degel", authmw.RequireAuth(tokenGenerator), h.Carte.DegelerCarte)
-	api.Post("/cartes/:id/topup", authmw.RequireAuth(tokenGenerator), h.Carte.RechargerCarte)
-	api.Post("/cartes/:id/retrait", authmw.RequireAuth(tokenGenerator), h.Carte.RetirerCarte)
-	api.Post("/cartes/:id/annuler", authmw.RequireAuth(tokenGenerator), h.Carte.AnnulerCarte)
+	api.Post("/cartes/:id/topup", authmw.RequireAuth(tokenGenerator), limiteurOperationCarte, h.Carte.RechargerCarte)
+	api.Post("/cartes/:id/retrait", authmw.RequireAuth(tokenGenerator), limiteurOperationCarte, h.Carte.RetirerCarte)
+	api.Post("/cartes/:id/annuler", authmw.RequireAuth(tokenGenerator), limiteurOperationCarte, h.Carte.AnnulerCarte)
 
 	backofficeKyc := api.Group("/backoffice/kyc", authmw.RequireAdmin(tokenGenerator))
 	backofficeKyc.Get("/dossiers", h.AdminKyc.ListerDossiersEnAttente)
@@ -163,6 +178,10 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 
 	backofficeCartes := api.Group("/backoffice/cartes", authmw.RequireAdmin(tokenGenerator))
 	backofficeCartes.Get("/", h.AdminCarte.ListerCartes)
+	// Avant /:id/... : "portefeuille" ne doit jamais matcher le paramètre
+	// :id (même précaution que /cartes/porteur plus haut dans ce fichier).
+	backofficeCartes.Get("/portefeuille", h.AdminCarte.ObtenirCardWallet)
+	backofficeCartes.Post("/portefeuille/financer", h.AdminCarte.AlimenterCardWallet)
 	backofficeCartes.Post("/:id/gel", h.AdminCarte.GelerCarte)
 	backofficeCartes.Post("/:id/degel", h.AdminCarte.DegelerCarte)
 	backofficeCartes.Post("/:id/annuler", h.AdminCarte.AnnulerCarte)
