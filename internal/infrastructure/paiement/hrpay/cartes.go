@@ -143,6 +143,45 @@ func (a *Adapter) AnnulerCarte(ctx context.Context, idExterne string) (int64, er
 	return dollarsVersCentimes(reponse.Refunded), nil
 }
 
+type retraitReponse struct {
+	Balance  float64 `json:"balance"`
+	Credited float64 `json:"credited"`
+	Status   string  `json:"status"`
+	Message  string  `json:"message"`
+}
+
+// RetirerCarte implémente carte.AgregateurCarte. Contrairement à
+// CreerCarte, une réponse 202 (retrait en cours de confirmation côté
+// Cartevo) n'a ici aucune contrepartie provisoire à enregistrer côté
+// RAYCARD : le montant réellement crédité n'est connu qu'à la
+// confirmation, et la documentation est explicite — "aucun mouvement
+// local n'est effectué tant que la confirmation n'arrive pas" — traité
+// comme un échec ordinaire (l'appelant n'a alors touché ni la carte ni le
+// wallet, voir carteService.RetirerCarte), jamais comme un succès
+// partiel.
+//
+// insufficient_card_balance (le code d'erreur documenté pour ce point de
+// terminaison en cas de solde carte insuffisant) est un code distinct de
+// insufficient_balance (voir le commentaire de
+// requeteAuthentifiee.soldeCarteWalletSiInsuffisant) : ne déclenche donc
+// jamais, à raison, le financement automatique borné du portefeuille
+// cartes — soldeCarteWalletSiInsuffisant reste à false ici.
+func (a *Adapter) RetirerCarte(ctx context.Context, idExterne string, montantUSDCentimes int64) (int64, int64, error) {
+	corps := map[string]any{"amount": centimesVersDollars(montantUSDCentimes)}
+	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards/"+idExterne+"/withdraw", corps, true, false)
+	if err != nil {
+		return 0, 0, fmt.Errorf("hrpay retrait carte: %w", err)
+	}
+	var reponse retraitReponse
+	if err := json.Unmarshal(corpsReponse, &reponse); err != nil {
+		return 0, 0, fmt.Errorf("décodage retrait carte: %w", err)
+	}
+	if reponse.Status == "PENDING" {
+		return 0, 0, fmt.Errorf("hrpay retrait carte: retrait en cours de confirmation côté agrégateur, réessayer plus tard (%s)", reponse.Message)
+	}
+	return dollarsVersCentimes(reponse.Balance), dollarsVersCentimes(reponse.Credited), nil
+}
+
 // statutDepuisSDK traduit le statut brut de l'agrégateur ("ACTIVE",
 // "FROZEN", "SUSPENDED", "TERMINATED", "PENDING", "FAILED" — voir sa
 // documentation) vers carte.StatutCarte. SUSPENDED (rare, contrôle

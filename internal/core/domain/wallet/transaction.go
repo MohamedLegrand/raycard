@@ -17,6 +17,7 @@ const (
 	TypeTransactionRetrait          TypeTransaction = "retrait"
 	TypeTransactionFinancementCarte TypeTransaction = "financement_carte"
 	TypeTransactionAnnulationCarte  TypeTransaction = "annulation_carte"
+	TypeTransactionRetraitCarte     TypeTransaction = "retrait_carte"
 )
 
 // StatutTransaction représente le cycle de vie d'une transaction, en
@@ -92,6 +93,18 @@ func NouvelleTransactionFinancementCarte(walletID, utilisateurID, devise string,
 // Money n'est impliqué.
 func NouvelleTransactionAnnulationCarte(walletID, utilisateurID, devise string, montantCentimes int64) (*Transaction, error) {
 	return nouvelleTransactionSansOperateur(TypeTransactionAnnulationCarte, walletID, utilisateurID, devise, montantCentimes)
+}
+
+// NouvelleTransactionRetraitCarte crée une transaction de retrait partiel
+// depuis une carte : contrairement à l'annulation, la carte n'est pas
+// détruite, seul un montant partiel du solde carte revient au wallet.
+// Comme le financement/l'annulation, aucun opérateur ni téléphone Mobile
+// Money n'est impliqué. montantCentimes est le montant net effectivement
+// crédité au wallet, dans sa devise (jamais le montant brut demandé en
+// USD — voir carte.CarteService.RetirerCarte, qui reconvertit le montant
+// USD renvoyé par l'agrégateur avant de construire cette transaction).
+func NouvelleTransactionRetraitCarte(walletID, utilisateurID, devise string, montantCentimes int64) (*Transaction, error) {
+	return nouvelleTransactionSansOperateur(TypeTransactionRetraitCarte, walletID, utilisateurID, devise, montantCentimes)
 }
 
 func nouvelleTransactionSansOperateur(typeTransaction TypeTransaction, walletID, utilisateurID, devise string, montantCentimes int64) (*Transaction, error) {

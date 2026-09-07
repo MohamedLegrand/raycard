@@ -1152,6 +1152,209 @@ func TestCarteService_AnnulerCarte_AutreUtilisateur(t *testing.T) {
 	assert.Equal(t, 0, agregateur.AppelsAnnuler)
 }
 
+// TestCarteService_AnnulerCarte_ConvertitEnXAFAvantRemboursement couvre un
+// bug corrigé : le solde restant renvoyé par AnnulerCarte est en USD (voir
+// le commentaire sur carte.Carte.Devise), et était auparavant crédité tel
+// quel dans le wallet XAF de l'utilisateur, sans reconversion — un
+// TauxConversionInverse différent de 1 ici (comme un vrai taux XAF/USD)
+// prouve que le montant crédité est bien reconverti, jamais le nombre brut
+// de centimes de dollar renvoyé par l'agrégateur.
+func TestCarteService_AnnulerCarte_ConvertitEnXAFAvantRemboursement(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-annuler-conversion"}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouvelUtilisateurTest(t, utilisateurs, true, service.CardCustomers)
+	w := nouveauWalletTest(t, wallets)
+	crediterDisponible(t, wallets, w, 20000)
+
+	carteCreee, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
+		Label: "Carte courses", MontantCentimes: 10000,
+	})
+	require.NoError(t, err)
+
+	// 100 "centimes de dollar" restants, reconvertis à un taux de 6.49 (un
+	// taux XAF/USD réaliste, à cette échelle) : sans la reconversion, le
+	// wallet ne serait crédité que de 100 (comme s'il s'agissait déjà de
+	// XAF).
+	agregateur.SoldeRestantAnnule = 100
+	agregateur.TauxConversionInverse = 6.49
+	_, err = service.AnnulerCarte(context.Background(), utilisateurID, carteCreee.ID)
+	require.NoError(t, err)
+
+	walletMisAJour, err := wallets.FindByID(context.Background(), w.ID)
+	require.NoError(t, err)
+	// 20000 - 10000 (financement) + 100*6.49 arrondi à 649 (remboursement
+	// reconverti) = 10649
+	assert.Equal(t, int64(10_649), walletMisAJour.SoldeDisponibleCentimes)
+}
+
+func TestCarteService_RetirerCarte_Succes(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-retrait-1"}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouvelUtilisateurTest(t, utilisateurs, true, service.CardCustomers)
+	w := nouveauWalletTest(t, wallets)
+	crediterDisponible(t, wallets, w, 20000)
+
+	carteCreee, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
+		Label: "Carte courses", MontantCentimes: 10000,
+	})
+	require.NoError(t, err)
+
+	// TauxConversion (XAF->USD) et TauxConversionInverse (USD->XAF) à 1 :
+	// un retrait de 3000 XAF redemande 3000 "USD" à l'agrégateur, qui les
+	// crédite en totalité (pas de frais simulé), reconvertis 1:1.
+	agregateur.SoldeApresRetrait = 7000
+	carteApresRetrait, err := service.RetirerCarte(context.Background(), utilisateurID, carteCreee.ID, inputcarte.RetirerCarteRequest{
+		MontantCentimes: 3000,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(7000), carteApresRetrait.SoldeCentimes)
+	// Contrairement à Recharger, MontantChargeCentimes ne bouge jamais.
+	assert.Equal(t, int64(10000), carteApresRetrait.MontantChargeCentimes)
+	assert.Equal(t, domaincarte.StatutCarteActive, carteApresRetrait.Statut)
+	assert.Equal(t, 1, agregateur.AppelsRetirer)
+
+	// 20000 - 10000 (financement) + 3000 (retrait recrédité) = 13000
+	walletMisAJour, err := wallets.FindByID(context.Background(), w.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(13000), walletMisAJour.SoldeDisponibleCentimes)
+}
+
+func TestCarteService_RetirerCarte_SoldeCarteInsuffisant(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-retrait-2"}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouvelUtilisateurTest(t, utilisateurs, true, service.CardCustomers)
+	w := nouveauWalletTest(t, wallets)
+	crediterDisponible(t, wallets, w, 20000)
+
+	carteCreee, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
+		Label: "Carte courses", MontantCentimes: 10000,
+	})
+	require.NoError(t, err)
+
+	_, err = service.RetirerCarte(context.Background(), utilisateurID, carteCreee.ID, inputcarte.RetirerCarteRequest{
+		MontantCentimes: 50000, // largement au-delà du solde carte connu (10000)
+	})
+	assert.ErrorIs(t, err, domaincarte.ErrSoldeCarteInsuffisant)
+	assert.Equal(t, 0, agregateur.AppelsRetirer, "aucun appel réseau si le solde carte connu est visiblement insuffisant")
+}
+
+func TestCarteService_RetirerCarte_CarteAnnulee(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-retrait-3"}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouvelUtilisateurTest(t, utilisateurs, true, service.CardCustomers)
+	w := nouveauWalletTest(t, wallets)
+	crediterDisponible(t, wallets, w, 20000)
+
+	carteCreee, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
+		Label: "Carte courses", MontantCentimes: 10000,
+	})
+	require.NoError(t, err)
+
+	agregateur.SoldeRestantAnnule = 0
+	_, err = service.AnnulerCarte(context.Background(), utilisateurID, carteCreee.ID)
+	require.NoError(t, err)
+
+	_, err = service.RetirerCarte(context.Background(), utilisateurID, carteCreee.ID, inputcarte.RetirerCarteRequest{
+		MontantCentimes: 1000,
+	})
+	assert.ErrorIs(t, err, domaincarte.ErrTransitionCarteInvalide)
+	assert.Equal(t, 0, agregateur.AppelsRetirer)
+}
+
+func TestCarteService_RetirerCarte_DepuisGelee(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-retrait-4"}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouvelUtilisateurTest(t, utilisateurs, true, service.CardCustomers)
+	w := nouveauWalletTest(t, wallets)
+	crediterDisponible(t, wallets, w, 20000)
+
+	carteCreee, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
+		Label: "Carte courses", MontantCentimes: 10000,
+	})
+	require.NoError(t, err)
+
+	_, err = service.GelerCarte(context.Background(), utilisateurID, carteCreee.ID)
+	require.NoError(t, err)
+
+	// Contrairement à RechargerCarte (réservé aux cartes actives), un
+	// retrait reste possible sur une carte gelée : geler bloque la
+	// dépense, pas la récupération du solde déjà présent.
+	agregateur.SoldeApresRetrait = 8000
+	carteApresRetrait, err := service.RetirerCarte(context.Background(), utilisateurID, carteCreee.ID, inputcarte.RetirerCarteRequest{
+		MontantCentimes: 2000,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, domaincarte.StatutCarteGelee, carteApresRetrait.Statut)
+	assert.Equal(t, int64(8000), carteApresRetrait.SoldeCentimes)
+}
+
+func TestCarteService_RetirerCarte_AutreUtilisateur(t *testing.T) {
+	utilisateurs := testcommun.NewUtilisateurRepoFake()
+	wallets := testcommun.NewWalletRepoFake()
+	transactions := testwallet.NewTransactionRepoFake()
+	cartes := testcarte.NewCarteRepoFake()
+	depenses := testcarte.NewDepenseCarteRepoFake()
+	notifieur := &testcommun.NotifieurFake{}
+	auditLog := &testcommun.AuditLogRepoFake{}
+	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-retrait-5"}
+	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
+
+	nouvelUtilisateurTest(t, utilisateurs, true, service.CardCustomers)
+	w := nouveauWalletTest(t, wallets)
+	crediterDisponible(t, wallets, w, 20000)
+
+	carteCreee, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
+		Label: "Carte courses", MontantCentimes: 10000,
+	})
+	require.NoError(t, err)
+
+	_, err = service.RetirerCarte(context.Background(), "un-autre-utilisateur", carteCreee.ID, inputcarte.RetirerCarteRequest{
+		MontantCentimes: 1000,
+	})
+	assert.ErrorIs(t, err, domaincarte.ErrCarteIntrouvable)
+	assert.Equal(t, 0, agregateur.AppelsRetirer)
+}
+
 func TestCarteService_GelerCarteAdmin_Succes(t *testing.T) {
 	utilisateurs := testcommun.NewUtilisateurRepoFake()
 	wallets := testcommun.NewWalletRepoFake()

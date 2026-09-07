@@ -199,6 +199,26 @@ func (c *Carte) Recharger(montantAjouteCentimes, soldeApresCentimes int64, maint
 	return nil
 }
 
+// Retirer enregistre un retrait partiel réussi : autorisé depuis Active
+// ou Gelee (contrairement à Recharger, une carte gelée reste consultable
+// et son solde reste récupérable — seule une dépense est bloquée par le
+// gel), jamais depuis une carte déjà annulée. N'affecte jamais
+// MontantChargeCentimes : ce champ trace le financement cumulé
+// historique de la carte, distinct de son solde courant. soldeApresCentimes
+// vient de la réponse de l'agrégateur (source de vérité, jamais un calcul
+// local — voir Recharger).
+func (c *Carte) Retirer(soldeApresCentimes int64, maintenant time.Time) error {
+	if c.Statut != StatutCarteActive && c.Statut != StatutCarteGelee {
+		return ErrTransitionCarteInvalide
+	}
+	if soldeApresCentimes < 0 {
+		return commun.ErrMontantInvalide
+	}
+	c.SoldeCentimes = soldeApresCentimes
+	c.UpdatedAt = maintenant
+	return nil
+}
+
 // Annuler détruit définitivement la carte. Autorisé depuis Active ou
 // Gelee (jamais depuis une carte déjà annulée). Remet le solde local à
 // zéro : ce qui restait dessus est remboursé au wallet séparément, par

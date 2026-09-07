@@ -27,6 +27,16 @@ func (d RechargerCarteRequestDTO) ToUseCaseRequest() inputcarte.RechargerCarteRe
 	return inputcarte.RechargerCarteRequest{MontantCentimes: d.MontantCentimes}
 }
 
+// RetirerCarteRequestDTO : montant exprimé dans la devise du wallet de
+// l'utilisateur (XAF), jamais en USD — voir inputcarte.RetirerCarteRequest.
+type RetirerCarteRequestDTO struct {
+	MontantCentimes int64 `json:"montant_centimes" validate:"required,gt=0" example:"5000"`
+}
+
+func (d RetirerCarteRequestDTO) ToUseCaseRequest() inputcarte.RetirerCarteRequest {
+	return inputcarte.RetirerCarteRequest{MontantCentimes: d.MontantCentimes}
+}
+
 // SoumettrePorteurCarteRequestDTO : les pièces d'identité recto/verso ne
 // sont jamais redemandées ici, voir inputcarte.SoumettrePorteurCarteRequest
 // — seulement les champs que le dossier KYC Tier 2 de RAYCARD ne collecte

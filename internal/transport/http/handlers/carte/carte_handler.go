@@ -279,6 +279,44 @@ func (h *CarteHandler) RechargerCarte(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(cartedto.FromCarte(carteMiseAJour))
 }
 
+// RetirerCarte gère POST /api/v1/cartes/:id/retrait (route protégée).
+//
+//	@Summary		Retrait partiel d'une carte virtuelle
+//	@Description	Retire un montant partiel d'une carte active ou gelée et le recrédite sur le wallet, sans détruire la carte.
+//	@Tags			"1. Client - Carte"
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			id		path		string						true	"ID de la carte"
+//	@Param			retrait	body		carte.RetirerCarteRequestDTO	true	"Montant à retirer"
+//	@Success		200		{object}	carte.CarteDTO
+//	@Failure		400		{object}	commun.ErreurDTO	"corps de requête invalide"
+//	@Failure		401		{object}	commun.ErreurDTO	"non authentifié"
+//	@Failure		404		{object}	commun.ErreurDTO	"carte ou wallet introuvable"
+//	@Failure		409		{object}	commun.ErreurDTO	"une opération wallet est déjà en cours"
+//	@Failure		422		{object}	commun.ErreurDTO	"carte non active/gelée, wallet gelé, solde carte insuffisant ou montant invalide"
+//	@Failure		500		{object}	commun.ErreurDTO	"erreur interne"
+//	@Router			/cartes/{id}/retrait [post]
+func (h *CarteHandler) RetirerCarte(c *fiber.Ctx) error {
+	utilisateurID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
+	carteID := c.Params("id")
+
+	var req cartedto.RetirerCarteRequestDTO
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "corps de requête invalide")
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	carteMiseAJour, err := h.carteUseCase.RetirerCarte(c.Context(), utilisateurID, carteID, req.ToUseCaseRequest())
+	if err != nil {
+		return handlerscommun.MapErreurDomaine(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(cartedto.FromCarte(carteMiseAJour))
+}
+
 // ListerDepenses gère GET /api/v1/cartes/:id/depenses (route protégée).
 //
 //	@Summary		Dépenses détectées sur une carte

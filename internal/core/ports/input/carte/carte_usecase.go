@@ -21,6 +21,14 @@ type RechargerCarteRequest struct {
 	MontantCentimes int64
 }
 
+// RetirerCarteRequest transporte les données brutes d'une demande de
+// retrait partiel depuis une carte existante. MontantCentimes est exprimé
+// dans la devise du wallet de l'utilisateur (XAF) — c'est le service qui
+// se charge de la conversion vers/depuis l'USD (voir carte.Carte.Devise).
+type RetirerCarteRequest struct {
+	MontantCentimes int64
+}
+
 // SoumettrePorteurCarteRequest transporte les données du KYC porteur de
 // carte exigé par l'agrégateur — distinct du KYC Tier 2 de RAYCARD (voir
 // carte.CardCustomer). Les pièces d'identité recto/verso ne sont pas
@@ -84,6 +92,12 @@ type CarteUseCase interface {
 	// rembourse au wallet ce qu'il restait dessus. La carte doit
 	// appartenir à utilisateurID (carte.ErrCarteIntrouvable sinon).
 	AnnulerCarte(ctx context.Context, utilisateurID, carteID string) (*carte.Carte, error)
+
+	// RetirerCarte retire un montant partiel d'une carte active ou gelée
+	// et crédite le wallet du montant net effectivement reçu, sans
+	// détruire la carte (contrairement à AnnulerCarte). La carte doit
+	// appartenir à utilisateurID (carte.ErrCarteIntrouvable sinon).
+	RetirerCarte(ctx context.Context, utilisateurID, carteID string, req RetirerCarteRequest) (*carte.Carte, error)
 
 	// ListerDepenses retourne les dépenses détectées sur une carte donnée
 	// par rapprochement de solde (voir SynchroniserSoldes). La carte doit

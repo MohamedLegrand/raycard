@@ -142,6 +142,15 @@ type AgregateurCarte interface {
 	// solde USD.
 	AlimenterCardWallet(ctx context.Context, montantUSDCentimes int64) (nouveauSoldeUSDCentimes int64, err error)
 
+	// CoterConversionInverse prévisualise, sans effectuer l'opération, le
+	// montant XAF correspondant à un montant USD déjà connu — sens
+	// inverse de CoterConversion. Utilisé pour reconvertir en XAF un
+	// montant USD renvoyé par l'agrégateur (retrait, annulation) avant de
+	// créditer le wallet de l'utilisateur, jamais recalculé localement
+	// (même principe que CoterConversion : le taux vient toujours du
+	// serveur).
+	CoterConversionInverse(ctx context.Context, montantUSDCentimes int64) (montantXAFCentimes int64, err error)
+
 	CreerCarte(ctx context.Context, params CreerCarteParams) (*CreerCarteResultat, error)
 
 	// ObtenirEtatCarte interroge le solde et le statut actuels de la carte
@@ -164,6 +173,17 @@ type AgregateurCarte interface {
 
 	// AnnulerCarte détruit définitivement la carte et retourne le solde
 	// qui restait dessus au moment de l'annulation, à rembourser par
-	// l'appelant.
-	AnnulerCarte(ctx context.Context, idExterne string) (soldeRestantCentimes int64, err error)
+	// l'appelant. Le montant retourné est en USD (voir le commentaire sur
+	// carte.Carte.Devise) : l'appelant doit le reconvertir en XAF via
+	// CoterConversionInverse avant de créditer le wallet.
+	AnnulerCarte(ctx context.Context, idExterne string) (soldeRestantUSDCentimes int64, err error)
+
+	// RetirerCarte retire un montant partiel d'une carte active ou gelée,
+	// sans la détruire (contrairement à AnnulerCarte), et retourne le
+	// solde carte résultant ainsi que le montant réellement crédité — net
+	// de tout frais prélevé côté agrégateur, jamais recalculé localement.
+	// Les deux montants sont en USD (voir AnnulerCarte) : l'appelant doit
+	// reconvertir montantCrediteUSDCentimes en XAF via
+	// CoterConversionInverse avant de créditer le wallet.
+	RetirerCarte(ctx context.Context, idExterne string, montantUSDCentimes int64) (soldeApresUSDCentimes, montantCrediteUSDCentimes int64, err error)
 }

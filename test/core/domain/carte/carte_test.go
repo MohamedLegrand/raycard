@@ -206,6 +206,42 @@ func TestCarte_Annuler(t *testing.T) {
 	})
 }
 
+func TestCarte_Retirer(t *testing.T) {
+	maintenant := time.Now().UTC()
+
+	t.Run("depuis active", func(t *testing.T) {
+		c, err := carte.NouvelleCarte("user-1", "wallet-1", "card-ext-1", "Carte courses", "XOF", 10000)
+		require.NoError(t, err)
+		require.NoError(t, c.Retirer(7000, maintenant))
+		assert.Equal(t, int64(7000), c.SoldeCentimes)
+		// Contrairement à Recharger, MontantChargeCentimes ne bouge jamais :
+		// c'est le financement cumulé historique, distinct du solde courant.
+		assert.Equal(t, int64(10000), c.MontantChargeCentimes)
+	})
+
+	t.Run("depuis gelée : autorisé, contrairement à Recharger", func(t *testing.T) {
+		c, err := carte.NouvelleCarte("user-1", "wallet-1", "card-ext-2", "Carte courses", "XOF", 10000)
+		require.NoError(t, err)
+		require.NoError(t, c.Geler(maintenant))
+		require.NoError(t, c.Retirer(8000, maintenant))
+		assert.Equal(t, carte.StatutCarteGelee, c.Statut)
+		assert.Equal(t, int64(8000), c.SoldeCentimes)
+	})
+
+	t.Run("depuis annulée : transition invalide", func(t *testing.T) {
+		c, err := carte.NouvelleCarte("user-1", "wallet-1", "card-ext-3", "Carte courses", "XOF", 10000)
+		require.NoError(t, err)
+		require.NoError(t, c.Annuler(maintenant))
+		assert.ErrorIs(t, c.Retirer(1000, maintenant), carte.ErrTransitionCarteInvalide)
+	})
+
+	t.Run("montant invalide", func(t *testing.T) {
+		c, err := carte.NouvelleCarte("user-1", "wallet-1", "card-ext-4", "Carte courses", "XOF", 10000)
+		require.NoError(t, err)
+		assert.ErrorIs(t, c.Retirer(-1, maintenant), commun.ErrMontantInvalide)
+	})
+}
+
 func TestNouvelleDepenseCarte(t *testing.T) {
 	d, err := carte.NouvelleDepenseCarte("carte-1", 3000, 10000, 7000)
 	require.NoError(t, err)

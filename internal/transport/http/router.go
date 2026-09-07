@@ -134,6 +134,7 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	api.Post("/cartes/:id/gel", authmw.RequireAuth(tokenGenerator), h.Carte.GelerCarte)
 	api.Post("/cartes/:id/degel", authmw.RequireAuth(tokenGenerator), h.Carte.DegelerCarte)
 	api.Post("/cartes/:id/topup", authmw.RequireAuth(tokenGenerator), h.Carte.RechargerCarte)
+	api.Post("/cartes/:id/retrait", authmw.RequireAuth(tokenGenerator), h.Carte.RetirerCarte)
 	api.Post("/cartes/:id/annuler", authmw.RequireAuth(tokenGenerator), h.Carte.AnnulerCarte)
 
 	backofficeKyc := api.Group("/backoffice/kyc", authmw.RequireAdmin(tokenGenerator))

@@ -211,6 +211,33 @@ func (a *Adapter) CoterConversion(ctx context.Context, montantXAFCentimes int64)
 	return dollarsVersCentimes(reponse.Quote.AmountUSD), nil
 }
 
+type quoteInverseReponse struct {
+	Quote struct {
+		AmountXAF float64 `json:"amount_xaf"`
+	} `json:"quote"`
+}
+
+// CoterConversionInverse implémente carte.AgregateurCarte — sens inverse
+// de CoterConversion : combien de XAF correspondent à un montant USD déjà
+// connu (le montant réellement crédité par un retrait ou une annulation,
+// par exemple). direction=withdraw applique la marge de change du sens
+// "sortie de fonds cartes", jamais celle de "fund" utilisée par
+// CoterConversion.
+func (a *Adapter) CoterConversionInverse(ctx context.Context, montantUSDCentimes int64) (int64, error) {
+	chemin := fmt.Sprintf("/api/v1/card-wallet/quote?amount_usd=%.2f&direction=withdraw", centimesVersDollars(montantUSDCentimes))
+	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodGet, chemin, nil, false, false)
+	if err != nil {
+		return 0, fmt.Errorf("hrpay cotation conversion inverse: %w", err)
+	}
+	var reponse quoteInverseReponse
+	if err := json.Unmarshal(corpsReponse, &reponse); err != nil {
+		return 0, fmt.Errorf("décodage cotation inverse: %w", err)
+	}
+	// Le XAF n'a pas de décimales (voir commun.Wallet) : arrondi au franc
+	// le plus proche, jamais tronqué vers le bas.
+	return int64(reponse.Quote.AmountXAF + 0.5), nil
+}
+
 type fundReponse struct {
 	UsdBalance float64 `json:"usd_balance"`
 }

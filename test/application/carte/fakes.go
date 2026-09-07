@@ -199,34 +199,40 @@ func (r *DepenseCarteRepoFake) ListByCarteID(_ context.Context, carteID string) 
 // ErreurEmission échoue à chaque appel, sans limite — comportement
 // historique attendu par la plupart des tests de ce paquet.
 type AgregateurCarteFake struct {
-	IDExterneGenere      string
-	ErreurEmission       error
-	EchecsAvantSucces    int
-	AppelsCreerCarte     int
-	AppelsObtenirEtat    int
-	SoldesParIDExterne   map[string]int64
-	StatutsParIDExterne  map[string]domaincarte.StatutCarte
-	ErreurObtenirEtat    error
-	ErreurGel            error
-	ErreurDegel          error
-	AppelsGeler          int
-	AppelsDegeler        int
-	ErreurRecharge       error
-	AppelsRecharger      int
-	SoldeApresRecharge   int64
-	ErreurAnnulation     error
-	AppelsAnnuler        int
-	SoldeRestantAnnule   int64
-	ErreurSoumission     error
-	IDExterneCustomer    string
-	AppelsSoumettre      int
-	SoldeCardWallet      int64
-	ErreurCardWallet     error
-	TauxConversion       float64 // XAF -> USD, 1.0 par défaut (voir CoterConversion)
-	ErreurCotation       error
-	AppelsAlimenter      int
-	SoldeApresAlimenter  int64
-	ErreurAlimentation   error
+	IDExterneGenere       string
+	ErreurEmission        error
+	EchecsAvantSucces     int
+	AppelsCreerCarte      int
+	AppelsObtenirEtat     int
+	SoldesParIDExterne    map[string]int64
+	StatutsParIDExterne   map[string]domaincarte.StatutCarte
+	ErreurObtenirEtat     error
+	ErreurGel             error
+	ErreurDegel           error
+	AppelsGeler           int
+	AppelsDegeler         int
+	ErreurRecharge        error
+	AppelsRecharger       int
+	SoldeApresRecharge    int64
+	ErreurAnnulation      error
+	AppelsAnnuler         int
+	SoldeRestantAnnule    int64
+	ErreurSoumission      error
+	IDExterneCustomer     string
+	AppelsSoumettre       int
+	SoldeCardWallet       int64
+	ErreurCardWallet      error
+	TauxConversion        float64 // XAF -> USD, 1.0 par défaut (voir CoterConversion)
+	ErreurCotation        error
+	AppelsAlimenter       int
+	SoldeApresAlimenter   int64
+	ErreurAlimentation    error
+	TauxConversionInverse float64 // USD -> XAF, 1.0 par défaut (voir CoterConversionInverse)
+	ErreurCotationInverse error
+	AppelsRetirer         int
+	SoldeApresRetrait     int64
+	MontantCrediteRetrait int64 // 0 par défaut = pas de frais simulé, renvoie le montant demandé
+	ErreurRetrait         error
 }
 
 func (a *AgregateurCarteFake) CreerCarte(_ context.Context, _ outputcarte.CreerCarteParams) (*outputcarte.CreerCarteResultat, error) {
@@ -319,4 +325,27 @@ func (a *AgregateurCarteFake) AnnulerCarte(_ context.Context, _ string) (int64, 
 		return 0, a.ErreurAnnulation
 	}
 	return a.SoldeRestantAnnule, nil
+}
+
+func (a *AgregateurCarteFake) CoterConversionInverse(_ context.Context, montantUSDCentimes int64) (int64, error) {
+	if a.ErreurCotationInverse != nil {
+		return 0, a.ErreurCotationInverse
+	}
+	taux := a.TauxConversionInverse
+	if taux == 0 {
+		taux = 1
+	}
+	return int64(float64(montantUSDCentimes) * taux), nil
+}
+
+func (a *AgregateurCarteFake) RetirerCarte(_ context.Context, _ string, montantUSDCentimes int64) (int64, int64, error) {
+	a.AppelsRetirer++
+	if a.ErreurRetrait != nil {
+		return 0, 0, a.ErreurRetrait
+	}
+	montantCredite := a.MontantCrediteRetrait
+	if montantCredite == 0 {
+		montantCredite = montantUSDCentimes // par défaut, aucun frais simulé
+	}
+	return a.SoldeApresRetrait, montantCredite, nil
 }

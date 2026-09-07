@@ -37,6 +37,7 @@ const (
 const (
 	sujetEmailCarteCreee      = "Votre carte virtuelle RAYCARD est prête"
 	sujetEmailCarteAnnulee    = "Votre carte virtuelle RAYCARD a été annulée"
+	sujetEmailCarteRetrait    = "Retrait effectué depuis votre carte RAYCARD"
 	sujetEmailDepenseDetectee = "Nouvelle dépense sur votre carte RAYCARD"
 )
 
@@ -606,7 +607,7 @@ func (s *carteService) annulerCarte(ctx context.Context, c *domaincarte.Carte) (
 	// avant de toucher au wallet : Cancel détruit la carte de façon
 	// irréversible, on ne veut jamais rembourser par anticipation une
 	// annulation qui pourrait échouer.
-	soldeRestant, err := s.agregateur.AnnulerCarte(ctx, c.IDExterne)
+	soldeRestantUSD, err := s.agregateur.AnnulerCarte(ctx, c.IDExterne)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", domaincarte.ErrAnnulationEchouee, err)
 	}
@@ -615,9 +616,17 @@ func (s *carteService) annulerCarte(ctx context.Context, c *domaincarte.Carte) (
 		return nil, err
 	}
 
+	// Le solde restant chez l'agrégateur est exprimé en USD (voir le
+	// commentaire sur carte.Carte.Devise) : ne jamais le créditer tel quel
+	// dans le wallet XAF de l'utilisateur, il faut d'abord le reconvertir.
+	var soldeRestantXAF int64
 	var transaction *domainwallet.Transaction
-	if soldeRestant > 0 {
-		transaction, err = domainwallet.NouvelleTransactionAnnulationCarte(w.ID, c.UtilisateurID, w.Devise, soldeRestant)
+	if soldeRestantUSD > 0 {
+		soldeRestantXAF, err = s.agregateur.CoterConversionInverse(ctx, soldeRestantUSD)
+		if err != nil {
+			return nil, fmt.Errorf("cotation conversion inverse: %w", err)
+		}
+		transaction, err = domainwallet.NouvelleTransactionAnnulationCarte(w.ID, c.UtilisateurID, w.Devise, soldeRestantXAF)
 		if err != nil {
 			return nil, err
 		}
@@ -640,7 +649,7 @@ func (s *carteService) annulerCarte(ctx context.Context, c *domaincarte.Carte) (
 		if transaction == nil {
 			return nil
 		}
-		if err := w.Crediter(soldeRestant); err != nil {
+		if err := w.Crediter(soldeRestantXAF); err != nil {
 			return err
 		}
 		if err := s.wallets.UpdateSolde(ctx, w); err != nil {
@@ -655,24 +664,162 @@ func (s *carteService) annulerCarte(ctx context.Context, c *domaincarte.Carte) (
 		return nil, err
 	}
 
-	_ = s.notifierCarteAnnulee(ctx, c, soldeRestant)
+	_ = s.notifierCarteAnnulee(ctx, c, soldeRestantXAF)
 
 	return c, nil
 }
 
 // notifierCarteAnnulee envoie un email best-effort après une annulation
 // réussie : un échec d'envoi ne doit jamais remonter à l'appelant,
-// l'annulation est déjà actée à ce stade.
-func (s *carteService) notifierCarteAnnulee(ctx context.Context, c *domaincarte.Carte, soldeRestantCentimes int64) error {
+// l'annulation est déjà actée à ce stade. soldeRestantXAFCentimes est déjà
+// converti dans la devise du wallet (voir annulerCarte) : jamais le
+// montant USD brut renvoyé par l'agrégateur.
+func (s *carteService) notifierCarteAnnulee(ctx context.Context, c *domaincarte.Carte, soldeRestantXAFCentimes int64) error {
 	utilisateur, err := s.utilisateurs.FindByID(ctx, c.UtilisateurID)
 	if err != nil {
 		return err
 	}
+	w, err := s.wallets.FindByUtilisateurID(ctx, c.UtilisateurID)
+	if err != nil {
+		return err
+	}
 	corps := fmt.Sprintf("<p>Votre carte « %s » a été annulée.</p>", c.Label)
-	if soldeRestantCentimes > 0 {
-		corps += fmt.Sprintf("<p>%d %s ont été recrédités sur votre wallet.</p>", soldeRestantCentimes, c.Devise)
+	if soldeRestantXAFCentimes > 0 {
+		corps += fmt.Sprintf("<p>%d %s ont été recrédités sur votre wallet.</p>", soldeRestantXAFCentimes, w.Devise)
 	}
 	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailCarteAnnulee, corps)
+}
+
+// RetirerCarte retire un montant partiel d'une carte active ou gelée et
+// crédite le wallet du montant net effectivement reçu, sans détruire la
+// carte (contrairement à AnnulerCarte). L'utilisateur exprime le montant
+// souhaité dans la devise de son wallet (XAF) ; le service le convertit
+// en USD pour l'agrégateur (cartes exclusivement en USD, voir le
+// commentaire sur carte.Carte.Devise) puis reconvertit le montant
+// réellement crédité — net de tout frais côté agrégateur — avant de
+// créditer le wallet, jamais un calcul symétrique local.
+func (s *carteService) RetirerCarte(ctx context.Context, utilisateurID, carteID string, req inputcarte.RetirerCarteRequest) (*domaincarte.Carte, error) {
+	if req.MontantCentimes <= 0 {
+		return nil, commun.ErrMontantInvalide
+	}
+
+	c, err := s.carteDeUtilisateur(ctx, utilisateurID, carteID)
+	if err != nil {
+		return nil, err
+	}
+	if c.Statut != domaincarte.StatutCarteActive && c.Statut != domaincarte.StatutCarteGelee {
+		return nil, domaincarte.ErrTransitionCarteInvalide
+	}
+
+	w, err := s.wallets.FindByUtilisateurID(ctx, utilisateurID)
+	if err != nil {
+		return nil, err
+	}
+	if w.Statut != commun.StatutWalletActif {
+		return nil, commun.ErrWalletGele
+	}
+
+	if _, err := s.transactions.FindEnCoursByWalletID(ctx, w.ID); !errors.Is(err, domainwallet.ErrTransactionIntrouvable) {
+		if err == nil {
+			return nil, domainwallet.ErrTransactionDejaEnCours
+		}
+		return nil, fmt.Errorf("vérification transaction en cours: %w", err)
+	}
+
+	// Combien d'USD demander à l'agrégateur pour que le montant voulu (en
+	// XAF) revienne au wallet — jamais un calcul local, le taux vient
+	// toujours du serveur (voir AgregateurCarte.CoterConversion).
+	montantUSD, err := s.agregateur.CoterConversion(ctx, req.MontantCentimes)
+	if err != nil {
+		return nil, fmt.Errorf("cotation conversion: %w", err)
+	}
+	if montantUSD <= 0 {
+		return nil, commun.ErrMontantInvalide
+	}
+	// Garde-fou local sur le solde carte connu (voir carte.Carte.SoldeCentimes :
+	// mis à jour par sondage périodique, jamais en temps réel) — l'agrégateur
+	// reste seul juge final, mais évite un aller-retour réseau inutile pour
+	// un montant déjà visiblement hors de portée.
+	if montantUSD > c.SoldeCentimes {
+		return nil, domaincarte.ErrSoldeCarteInsuffisant
+	}
+
+	// Comme pour l'annulation : on appelle l'agrégateur avant de toucher
+	// au wallet, un retrait accepté par Cartevo n'est jamais annulable
+	// depuis RAYCARD.
+	soldeApresUSD, montantCrediteUSD, err := s.agregateur.RetirerCarte(ctx, c.IDExterne, montantUSD)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domaincarte.ErrRetraitEchoue, err)
+	}
+
+	if err := c.Retirer(soldeApresUSD, time.Now().UTC()); err != nil {
+		return nil, err
+	}
+
+	// Le montant réellement crédité (net de frais éventuels côté
+	// agrégateur) est en USD : reconversion en XAF avant tout crédit
+	// wallet, même principe que pour l'annulation (voir annulerCarte).
+	montantCrediteXAF, err := s.agregateur.CoterConversionInverse(ctx, montantCrediteUSD)
+	if err != nil {
+		return nil, fmt.Errorf("cotation conversion inverse: %w", err)
+	}
+	if montantCrediteXAF <= 0 {
+		return nil, domaincarte.ErrRetraitEchoue
+	}
+
+	transaction, err := domainwallet.NouvelleTransactionRetraitCarte(w.ID, utilisateurID, w.Devise, montantCrediteXAF)
+	if err != nil {
+		return nil, err
+	}
+	// Référence unique par retrait, comme pour une recharge : une même
+	// carte peut être retirée plusieurs fois.
+	referenceRetrait := c.IDExterne + ":retrait:" + transaction.ID
+	if err := transaction.MarquerEnvoyee(referenceRetrait); err != nil {
+		return nil, err
+	}
+	// Retrait synchrone : pas de webhook à venir, comme pour la création
+	// et la recharge.
+	if err := transaction.MarquerSucces(0, nil); err != nil {
+		return nil, err
+	}
+
+	err = s.txManager.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := s.cartes.Update(ctx, c); err != nil {
+			return fmt.Errorf("mise à jour carte: %w", err)
+		}
+		if err := w.Crediter(montantCrediteXAF); err != nil {
+			return err
+		}
+		if err := s.wallets.UpdateSolde(ctx, w); err != nil {
+			return fmt.Errorf("crédit wallet: %w", err)
+		}
+		if err := s.transactions.Create(ctx, transaction); err != nil {
+			return fmt.Errorf("création transaction: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	_ = s.notifierRetraitCarte(ctx, c, montantCrediteXAF, w.Devise)
+
+	return c, nil
+}
+
+// notifierRetraitCarte envoie un email best-effort après un retrait
+// réussi : un échec d'envoi ne doit jamais remonter à l'appelant, le
+// retrait est déjà acté à ce stade.
+func (s *carteService) notifierRetraitCarte(ctx context.Context, c *domaincarte.Carte, montantCrediteCentimes int64, devise string) error {
+	utilisateur, err := s.utilisateurs.FindByID(ctx, c.UtilisateurID)
+	if err != nil {
+		return err
+	}
+	corps := fmt.Sprintf(
+		"<p>%d %s ont été retirés de votre carte « %s » et recrédités sur votre wallet.</p>",
+		montantCrediteCentimes, devise, c.Label,
+	)
+	return s.notifieur.EnvoyerEmail(ctx, utilisateur.Email, sujetEmailCarteRetrait, corps)
 }
 
 // crediterCashback ajoute le cashback au solde disponible du wallet,

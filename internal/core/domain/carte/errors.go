@@ -9,6 +9,8 @@ var (
 	ErrEmissionEchouee         = errors.New("émission de la carte échouée")
 	ErrRechargeEchouee         = errors.New("recharge de la carte échouée")
 	ErrAnnulationEchouee       = errors.New("annulation de la carte échouée")
+	ErrRetraitEchoue           = errors.New("retrait de la carte échoué")
+	ErrSoldeCarteInsuffisant   = errors.New("solde de la carte insuffisant pour ce retrait")
 	ErrTransitionCarteInvalide = errors.New("transition de statut de carte invalide")
 
 	// Erreurs du porteur de carte (card-customer) — le KYC distinct exigé

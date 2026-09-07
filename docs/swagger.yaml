@@ -390,6 +390,14 @@ definitions:
     required:
     - montant_centimes
     type: object
+  carte.RetirerCarteRequestDTO:
+    properties:
+      montant_centimes:
+        example: 5000
+        type: integer
+    required:
+    - montant_centimes
+    type: object
   carte.SoumettrePorteurCarteRequestDTO:
     properties:
       code_postal:
@@ -2328,6 +2336,61 @@ paths:
       security:
       - BearerAuth: []
       summary: Gel d'une carte virtuelle
+      tags:
+      - '"1. Client - Carte"'
+  /cartes/{id}/retrait:
+    post:
+      consumes:
+      - application/json
+      description: Retire un montant partiel d'une carte active ou gelée et le recrédite
+        sur le wallet, sans détruire la carte.
+      parameters:
+      - description: ID de la carte
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Montant à retirer
+        in: body
+        name: retrait
+        required: true
+        schema:
+          $ref: '#/definitions/carte.RetirerCarteRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/carte.CarteDTO'
+        "400":
+          description: corps de requête invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "401":
+          description: non authentifié
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "404":
+          description: carte ou wallet introuvable
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "409":
+          description: une opération wallet est déjà en cours
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "422":
+          description: carte non active/gelée, wallet gelé, solde carte insuffisant
+            ou montant invalide
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+        "500":
+          description: erreur interne
+          schema:
+            $ref: '#/definitions/commun.ErreurDTO'
+      security:
+      - BearerAuth: []
+      summary: Retrait partiel d'une carte virtuelle
       tags:
       - '"1. Client - Carte"'
   /cartes/{id}/topup:

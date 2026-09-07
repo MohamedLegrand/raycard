@@ -2637,6 +2637,88 @@ const docTemplate = `{
                 }
             }
         },
+        "/cartes/{id}/retrait": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retire un montant partiel d'une carte active ou gelée et le recrédite sur le wallet, sans détruire la carte.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "\"1. Client - Carte\""
+                ],
+                "summary": "Retrait partiel d'une carte virtuelle",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID de la carte",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Montant à retirer",
+                        "name": "retrait",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/carte.RetirerCarteRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/carte.CarteDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "corps de requête invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "401": {
+                        "description": "non authentifié",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "carte ou wallet introuvable",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "409": {
+                        "description": "une opération wallet est déjà en cours",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "carte non active/gelée, wallet gelé, solde carte insuffisant ou montant invalide",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "erreur interne",
+                        "schema": {
+                            "$ref": "#/definitions/commun.ErreurDTO"
+                        }
+                    }
+                }
+            }
+        },
         "/cartes/{id}/topup": {
             "post": {
                 "security": [
@@ -3731,6 +3813,18 @@ const docTemplate = `{
             }
         },
         "carte.RechargerCarteRequestDTO": {
+            "type": "object",
+            "required": [
+                "montant_centimes"
+            ],
+            "properties": {
+                "montant_centimes": {
+                    "type": "integer",
+                    "example": 5000
+                }
+            }
+        },
+        "carte.RetirerCarteRequestDTO": {
             "type": "object",
             "required": [
                 "montant_centimes"
