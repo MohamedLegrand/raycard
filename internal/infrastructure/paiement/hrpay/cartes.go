@@ -45,7 +45,7 @@ func (a *Adapter) CreerCarte(ctx context.Context, params outputcarte.CreerCarteP
 		"amount":       centimesVersDollars(params.MontantUSDCentimes),
 	}
 
-	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards", corps, true)
+	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards", corps, true, true)
 	if err != nil {
 		return nil, fmt.Errorf("hrpay création carte: %w", err)
 	}
@@ -75,7 +75,7 @@ func (a *Adapter) CreerCarte(ctx context.Context, params outputcarte.CreerCarteP
 // de synchronisation (voir carte.CarteUseCase.SynchroniserSoldes), faute
 // de webhook de transaction ou de changement de statut côté agrégateur.
 func (a *Adapter) ObtenirEtatCarte(ctx context.Context, idExterne string) (int64, domaincarte.StatutCarte, error) {
-	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodGet, "/api/v1/virtual-cards/"+idExterne, nil, false)
+	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodGet, "/api/v1/virtual-cards/"+idExterne, nil, false, false)
 	if err != nil {
 		return 0, "", fmt.Errorf("hrpay lecture état carte: %w", err)
 	}
@@ -90,7 +90,7 @@ func (a *Adapter) ObtenirEtatCarte(ctx context.Context, idExterne string) (int64
 
 // GelerCarte implémente carte.AgregateurCarte.
 func (a *Adapter) GelerCarte(ctx context.Context, idExterne string) error {
-	if _, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards/"+idExterne+"/freeze", nil, false); err != nil {
+	if _, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards/"+idExterne+"/freeze", nil, false, false); err != nil {
 		return fmt.Errorf("hrpay gel carte: %w", err)
 	}
 	return nil
@@ -98,7 +98,7 @@ func (a *Adapter) GelerCarte(ctx context.Context, idExterne string) error {
 
 // DegelerCarte implémente carte.AgregateurCarte.
 func (a *Adapter) DegelerCarte(ctx context.Context, idExterne string) error {
-	if _, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards/"+idExterne+"/unfreeze", nil, false); err != nil {
+	if _, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards/"+idExterne+"/unfreeze", nil, false, false); err != nil {
 		return fmt.Errorf("hrpay dégel carte: %w", err)
 	}
 	return nil
@@ -113,7 +113,7 @@ type topupReponse struct {
 // plutôt que de le recalculer localement.
 func (a *Adapter) RechargerCarte(ctx context.Context, idExterne string, montantUSDCentimes int64) (int64, error) {
 	corps := map[string]any{"amount": centimesVersDollars(montantUSDCentimes)}
-	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards/"+idExterne+"/topup", corps, true)
+	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards/"+idExterne+"/topup", corps, true, true)
 	if err != nil {
 		return 0, fmt.Errorf("hrpay recharge carte: %w", err)
 	}
@@ -132,7 +132,7 @@ type cancelReponse struct {
 // déclenchent la même action côté agrégateur (voir sa documentation) —
 // route "cancel" retenue ici, jamais les deux.
 func (a *Adapter) AnnulerCarte(ctx context.Context, idExterne string) (int64, error) {
-	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards/"+idExterne+"/cancel", nil, false)
+	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/virtual-cards/"+idExterne+"/cancel", nil, false, false)
 	if err != nil {
 		return 0, fmt.Errorf("hrpay annulation carte: %w", err)
 	}

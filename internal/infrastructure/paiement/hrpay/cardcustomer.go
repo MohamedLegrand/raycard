@@ -47,7 +47,18 @@ func (e erreurAPI) codeMachine() string {
 // le commentaire de paquet) vers l'API HR-Skills Pay. corps peut être nil
 // (GET). idempotent doit être vrai pour tout POST qui déplace des fonds
 // (voir HeaderIdempotencyKey documenté) — jamais pour un GET.
-func (a *Adapter) requeteAuthentifiee(ctx context.Context, methode, chemin string, corps any, idempotent bool) ([]byte, error) {
+//
+// soldeCarteWalletSiInsuffisant distingue les deux sens différents que
+// prend le code "insufficient_balance" selon l'endpoint (voir la
+// documentation de l'agrégateur, §9) : sur /virtual-cards (création,
+// topup) il signifie "portefeuille USD cartes insuffisant" — vrai ici,
+// traduit en domaincarte.ErrCardWalletInsuffisant. Sur /card-wallet/fund
+// en revanche, le même code signifie l'inverse : "wallet XAF principal
+// du marchand insuffisant" — faux ici, laissé en erreur générique pour
+// ne jamais déclencher à tort le financement automatique borné (voir
+// carteService.creerCarteAvecFinancementAutomatique, qui réagit
+// spécifiquement au sentinel).
+func (a *Adapter) requeteAuthentifiee(ctx context.Context, methode, chemin string, corps any, idempotent, soldeCarteWalletSiInsuffisant bool) ([]byte, error) {
 	jeton, err := a.client.Auth.GetToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("obtention transaction token: %w", err)
@@ -96,12 +107,14 @@ func (a *Adapter) requeteAuthentifiee(ctx context.Context, methode, chemin strin
 		if msg == "" {
 			msg = string(corpsReponse)
 		}
-		// insufficient_balance sur une route carte est spécifiquement
-		// reconnu : le service applicatif s'en sert pour déclencher un
-		// financement automatique borné du portefeuille cartes (voir
-		// carteService.CreerCarte) — toute autre erreur reste une erreur
-		// générique, jamais traitée comme récupérable automatiquement.
-		if e.codeMachine() == "insufficient_balance" {
+		// insufficient_balance n'est traduit en sentinel que là où il
+		// signifie vraiment "portefeuille USD cartes insuffisant" (voir le
+		// commentaire de soldeCarteWalletSiInsuffisant ci-dessus) : le
+		// service applicatif s'en sert pour déclencher un financement
+		// automatique borné (voir carteService.CreerCarte). Ailleurs
+		// (notamment /card-wallet/fund, où le même code signifie l'inverse),
+		// reste une erreur générique.
+		if soldeCarteWalletSiInsuffisant && e.codeMachine() == "insufficient_balance" {
 			return nil, fmt.Errorf("%w: %s", domaincarte.ErrCardWalletInsuffisant, msg)
 		}
 		return nil, fmt.Errorf("hrpay %s %s: %d %s (%s)", methode, chemin, resp.StatusCode, msg, e.codeMachine())
@@ -145,7 +158,7 @@ func (a *Adapter) SoumettreCardCustomer(ctx context.Context, p outputcarte.Soume
 		"id_document_back":      dataURI(p.DocumentVersoMimeType, p.DocumentVerso),
 	}
 
-	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/card-customers", corps, false)
+	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/card-customers", corps, false, false)
 	if err != nil {
 		return nil, fmt.Errorf("hrpay soumission porteur de carte: %w", err)
 	}
@@ -167,7 +180,7 @@ type cardWalletReponse struct {
 // renvoyé en dollars par l'agrégateur (pas en centimes) : converti ici,
 // jamais côté domaine (voir CreerCarteParams.MontantUSDCentimes).
 func (a *Adapter) ObtenirCardWallet(ctx context.Context) (int64, error) {
-	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodGet, "/api/v1/card-wallet", nil, false)
+	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodGet, "/api/v1/card-wallet", nil, false, false)
 	if err != nil {
 		return 0, fmt.Errorf("hrpay lecture portefeuille cartes: %w", err)
 	}
@@ -187,7 +200,7 @@ type quoteReponse struct {
 // CoterConversion implémente carte.AgregateurCarte.
 func (a *Adapter) CoterConversion(ctx context.Context, montantXAFCentimes int64) (int64, error) {
 	chemin := fmt.Sprintf("/api/v1/card-wallet/quote?amount_source=%d&source_currency=XAF&direction=fund", montantXAFCentimes)
-	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodGet, chemin, nil, false)
+	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodGet, chemin, nil, false, false)
 	if err != nil {
 		return 0, fmt.Errorf("hrpay cotation conversion: %w", err)
 	}
@@ -205,7 +218,7 @@ type fundReponse struct {
 // AlimenterCardWallet implémente carte.AgregateurCarte.
 func (a *Adapter) AlimenterCardWallet(ctx context.Context, montantUSDCentimes int64) (int64, error) {
 	corps := map[string]any{"amount_usd": centimesVersDollars(montantUSDCentimes)}
-	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/card-wallet/fund", corps, true)
+	corpsReponse, err := a.requeteAuthentifiee(ctx, http.MethodPost, "/api/v1/card-wallet/fund", corps, true, false)
 	if err != nil {
 		return 0, fmt.Errorf("hrpay alimentation portefeuille cartes: %w", err)
 	}
