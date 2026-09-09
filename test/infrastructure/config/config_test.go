@@ -57,3 +57,48 @@ func TestLoad_AccepteSecretValide(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, cfg.JWTSecret)
 }
+
+func TestLoad_S3Vide_StockageLocalParDefaut(t *testing.T) {
+	definirEnvValide(t, "un-secret-suffisamment-long-et-different-du-placeholder")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.Empty(t, cfg.S3Bucket, "S3_BUCKET vide par défaut : bascule sur le stockage local, voir cmd/api/main.go")
+}
+
+func TestLoad_S3Bucket_ExigeRegionEtIdentifiants(t *testing.T) {
+	definirEnvValide(t, "un-secret-suffisamment-long-et-different-du-placeholder")
+	t.Setenv("S3_BUCKET", "raycard-documents")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "S3_REGION")
+
+	t.Setenv("S3_REGION", "auto")
+	_, err = config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "S3_ACCESS_KEY_ID")
+
+	t.Setenv("S3_ACCESS_KEY_ID", "test-key-id")
+	_, err = config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "S3_SECRET_ACCESS_KEY")
+
+	t.Setenv("S3_SECRET_ACCESS_KEY", "test-secret")
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.Equal(t, "raycard-documents", cfg.S3Bucket)
+}
+
+func TestLoad_S3UsePathStyle_VraiParDefaut(t *testing.T) {
+	definirEnvValide(t, "un-secret-suffisamment-long-et-different-du-placeholder")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.S3UsePathStyle, "vrai par défaut : recommandé pour la plupart des fournisseurs S3-compatibles non-AWS")
+
+	t.Setenv("S3_USE_PATH_STYLE", "false")
+	cfg, err = config.Load()
+	require.NoError(t, err)
+	assert.False(t, cfg.S3UsePathStyle)
+}

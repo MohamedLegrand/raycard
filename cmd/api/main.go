@@ -22,6 +22,7 @@ import (
 	appwallet "raycard/internal/application/wallet"
 	inputcarte "raycard/internal/core/ports/input/carte"
 	inputwallet "raycard/internal/core/ports/input/wallet"
+	outputcommun "raycard/internal/core/ports/output/commun"
 	"raycard/internal/infrastructure/auth/google"
 	"raycard/internal/infrastructure/auth/jwt"
 	"raycard/internal/infrastructure/config"
@@ -34,6 +35,7 @@ import (
 	"raycard/internal/infrastructure/ocr/tesseract"
 	"raycard/internal/infrastructure/paiement/hrpay"
 	"raycard/internal/infrastructure/storage/local"
+	"raycard/internal/infrastructure/storage/s3"
 	apihttp "raycard/internal/transport/http"
 	handlersadmin "raycard/internal/transport/http/handlers/admin"
 	handlersauth "raycard/internal/transport/http/handlers/auth"
@@ -112,10 +114,22 @@ func main() {
 		logger.Fatal().Err(err).Msg("initialisation agrégateur de paiement")
 	}
 
-	// Stockage disque local des fichiers téléversés (documents KYC,
-	// photos de profil) et extraction du texte des documents via le
-	// binaire tesseract.
-	stockageFichiers := local.NewStockageFichier(cfg.UploadsDir)
+	// Stockage des fichiers téléversés (documents KYC, photos de profil) :
+	// objet compatible S3 si configuré (voir Config.S3Bucket — recommandé
+	// en production, seule option qui survit à un redéploiement ou à
+	// plusieurs instances), sinon disque local du serveur (suffisant en
+	// développement, sans dépendance externe). Le port
+	// outputcommun.StockageFichier isole ce choix du reste du code.
+	var stockageFichiers outputcommun.StockageFichier
+	if cfg.S3Bucket != "" {
+		stockageFichiers = s3.NewStockageFichier(
+			cfg.S3Bucket, cfg.S3Region, cfg.S3Endpoint, cfg.S3AccessKeyID, cfg.S3SecretAccessKey, cfg.S3UsePathStyle,
+		)
+		logger.Info().Str("bucket", cfg.S3Bucket).Msg("stockage fichiers : objet (S3-compatible)")
+	} else {
+		stockageFichiers = local.NewStockageFichier(cfg.UploadsDir)
+		logger.Info().Str("répertoire", cfg.UploadsDir).Msg("stockage fichiers : disque local")
+	}
 	ocrExtracteur := tesseract.NewExtracteur(cfg.TesseractLang)
 
 	// Use cases (application)

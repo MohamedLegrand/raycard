@@ -1,9 +1,11 @@
-// Package local implémente kyc.StockageFichier en écrivant les
+// Package local implémente commun.StockageFichier en écrivant les
 // fichiers téléversés sur le disque du serveur, sous un répertoire
-// configurable. Suffisant pour démarrer ; un stockage objet (S3
-// compatible) pourra remplacer cette implémentation plus tard sans
-// toucher au reste du code, le port output.StockageFichier isolant ce
-// détail.
+// configurable. Adaptée au développement (aucune dépendance externe),
+// mais ne survit ni à un redéploiement ni à plusieurs instances sans
+// volume partagé — voir internal/infrastructure/storage/s3, l'adaptateur
+// recommandé en production, choisi à la place de celui-ci selon
+// Config.S3Bucket (voir cmd/api/main.go). Le port
+// output.StockageFichier isole ce choix du reste du code.
 package local
 
 import (

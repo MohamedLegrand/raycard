@@ -21,9 +21,25 @@ type Config struct {
 	Env                  string
 	UploadsDir           string
 	TesseractLang        string
-	HrPayPublicKey       string
-	HrPaySecretKey       string
-	HrPayWebhookSecret   string
+
+	// S3Bucket vide (défaut) = stockage local sur disque (voir
+	// local.StockageFichier), suffisant en développement sans dépendance
+	// externe. Renseigné = bascule sur le stockage objet compatible S3
+	// (voir s3.StockageFichier et cmd/api/main.go, qui choisit l'une ou
+	// l'autre implémentation selon ce champ) — recommandé en production,
+	// le disque local ne survivant ni à un redéploiement ni à plusieurs
+	// instances.
+	S3Bucket          string
+	S3Region          string
+	S3Endpoint        string // vide = AWS S3 natif ; renseigné = tout fournisseur S3-compatible (R2, B2, MinIO...)
+	S3AccessKeyID     string
+	S3SecretAccessKey string
+	// S3UsePathStyle : vrai pour la plupart des fournisseurs non-AWS (voir
+	// leur documentation respective), faux pour AWS S3 natif.
+	S3UsePathStyle     bool
+	HrPayPublicKey     string
+	HrPaySecretKey     string
+	HrPayWebhookSecret string
 
 	// CorsAllowedOrigins : liste d'origines autorisées séparées par des
 	// virgules (ex: "https://backoffice.raycard.io"). Vide par défaut —
@@ -48,6 +64,12 @@ func Load() (*Config, error) {
 		Env:                  getEnv("APP_ENV", "development"),
 		UploadsDir:           getEnv("UPLOADS_DIR", "./uploads"),
 		TesseractLang:        getEnv("TESSERACT_LANG", "fra"),
+		S3Bucket:             os.Getenv("S3_BUCKET"),
+		S3Region:             os.Getenv("S3_REGION"),
+		S3Endpoint:           os.Getenv("S3_ENDPOINT"),
+		S3AccessKeyID:        os.Getenv("S3_ACCESS_KEY_ID"),
+		S3SecretAccessKey:    os.Getenv("S3_SECRET_ACCESS_KEY"),
+		S3UsePathStyle:       getEnv("S3_USE_PATH_STYLE", "true") == "true",
 		HrPayPublicKey:       os.Getenv("HRPAY_PUBLIC_KEY"),
 		HrPaySecretKey:       os.Getenv("HRPAY_SECRET_KEY"),
 		HrPayWebhookSecret:   os.Getenv("HRPAY_WEBHOOK_SECRET"),
@@ -77,6 +99,21 @@ func Load() (*Config, error) {
 	}
 	if cfg.HrPayWebhookSecret == "" {
 		return nil, fmt.Errorf("HRPAY_WEBHOOK_SECRET est requis")
+	}
+	// S3_BUCKET reste optionnel (voir son commentaire sur Config) : ne
+	// valider la présence des autres champs S3 que si le stockage objet
+	// est effectivement activé — jamais bloquer le démarrage en
+	// développement, où le stockage local par défaut ne les demande pas.
+	if cfg.S3Bucket != "" {
+		if cfg.S3Region == "" {
+			return nil, fmt.Errorf("S3_REGION est requis quand S3_BUCKET est renseigné")
+		}
+		if cfg.S3AccessKeyID == "" {
+			return nil, fmt.Errorf("S3_ACCESS_KEY_ID est requis quand S3_BUCKET est renseigné")
+		}
+		if cfg.S3SecretAccessKey == "" {
+			return nil, fmt.Errorf("S3_SECRET_ACCESS_KEY est requis quand S3_BUCKET est renseigné")
+		}
 	}
 
 	return cfg, nil
