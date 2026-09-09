@@ -9,9 +9,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/rs/zerolog"
 
 	_ "raycard/docs" // docs générés par `swag init`, nécessaires pour servir la spec Swagger
@@ -44,11 +42,6 @@ import (
 	handlerswallet "raycard/internal/transport/http/handlers/wallet"
 	"raycard/internal/transport/http/middleware"
 )
-
-// tailleMaxCorpsRequete autorise l'upload de photos de documents KYC
-// (plusieurs Mo depuis un téléphone), au-delà de la limite par défaut
-// de Fiber (4 Mo).
-const tailleMaxCorpsRequete = 10 * 1024 * 1024
 
 // @title						RAYCARD API
 // @version					1.0
@@ -169,21 +162,10 @@ func main() {
 	adminWalletHandler := handlerswallet.NewAdminWalletHandler(adminWalletUseCase)
 	adminCarteHandler := handlerscarte.NewAdminCarteHandler(adminCarteUseCase, validate)
 
-	app := fiber.New(fiber.Config{
-		BodyLimit: tailleMaxCorpsRequete,
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			code := fiber.StatusInternalServerError
-			if e, ok := err.(*fiber.Error); ok {
-				code = e.Code
-			}
-			msgClient := err.Error()
-			if code == fiber.StatusInternalServerError {
-				msgClient = "erreur interne"
-			}
-			return c.Status(code).JSON(fiber.Map{"erreur": msgClient})
-		},
-	})
-	app.Use(recover.New(recover.Config{EnableStackTrace: true}))
+	// Configuration commune à toute instance de l'API (limite de corps,
+	// forme JSON des erreurs, récupération de panique) — partagée avec les
+	// tests HTTP de la couche transport, voir apihttp.NouvelleApp.
+	app := apihttp.NouvelleApp()
 	app.Use(middleware.Logger(logger))
 
 	// Désactivé par défaut (voir config.Config.CorsAllowedOrigins) : l'app
