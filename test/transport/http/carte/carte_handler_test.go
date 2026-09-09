@@ -57,7 +57,7 @@ func requeteJSON(t *testing.T, methode, chemin string, corps any, token string) 
 
 func corpsJSON(t *testing.T, resp *http.Response) map[string]any {
 	t.Helper()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var out map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
 	return out
