@@ -1419,40 +1419,6 @@ func TestCarteService_DegelerCarteAdmin_Succes(t *testing.T) {
 	assert.Equal(t, "carte_degelee_admin", auditLog.Entrees[1].Action)
 }
 
-func TestCarteService_AnnulerCarteAdmin_Succes(t *testing.T) {
-	utilisateurs := testcommun.NewUtilisateurRepoFake()
-	wallets := testcommun.NewWalletRepoFake()
-	transactions := testwallet.NewTransactionRepoFake()
-	cartes := testcarte.NewCarteRepoFake()
-	depenses := testcarte.NewDepenseCarteRepoFake()
-	notifieur := &testcommun.NotifieurFake{}
-	auditLog := &testcommun.AuditLogRepoFake{}
-	agregateur := &testcarte.AgregateurCarteFake{IDExterneGenere: "card-admin-annuler-1", SoldeRestantAnnule: 4000}
-	service := nouveauService(utilisateurs, wallets, transactions, cartes, depenses, agregateur, notifieur, auditLog)
-
-	nouvelUtilisateurTest(t, utilisateurs, true, service.CardCustomers)
-	w := nouveauWalletTest(t, wallets)
-	crediterDisponible(t, wallets, w, 20000)
-
-	carteCreee, err := service.CreerCarte(context.Background(), utilisateurID, inputcarte.CreerCarteRequest{
-		Label: "Carte courses", MontantCentimes: 10000,
-	})
-	require.NoError(t, err)
-
-	carteAnnulee, err := service.AnnulerCarteAdmin(context.Background(), "admin-1", carteCreee.ID)
-	require.NoError(t, err)
-	assert.Equal(t, domaincarte.StatutCarteAnnulee, carteAnnulee.Statut)
-
-	// Remboursement appliqué comme pour l'annulation client (même logique
-	// partagée, voir carteService.annulerCarte).
-	walletMisAJour, err := wallets.FindByID(context.Background(), w.ID)
-	require.NoError(t, err)
-	assert.Equal(t, int64(14000), walletMisAJour.SoldeDisponibleCentimes)
-
-	require.Len(t, auditLog.Entrees, 1)
-	assert.Equal(t, "carte_annulee_admin", auditLog.Entrees[0].Action)
-}
-
 func TestCarteService_ListerCartesAdmin_FiltreParUtilisateur(t *testing.T) {
 	utilisateurs := testcommun.NewUtilisateurRepoFake()
 	wallets := testcommun.NewWalletRepoFake()

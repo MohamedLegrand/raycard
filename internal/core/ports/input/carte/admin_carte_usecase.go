@@ -15,15 +15,19 @@ import (
 type AdminCarteUseCase interface {
 	ListerCartesAdmin(ctx context.Context, filtre outputcarte.FiltreCartes) ([]*carte.Carte, error)
 
-	// GelerCarteAdmin, DegelerCarteAdmin et AnnulerCarteAdmin agissent sur
-	// n'importe quelle carte du système (jamais restreint à un
-	// propriétaire, contrairement à CarteUseCase) et écrivent une entrée
-	// d'audit. Le suffixe Admin évite toute collision de nom avec
-	// CarteUseCase sur le type qui implémente les deux interfaces (voir
-	// carteService).
+	// GelerCarteAdmin et DegelerCarteAdmin agissent sur n'importe quelle
+	// carte du système (jamais restreint à un propriétaire, contrairement
+	// à CarteUseCase) et écrivent une entrée d'audit. Le suffixe Admin
+	// évite toute collision de nom avec CarteUseCase sur le type qui
+	// implémente les deux interfaces (voir carteService).
+	//
+	// Volontairement pas d'AnnulerCarteAdmin : la destruction d'une carte
+	// est irréversible (voir carte.Carte.Annuler), donc jamais une action
+	// back-office — seul le client, propriétaire de sa carte, peut la
+	// décider (voir CarteUseCase.AnnulerCarte). Un admin ne dispose que du
+	// gel/dégel, tous deux réversibles.
 	GelerCarteAdmin(ctx context.Context, adminID, carteID string) (*carte.Carte, error)
 	DegelerCarteAdmin(ctx context.Context, adminID, carteID string) (*carte.Carte, error)
-	AnnulerCarteAdmin(ctx context.Context, adminID, carteID string) (*carte.Carte, error)
 
 	// ObtenirCardWalletAdmin renvoie le solde actuel du portefeuille USD
 	// dédié aux cartes — le wallet marchand chez l'agrégateur, distinct de

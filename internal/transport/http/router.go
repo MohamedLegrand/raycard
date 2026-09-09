@@ -184,7 +184,9 @@ func SetupRoutes(app *fiber.App, h Handlers, tokenGenerator authoutput.TokenGene
 	backofficeCartes.Post("/portefeuille/financer", h.AdminCarte.AlimenterCardWallet)
 	backofficeCartes.Post("/:id/gel", h.AdminCarte.GelerCarte)
 	backofficeCartes.Post("/:id/degel", h.AdminCarte.DegelerCarte)
-	backofficeCartes.Post("/:id/annuler", h.AdminCarte.AnnulerCarte)
+	// Pas de route d'annulation ici, volontairement : voir le commentaire
+	// sur inputcarte.AdminCarteUseCase — un admin ne peut jamais détruire
+	// une carte, seul le client propriétaire le peut (POST /cartes/:id/annuler).
 
 	backofficeTransactions := api.Group("/backoffice/transactions", authmw.RequireAdmin(tokenGenerator))
 	backofficeTransactions.Get("/", h.AdminWallet.ListerTransactions)

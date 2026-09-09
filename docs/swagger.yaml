@@ -1444,52 +1444,6 @@ paths:
       summary: Liste des cartes (back-office)
       tags:
       - '"2. Admin - Carte"'
-  /backoffice/cartes/{id}/annuler:
-    post:
-      description: Détruit définitivement n'importe quelle carte active ou gelée et
-        rembourse au wallet ce qu'il restait dessus. Tracé dans l'audit log.
-      parameters:
-      - description: ID de la carte
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/carte.CarteDTO'
-        "401":
-          description: non authentifié
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-        "403":
-          description: réservé aux administrateurs
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-        "404":
-          description: carte ou wallet introuvable
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-        "409":
-          description: une opération wallet est déjà en cours
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-        "422":
-          description: carte déjà annulée, ou wallet gelé
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-        "500":
-          description: erreur interne
-          schema:
-            $ref: '#/definitions/commun.ErreurDTO'
-      security:
-      - BearerAuth: []
-      summary: Annulation d'une carte (back-office)
-      tags:
-      - '"2. Admin - Carte"'
   /backoffice/cartes/{id}/degel:
     post:
       description: Réactive n'importe quelle carte gelée, sans vérification de propriétaire.

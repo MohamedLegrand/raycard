@@ -142,9 +142,6 @@ type AdminCarteUseCaseFake struct {
 	DegelerCarteAdminResultat *domaincarte.Carte
 	DegelerCarteAdminErr      error
 
-	AnnulerCarteAdminResultat *domaincarte.Carte
-	AnnulerCarteAdminErr      error
-
 	ObtenirCardWalletAdminResultat int64
 	ObtenirCardWalletAdminErr      error
 
@@ -169,11 +166,6 @@ func (f *AdminCarteUseCaseFake) GelerCarteAdmin(_ context.Context, adminID, cart
 func (f *AdminCarteUseCaseFake) DegelerCarteAdmin(_ context.Context, adminID, carteID string) (*domaincarte.Carte, error) {
 	f.DernierAdminID, f.DernierCarteID = adminID, carteID
 	return f.DegelerCarteAdminResultat, f.DegelerCarteAdminErr
-}
-
-func (f *AdminCarteUseCaseFake) AnnulerCarteAdmin(_ context.Context, adminID, carteID string) (*domaincarte.Carte, error) {
-	f.DernierAdminID, f.DernierCarteID = adminID, carteID
-	return f.AnnulerCarteAdminResultat, f.AnnulerCarteAdminErr
 }
 
 func (f *AdminCarteUseCaseFake) ObtenirCardWalletAdmin(_ context.Context) (int64, error) {

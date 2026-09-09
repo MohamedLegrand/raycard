@@ -302,3 +302,19 @@ func TestAdminCarteHandler_AlimenterCardWallet_Succes(t *testing.T) {
 	body := corpsJSON(t, resp)
 	assert.Equal(t, float64(100000), body["solde_usd_centimes"])
 }
+
+// TestAdminCarteHandler_PasDeRouteAnnulation verrouille une décision
+// produit : un admin ne peut jamais détruire la carte d'un client depuis
+// le dashboard back-office, contrairement au client lui-même (voir
+// POST /cartes/:id/annuler, propriétaire uniquement). Seul le gel/dégel
+// (tous deux réversibles) reste disponible côté admin — voir le
+// commentaire sur inputcarte.AdminCarteUseCase.
+func TestAdminCarteHandler_PasDeRouteAnnulation(t *testing.T) {
+	app, _, tokenAdmin := nouvelleAppCarte(t, &testcarte.CarteUseCaseFake{}, &testcarte.AdminCarteUseCaseFake{})
+
+	req := requeteJSON(t, http.MethodPost, "/api/v1/backoffice/cartes/card-1/annuler", nil, tokenAdmin)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}

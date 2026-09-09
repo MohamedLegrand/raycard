@@ -594,21 +594,6 @@ func (s *carteService) AnnulerCarte(ctx context.Context, utilisateurID, carteID 
 	return s.annulerCarte(ctx, c)
 }
 
-// AnnulerCarteAdmin annule n'importe quelle carte, sans vérification de
-// propriétaire — action back-office, tracée dans l'audit log.
-func (s *carteService) AnnulerCarteAdmin(ctx context.Context, adminID, carteID string) (*domaincarte.Carte, error) {
-	c, err := s.cartes.FindByID(ctx, carteID)
-	if err != nil {
-		return nil, err
-	}
-	c, err = s.annulerCarte(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	_ = s.ecrireAuditLog(ctx, adminID, "carte_annulee_admin", "carte", c.ID, "")
-	return c, nil
-}
-
 func (s *carteService) annulerCarte(ctx context.Context, c *domaincarte.Carte) (*domaincarte.Carte, error) {
 	if c.Statut != domaincarte.StatutCarteActive && c.Statut != domaincarte.StatutCarteGelee {
 		return nil, domaincarte.ErrTransitionCarteInvalide

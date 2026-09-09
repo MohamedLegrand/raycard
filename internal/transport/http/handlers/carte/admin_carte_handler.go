@@ -102,33 +102,10 @@ func (h *AdminCarteHandler) DegelerCarte(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(cartedto.FromCarte(carteMiseAJour))
 }
 
-// AnnulerCarte gère POST /api/v1/backoffice/cartes/:id/annuler.
-//
-//	@Summary		Annulation d'une carte (back-office)
-//	@Description	Détruit définitivement n'importe quelle carte active ou gelée et rembourse au wallet ce qu'il restait dessus. Tracé dans l'audit log.
-//	@Tags			"2. Admin - Carte"
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			id	path		string	true	"ID de la carte"
-//	@Success		200	{object}	carte.CarteDTO
-//	@Failure		401	{object}	commun.ErreurDTO	"non authentifié"
-//	@Failure		403	{object}	commun.ErreurDTO	"réservé aux administrateurs"
-//	@Failure		404	{object}	commun.ErreurDTO	"carte ou wallet introuvable"
-//	@Failure		409	{object}	commun.ErreurDTO	"une opération wallet est déjà en cours"
-//	@Failure		422	{object}	commun.ErreurDTO	"carte déjà annulée, ou wallet gelé"
-//	@Failure		500	{object}	commun.ErreurDTO	"erreur interne"
-//	@Router			/backoffice/cartes/{id}/annuler [post]
-func (h *AdminCarteHandler) AnnulerCarte(c *fiber.Ctx) error {
-	adminID, _ := c.Locals(authmw.CleContextUtilisateurID).(string)
-	carteID := c.Params("id")
-
-	carteAnnulee, err := h.adminCarteUseCase.AnnulerCarteAdmin(c.Context(), adminID, carteID)
-	if err != nil {
-		return handlerscommun.MapErreurDomaine(err)
-	}
-
-	return c.Status(fiber.StatusOK).JSON(cartedto.FromCarte(carteAnnulee))
-}
+// Pas de route d'annulation ici, volontairement : détruire une carte est
+// irréversible, jamais une action back-office — voir le commentaire sur
+// inputcarte.AdminCarteUseCase. Un admin ne dispose que du gel/dégel
+// ci-dessus, tous deux réversibles.
 
 // ObtenirCardWallet gère GET /api/v1/backoffice/cartes/portefeuille.
 //
